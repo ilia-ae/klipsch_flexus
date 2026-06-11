@@ -131,6 +131,92 @@ class KlipschAPI:
         async with session.get(url, timeout=client_timeout) as resp:
             return await resp.text()
 
+    async def get_auth_mode(self) -> str:
+        """Read settings:/webserver/authMode.
+
+        Firmware from 2026 gates setData behind authentication. Returns one of
+        ``none`` (all writes open), ``setData`` (most writes require an
+        HMAC-signed request; only volume/mute stay open) or ``all``.
+        """
+        try:
+            data = await self.get_data("settings:/webserver/authMode")
+            return data[0].get("webserverAuthMode", "none")
+        except Exception:
+            return "unknown"
+
+    async def probe_command_health(self) -> dict:
+        """Deep diagnostic: report which write commands the firmware accepts.
+
+        For every command path it reads the current value and writes the same
+        value straight back — an idempotent no-op — recording the HTTP status.
+        ``200`` means the command is alive; ``401`` means the firmware now
+        blocks it (auth required). Power is probed read-only since it has no
+        safe no-op. Nothing is changed on the device.
+        """
+        from .const import API_PATHS
+
+        # (key, roles) — only value-roles paths have a safe idempotent write-back.
+        probes = [
+            ("volume", "value"),
+            ("mute", "value"),
+            ("input", "value"),
+            ("mode", "value"),
+            ("night", "value"),
+            ("dialog", "value"),
+            ("bass", "value"),
+            ("mid", "value"),
+            ("treble", "value"),
+            ("eq_preset", "value"),
+            ("dirac", "value"),
+            ("sub_wired", "value"),
+            ("sub_wireless", "value"),
+        ]
+
+        report: dict = {"auth_mode": await self.get_auth_mode(), "commands": {}}
+
+        for key, roles in probes:
+            path = API_PATHS[key]
+            try:
+                current = await self.get_data(path)
+                value = current[0] if current else None
+            except Exception as err:
+                report["commands"][key] = {"alive": False, "detail": f"read failed: {type(err).__name__}"}
+                continue
+            if value is None:
+                report["commands"][key] = {"alive": False, "detail": "no value returned"}
+                continue
+            status = await self._probe_set_status(path, value, roles)
+            report["commands"][key] = {
+                "alive": status is not None and status < 400,
+                "http_status": status,
+                "needs_auth": status in (401, 403),
+            }
+
+        # Power: read-only probe (no safe idempotent write).
+        try:
+            power = await self.get_data(API_PATHS["power"])
+            target = power[0].get("powerTarget", {}).get("target", "unknown")
+            report["commands"]["power"] = {"alive": None, "readable": True, "current_target": target}
+        except Exception as err:
+            report["commands"]["power"] = {"alive": None, "readable": False, "detail": type(err).__name__}
+
+        return report
+
+    async def _probe_set_status(self, path: str, value: dict, roles: str) -> int | None:
+        """Write a value back and return the HTTP status (no retry, no raise)."""
+        async with self._lock:
+            try:
+                session = await self._ensure_session()
+                payload = {"path": path, "roles": roles, "value": value}
+                async with session.post(
+                    f"{self._base}/api/setData",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=API_TIMEOUT_WRITE),
+                ) as resp:
+                    return resp.status
+            except (TimeoutError, aiohttp.ClientError, OSError):
+                return None
+
     async def get_rows(self, path: str) -> dict:
         """GET /api/getRows — serialized via lock."""
         async with self._lock:

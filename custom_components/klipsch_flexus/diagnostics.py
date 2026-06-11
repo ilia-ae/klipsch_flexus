@@ -20,6 +20,14 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     coordinator: KlipschCoordinator = hass.data[DOMAIN][entry.entry_id]
     api = coordinator.api
 
+    # Deep probe: which write commands the firmware still accepts. Idempotent —
+    # reads each value and writes it straight back. On 2026+ firmware with
+    # authMode=setData, most commands report needs_auth=True.
+    try:
+        command_health = await api.probe_command_health()
+    except Exception as err:  # diagnostics must never raise
+        command_health = {"error": type(err).__name__}
+
     return {
         "entry": {
             "data": async_redact_data(dict(entry.data), TO_REDACT),
@@ -27,6 +35,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         },
         "device_status": coordinator.data or {},
         "dirac_filters": coordinator.dirac_filters,
+        "command_health": command_health,
         "api_stats": {
             "last_response_time_ms": api.last_response_time,
             "total_requests": api.total_requests,

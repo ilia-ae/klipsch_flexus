@@ -239,6 +239,38 @@ async def test_set_data_falls_back_to_get(api: KlipschAPI) -> None:
     assert mock_session.get.call_count == 2
 
 
+async def test_probe_command_health(api: KlipschAPI) -> None:
+    """Test deep diagnostic: alive vs auth-blocked commands (2026 firmware)."""
+
+    async def mock_get_data(path, timeout=8):
+        if "authMode" in path:
+            return [{"type": "webserverAuthMode", "webserverAuthMode": "setData"}]
+        if "powermanager" in path:
+            return [{"powerTarget": {"target": "online"}}]
+        return [{"type": "i32_", "i32_": 0}]
+
+    async def mock_probe_set_status(path, value, roles):
+        # Firmware keeps volume/mute open, blocks everything else with 401.
+        if path in ("player:volume", "settings:/mediaPlayer/mute"):
+            return 200
+        return 401
+
+    api.get_data = mock_get_data
+    api._probe_set_status = mock_probe_set_status
+
+    report = await api.probe_command_health()
+
+    assert report["auth_mode"] == "setData"
+    assert report["commands"]["volume"]["alive"] is True
+    assert report["commands"]["mute"]["alive"] is True
+    assert report["commands"]["bass"]["alive"] is False
+    assert report["commands"]["bass"]["needs_auth"] is True
+    assert report["commands"]["dirac"]["http_status"] == 401
+    # Power is probed read-only (no safe no-op write)
+    assert report["commands"]["power"]["readable"] is True
+    assert report["commands"]["power"]["current_target"] == "online"
+
+
 async def test_close_session(api: KlipschAPI) -> None:
     """Test session cleanup."""
     mock_session = AsyncMock(spec=aiohttp.ClientSession)
