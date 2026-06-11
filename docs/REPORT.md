@@ -150,6 +150,34 @@ Authorization: HMAC_SHA256_AES256 {ts_ms}.{nonce}.{username}.{base64_sig}
 **Оценка:** бинарный оракул (401 без подсказки) + AES-над-телом + остаточная
 неопределённость порядка канонической строки делают последние проценты непропорционально
 дорогими по статике. Заголовок и пароль — закрыты; для байт-точной `build_signature`
-эффективнее всего **динамический съём** (rootnutый Android + Frida-хук `generateAuthHeader`
-@`libapp.so+0x6d7ce0`). Эмулятор есть и rootается, но приложение там не видит бар без
-BLE/mDNS — нужен либо обход discovery, либо реальный root-телефон.
+эффективнее всего **динамический съём**.
+
+### 🎯 Перехват подписи — УДАЛСЯ (iPhone + WireGuard-MITM)
+HTTP-прокси не ловил bar-трафик (Flutter шлёт local-IP мимо прокси; и iOS Flutter не
+уважает системный прокси). Решение: **mitmproxy в режиме WireGuard**, `AllowedIPs =
+10.0.1.51/32` (только бар через туннель, discovery остаётся на прямом Wi-Fi),
+`--ssl-insecure` (принять Klipsch-CA серт бара). Приложение **не пиннится** к бару —
+mitmproxy расшифровал. Поймано 17 живых подписанных setData:
+
+```
+POST https://10.0.1.51/api/setData
+Authorization: HMAC_SHA256_AES256 dXNlcg==.UpnlFt5z.1781204748147.gncG+ZgSG5WsjzMtVoWOsRpZNw3c4VAo5AS2NLwXtyQ=
+Body: {"path":"settings:/cinema/dialogMode","role":"value","value":"<base64 AES, 80B>"}
+```
+Заголовок (точно): `HMAC_SHA256_AES256 {base64(username)}.{nonce}.{ts_ms}.{base64(sig)}`
+где `dXNlcg==`=base64("user"), nonce=6 байт, ts=мс, sig=32 байта.
+
+### Стена офлайн-крека
+Имея реальную `sig` как ТОЧНЫЙ оракул, перебрал офлайн:
+- HMAC: ~10 дериваций ключа × все порядки 2–5 полей (method/path/role/ts/user/nonce/
+  cipher в виде строк и сырых байт), оба MAC → **0 совпадений**.
+- AES-тело: ~7 ключей × 6 форм MAC × {CBC,CTR,CFB,OFB} × {IV=ct[:16]/ct[-16:]/zero/
+  sha256(nonce)/sha256(ts)} × {full/skip16/trim16} → **0 читаемых**.
+
+Вывод: **деривация ключа НЕ простая** функция от выведённого пароля (возможно PBKDF/
+доп.соль/иной MAC), либо пароль приложение берёт иначе. Нужен **ground-truth**: Frida-хук
+на эмуляторе с приложением, подключённым к бару. Блокер эмулятора (нет BLE/mDNS) обходится,
+если приложение покажет бар из **облачного аккаунта Klipsch** (коннект по IP, не mDNS) —
+тогда хук `generateAuthHeader`/`_getPassword`/`Hmac.convert` выдаст точные key+canonical.
+
+Артефакты захвата: `/tmp/klip_flows.log` (17 подписей).
