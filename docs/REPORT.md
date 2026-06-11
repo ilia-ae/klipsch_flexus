@@ -93,3 +93,47 @@ frida-server 17.11 залит, приложение установлено и з
 
 (Эмулятор + frida оставлены поднятыми — пригодятся, если решим всё же снять истину
 динамически через friTap + Frida-подмену MAC.)
+
+### Реконструкция `generateAuthHeader` из asm (детально)
+
+Декомпиляторы (`r2 pdc`, r2ghidra) для Dart AOT не помогают — не резолвят строковый
+пул/символы; лучшее представление — аннотированный asm blutter. Трассировка стек-слотов
+(`[fp, x17]`, x17 = отрицательный офсет) дала:
+
+| Слот | Что лежит | Как получено |
+|---|---|---|
+| `-360` (`-0x168`) | **nonce** | `base64(SecureRandom bytes)` |
+| `-368` (`-0x170`) | DateTime / **timestamp** | `micros`, `sub`(эпоха), `sdiv /1000` → **миллисекунды** |
+| `-384` (`-0x180`).field_f | **cipher** | `base64(AES.encrypt(body))` → кладётся в map → `JsonStringStringifier.stringify` = тело запроса |
+| `-304` (`-0x130`) | **arg2** функции | параметр generateAuthHeader |
+| `-312` (`-0x138`) | **arg3** | параметр |
+| `-328` (`-0x148`) | **arg6** | параметр |
+| `-336` (`-0x150`) | (вход в Hmac — вероятно ключ/пароль) | загружается в x2 прямо перед `Hmac::Hmac` |
+
+**Конвейер:**
+```
+nonce  = base64(SecureRandom)                         // slot -360
+ts     = (DateTime.now().toUtc().micros - epoch)/1000 // мс, slot -368
+aesKey = sha256(password)   // _Sha256 @0x6d8240, 32 байта
+iv     = SecureRandom 16 байт
+cipher = base64(AES(aesKey, iv).encrypt(jsonBody))    // тело шифруется → JSON
+canonical = A.B.C.D.E         // 5 значений через "." (interpolate @0x6d8be4):
+            slot-328 . nonce(-360) . slot-336 . slot-312 . slot-416
+msg    = utf8(canonical)
+sig    = base64( Hmac(sha256, key).convert(msg) )     // key грузится из -336
+header = "HMAC_SHA256_AES256 " + F1.F2.F3.F4           // 4 поля через "."  (@0x6d8cd4)
+```
+
+**Что ещё НЕ зафиксировано байт-точно (остаток):**
+1. Соответствие arg-слотов (-304/-312/-328) ↔ {method, path, body} — порядок параметров
+   `generateAuthHeader(...)` (смотреть в `stream_unlimited_api_service.dart` на call-site).
+2. Ключ HMAC: `utf8(password)` или `aesKey` (slot -336 — что именно).
+3. Режим AES (`encrypt` пакет: `AESMode.sic`/`cbc`) + куда кладётся IV (в одно из 4 полей
+   заголовка или в начало cipher).
+4. Идентичность 4 полей заголовка `F1.F2.F3.F4` (вероятно username/nonce/ts/sig или
+   nonce/ts/iv/sig).
+
+**Оценка:** бинарный оракул (401 без подсказки) + AES-над-телом делают последние 10%
+непропорционально дорогими по статике. Самый быстрый финиш — динамический съём (friTap на
+эмуляторе с обходом BLE/discovery, либо rootnutый телефон). Без этого — продолжать ручную
+трассировку оставшихся 4 пунктов с проверкой на баре.
