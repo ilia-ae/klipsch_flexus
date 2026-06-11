@@ -29,6 +29,29 @@ Home Assistant custom integration for **Klipsch Flexus** soundbars — control v
 
 > The soundbar must be pre-configured via the official Klipsch Connect Plus app (Wi-Fi, firmware, speaker pairing, Dirac calibration). This integration handles ongoing control only.
 
+## ⚠️ Firmware Compatibility (2026 update)
+
+A 2026 soundbar firmware update (**Device Version `1.1.3.x`**, e.g. `1.1.3.0x7cd294e`, Cast build `20250512_0201_RC25`) changed the local HTTP API in two ways:
+
+1. **`setData` now requires `POST` with a JSON body.** The old `GET /api/setData?...` returns `405 Strict HTTP required!`. **Fixed in v2.4.1** — update the integration.
+2. **Most `setData` writes are now authenticated** (`settings:/webserver/authMode = setData`). Protected writes return `401 Forbidden` with `WWW-Authenticate: HMAC_SHA256_AES256`.
+
+### What works on the new firmware
+
+| Capability | Status |
+|------------|--------|
+| All sensors / status reads (`getData`) | ✅ Works |
+| Volume, Mute | ✅ Works (still unauthenticated) |
+| Input, Sound mode, Night / Dialog, Bass / Mid / Treble, EQ Preset, Dirac, Subwoofer & Surround levels, Power | ❌ `401` — blocked by firmware auth |
+
+You can see the live per-command status on your own device via **Download diagnostics** (the `command_health` section, added in v2.4.2).
+
+### Status of the fix
+
+🚧 **No ready solution yet — work in progress.** Restoring full control requires implementing the device's `HMAC_SHA256_AES256` request signing. The signing secret is provisioned by the official app and is still being identified (no user password is set and the device web UI is disabled, so the empty-password case does not work). Until then, reads and volume/mute remain functional.
+
+Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy `GET` fallback.
+
 ## Features
 
 ### Media Player
@@ -171,7 +194,7 @@ This was the original implementation before the custom integration was created. 
 
 See [SECURITY.md](SECURITY.md) for security policy and best practices.
 
-**Network Security Notice**: The soundbar communicates over HTTP without authentication. Keep it on a trusted network segment. Read the [Security Assessment Report](docs/SECURITY_ASSESSMENT_CORE_300.md) for detailed security analysis.
+**Network Security Notice**: The soundbar communicates over HTTP. Older firmware required no authentication at all; the 2026 firmware (`1.1.3.x`) authenticates most write commands but reads stay open (see [Firmware Compatibility](#️-firmware-compatibility-2026-update)). Keep it on a trusted network segment. Read the [Security Assessment Report](docs/SECURITY_ASSESSMENT_CORE_300.md) for detailed security analysis.
 
 ## License
 
