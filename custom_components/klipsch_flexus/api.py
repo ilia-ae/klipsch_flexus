@@ -38,6 +38,7 @@ class KlipschAPI:
         self._own_session = session is None
         self._lock = asyncio.Lock()
         self._last_status: dict = {}
+        self._set_post_unsupported = False  # pre-2026 firmware: setData via GET only
         self.last_response_time: float | None = None  # ms
         self.total_requests: int = 0
         self.failed_requests: int = 0
@@ -101,15 +102,33 @@ class KlipschAPI:
         roles: str = "value",
         timeout: float = API_TIMEOUT_WRITE,
     ) -> str:
-        """GET /api/setData — serialized via lock."""
+        """POST /api/setData — serialized via lock.
+
+        Firmware released in 2026 requires POST with a JSON body; older
+        firmware only understands GET with query params, so a rejected POST
+        falls back to GET and the working method is remembered.
+        """
         async with self._lock:
             return await self._request_with_retry(lambda: self._do_set_data(path, value, roles, timeout))
 
     async def _do_set_data(self, path: str, value: dict, roles: str, timeout: float) -> str:
         session = await self._ensure_session()
+        client_timeout = aiohttp.ClientTimeout(total=timeout)
+
+        if not self._set_post_unsupported:
+            payload = {"path": path, "roles": roles, "value": value}
+            async with session.post(f"{self._base}/api/setData", json=payload, timeout=client_timeout) as resp:
+                if resp.status < 400:
+                    return await resp.text()
+                self._set_post_unsupported = True
+                _LOGGER.info(
+                    "setData POST rejected with HTTP %d — falling back to legacy GET",
+                    resp.status,
+                )
+
         val_str = json.dumps(value, separators=(",", ":"))
         url = f"{self._base}/api/setData?path={quote(path, safe=':/')}&roles={roles}&value={quote(val_str)}"
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+        async with session.get(url, timeout=client_timeout) as resp:
             return await resp.text()
 
     async def get_rows(self, path: str) -> dict:

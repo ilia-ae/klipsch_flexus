@@ -184,6 +184,61 @@ async def test_get_status_power_fail_means_offline(api: KlipschAPI) -> None:
     assert call_count == 1
 
 
+def _mock_response(status: int = 200, text: str = "OK") -> AsyncMock:
+    resp = AsyncMock()
+    resp.status = status
+    resp.text = AsyncMock(return_value=text)
+    resp.__aenter__ = AsyncMock(return_value=resp)
+    resp.__aexit__ = AsyncMock(return_value=False)
+    return resp
+
+
+async def test_set_data_uses_post_json(api: KlipschAPI) -> None:
+    """Test that setData sends POST with JSON body (2026+ firmware)."""
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.post = MagicMock(return_value=_mock_response())
+    mock_session.get = MagicMock(return_value=_mock_response())
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+
+    result = await api.set_data("player:volume", {"type": "i32_", "i32_": 25})
+
+    assert result == "OK"
+    mock_session.post.assert_called_once()
+    args, kwargs = mock_session.post.call_args
+    assert args[0] == "http://192.168.1.100:80/api/setData"
+    assert kwargs["json"] == {
+        "path": "player:volume",
+        "roles": "value",
+        "value": {"type": "i32_", "i32_": 25},
+    }
+    mock_session.get.assert_not_called()
+
+
+async def test_set_data_falls_back_to_get(api: KlipschAPI) -> None:
+    """Test fallback to legacy GET when POST is rejected (old firmware)."""
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.post = MagicMock(return_value=_mock_response(status=405))
+    mock_session.get = MagicMock(return_value=_mock_response(text="LEGACY"))
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+
+    result = await api.set_data("player:volume", {"type": "i32_", "i32_": 25})
+
+    assert result == "LEGACY"
+    mock_session.post.assert_called_once()
+    mock_session.get.assert_called_once()
+    url = mock_session.get.call_args[0][0]
+    assert url.startswith("http://192.168.1.100:80/api/setData?path=player:volume")
+
+    # Subsequent calls go straight to GET — POST is remembered as unsupported
+    await api.set_data("player:volume", {"type": "i32_", "i32_": 30})
+    mock_session.post.assert_called_once()
+    assert mock_session.get.call_count == 2
+
+
 async def test_close_session(api: KlipschAPI) -> None:
     """Test session cleanup."""
     mock_session = AsyncMock(spec=aiohttp.ClientSession)

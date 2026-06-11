@@ -108,7 +108,7 @@ You can change the IP address later via **Reconfigure** (Settings > Devices > Kl
 
 The soundbar exposes a local HTTP API on port 80:
 - `GET /api/getData` — read parameters
-- `GET /api/setData` — write parameters
+- `POST /api/setData` — write parameters (JSON body; legacy GET fallback for older firmware)
 - `GET /api/getRows` — list structured data (Dirac filters)
 
 ### Resilient Design for a Slow Device

@@ -107,7 +107,7 @@ Puede cambiar la IP más tarde mediante **Reconfigurar** (Ajustes > Dispositivos
 
 La barra de sonido expone una API HTTP local en el puerto 80:
 - `GET /api/getData` — leer parámetros
-- `GET /api/setData` — escribir parámetros
+- `POST /api/setData` — escribir parámetros (cuerpo JSON; fallback a GET para firmware antiguo)
 - `GET /api/getRows` — listar datos estructurados (filtros Dirac)
 
 ### Diseño resiliente para un dispositivo lento

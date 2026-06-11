@@ -107,7 +107,7 @@ Você pode alterar o IP depois em **Reconfigurar** (Configurações > Dispositiv
 
 A soundbar disponibiliza uma API HTTP local na porta 80:
 - `GET /api/getData` — ler parâmetros
-- `GET /api/setData` — escrever parâmetros
+- `POST /api/setData` — escrever parâmetros (corpo JSON; fallback para GET em firmware antigo)
 - `GET /api/getRows` — listar dados estruturados (filtros Dirac)
 
 ### Design resiliente para um dispositivo lento
