@@ -181,3 +181,27 @@ Body: {"path":"settings:/cinema/dialogMode","role":"value","value":"<base64 AES,
 тогда хук `generateAuthHeader`/`_getPassword`/`Hmac.convert` выдаст точные key+canonical.
 
 Артефакты захвата: `/tmp/klip_flows.log` (17 подписей).
+
+### Полный заголовочный перехват + попытки ground-truth (Frida)
+Переснял с ВСЕМИ заголовками: **отдельного IV-заголовка нет** (IV встроен в cipher либо
+выводится). Ответы 200 дают известный plaintext (`postProcessorMode="music"`). Офлайн-крек
+AES/HMAC с известным plaintext — всё равно не сошёлся (деривация ключа нетривиальна,
+вероятно от BLE-MAC бара, которого нет в Product Info).
+
+**Frida ground-truth — перебор устройств:**
+- **iPhone** (рабочий MITM-перехват) — без JB, Frida нет.
+- **Samsung Galaxy Z Fold6** — собрал frida-gadget APK (objection: merge split→universal +
+  inject gadget в `lib/arm64-v8a/`, переподпись), поставил. Но **Knox/RKP блокирует
+  Interceptor**: gadget грузится, память читается, `attach` без ошибок, НО трамплины не
+  пишутся — даже хуки на `memcpy`/`clock_gettime` (тысячи вызовов/сек) дают 0. Глухая стена
+  на залоченных флагманах Samsung.
+- **Android-эмулятор (Pixel_8_API_35)** — Frida **РАБОТАЕТ** (`[HB] clock_gettime fired` —
+  Interceptor живой, Knox'а нет), приложение запускается. НО **не видит бар**: discovery =
+  mDNS `_sues800device._tcp` (+ISCP, бар на него не отвечает), а через эмуляторный NAT
+  multicast до бара не доходит; сам mDNS-запрос шлёт **системный mdnsd**, не приложение
+  (Frida на приложении его не ловит). ISCP-запрос на `10.0.1.51:60128` — без ответа.
+
+**Итог:** асимметрия устройств — Samsung видит бар, но без Frida (Knox); эмулятор имеет
+Frida, но не видит бар (NAT/multicast). Ни одно по отдельности не даёт ground-truth.
+**Чистый финиш — любой НЕ-Samsung физический Android** (там и discovery нативный, и Frida
+работает; gadget-APK уже собран: `~/Desktop/Klipsch-frida.apk`).
