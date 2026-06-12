@@ -205,3 +205,38 @@ AES/HMAC с известным plaintext — всё равно не сошёлс
 Frida, но не видит бар (NAT/multicast). Ни одно по отдельности не даёт ground-truth.
 **Чистый финиш — любой НЕ-Samsung физический Android** (там и discovery нативный, и Frida
 работает; gadget-APK уже собран: `~/Desktop/Klipsch-frida.apk`).
+
+### День 2 — стенд на OnePlus Nord CE (рут, Android 13)
+
+Перебор устройств продолжился; рабочим оказался **OnePlus Nord CE (EB2103)**: Android 13
+(SDK 33), arm64, **Magisk root**, НЕ Samsung. Подключён по **WiFi ADB** (рутом
+`setprop service.adb.tcp.port 5555; stop/start adbd`; MIUI/обычный install обходится
+`su -c pm install`).
+
+**Что подтверждено:**
+- **Frida Interceptor РАБОТАЕТ** (self-тест: хук `malloc` + вызов из скрипта → сработал;
+  trampoline-проверка: байты `malloc` меняются после `attach`). Knox'а нет.
+- frida-server 17.11 + приложение установлены, запускаются.
+
+**Технические грабли (решаемы):**
+1. **`extractNativeLibs`**: при `false` (apktool-пересборка `patched-a.apk`) libapp.so
+   мапится прямо из APK и file-оффсеты не совпадают с runtime. Фикс — ставить APK с
+   `extractNativeLibs=true` (`Klipsch-frida.apk`, objection) → libapp.so извлекается на диск.
+2. **16KB page alignment**: приложение собрано под Android 15 (`max-page-size=16384`), а
+   телефон на 4KB-страницах → линкер мапит RX-сегменты libapp.so **с зазорами** (видно в
+   `/proc/PID/maps`: куски file-offset `005c0000`, `006d4000`, `006d7000`…). Поэтому часть
+   blutter-оффсетов совпадает (`0x6d7ce0`=пролог `0xa9bf79fd`), а часть «плывёт». Хуки на
+   libapp бьют мимо части функций.
+   **Фикс (дома):** искать функции **сигнатурным сканом** в RX-памяти (по уникальным
+   константам, напр. `"KlipschSupport!!88"` для `generatePasswordFromMac`), а не по
+   фиксированным оффсетам — тогда 16KB-зазоры не важны.
+
+**Статус:** правильное устройство найдено, Frida работает, стенд поднят. Захват подписи
+требует **бара** (онбординг + setData) — финал дома: ① сигнатурный скан функций (обход
+16KB), ② онбординг к бару + переключение режима, ③ снять пароль/каноническую строку/ключ
+из `generatePasswordFromMac`/`generateAuthHeader` → собрать `build_signature` → проверить до
+`200`.
+
+Ключевые offsets (blutter, для libapp.so v2.3.7): `generatePasswordFromMac` `0x6d49a4`
+(arg=MAC в x1), `generateAuthHeader` `0x6d7ce0`, `base64Encode` `0x6d4838`, каноническая
+интерполяция (return) `0x6d8be8`, Dart `print` `0x6213b0`, `_interpolate` `0x5dfff0`.
