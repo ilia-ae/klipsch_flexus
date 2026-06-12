@@ -34,21 +34,23 @@ Home Assistant custom integration for **Klipsch Flexus** soundbars — control v
 A 2026 soundbar firmware update (**Device Version `1.1.3.x`**, e.g. `1.1.3.0x7cd294e`, Cast build `20250512_0201_RC25`) changed the local HTTP API in two ways:
 
 1. **`setData` now requires `POST` with a JSON body.** The old `GET /api/setData?...` returns `405 Strict HTTP required!`. **Fixed in v2.4.1** — update the integration.
-2. **Most `setData` writes are now authenticated** (`settings:/webserver/authMode = setData`). Protected writes return `401 Forbidden` with `WWW-Authenticate: HMAC_SHA256_AES256`.
+2. **Most `setData` writes are now authenticated** (`settings:/webserver/authMode = setData`). Protected writes return `401 Forbidden` with `WWW-Authenticate: HMAC_SHA256_AES256`. **Fixed in v2.5.0** — the integration now signs these writes automatically.
 
 ### What works on the new firmware
 
 | Capability | Status |
 |------------|--------|
 | All sensors / status reads (`getData`) | ✅ Works |
-| Volume, Mute | ✅ Works (still unauthenticated) |
-| Input, Sound mode, Night / Dialog, Bass / Mid / Treble, EQ Preset, Dirac, Subwoofer & Surround levels, Power | ❌ `401` — blocked by firmware auth |
+| Volume, Mute | ✅ Works |
+| Input, Sound mode, Night / Dialog, Bass / Mid / Treble, EQ Preset, Dirac, Subwoofer & Surround levels, Power | ✅ Works (HMAC-signed, v2.5.0+) |
 
 You can see the live per-command status on your own device via **Download diagnostics** (the `command_health` section, added in v2.4.2).
 
 ### Status of the fix
 
-🚧 **No ready solution yet — work in progress.** Restoring full control requires implementing the device's `HMAC_SHA256_AES256` request signing. The signing secret is provisioned by the official app and is still being identified (no user password is set and the device web UI is disabled, so the empty-password case does not work). Until then, reads and volume/mute remain functional.
+✅ **Solved in v2.5.0 — full control restored, no user action required.** The `HMAC_SHA256_AES256` request signing is now implemented. The per-device credential is derived automatically from the soundbar's MAC address (which the integration already discovers), so there is **nothing to configure** — just update the integration. Signed writes go to the device's HTTPS endpoint; volume/mute continue to work unsigned.
+
+> Requires the `cryptography` package (declared in the manifest; bundled with Home Assistant, so it is already present).
 
 Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy `GET` fallback.
 

@@ -102,7 +102,8 @@ def generate_password_from_mac(mac: str) -> str:
     The app's regex keeps only **uppercase** hex, so we uppercase first — this
     makes the derivation independent of the incoming MAC casing while producing
     exactly what the app (fed an uppercase eureka MAC) provisioned onto the
-    device. This is the plaintext password that feeds ``sha256(salt+password)``.
+    device. This is the plaintext password that feeds the per-request key
+    derivation ``sha256(nonce + password)`` (see :func:`_request_key`).
     """
     cleaned = re.sub(r"[^A-F0-9]", "", mac.upper())
     return base64.b64encode((cleaned + _PASSWORD_SECRET).encode("utf-8")).decode("ascii")
@@ -162,9 +163,7 @@ class KlipschAuth:
     def set_data_url(self) -> str:
         return f"https://{self._host}/api/setData"
 
-    def build_set_data(
-        self, path: str, value: dict
-    ) -> tuple[str, dict[str, str]]:
+    def build_set_data(self, path: str, value: dict) -> tuple[str, dict[str, str]]:
         """Build a signed ``POST /api/setData`` request.
 
         ``value`` is the plaintext value object, e.g.
@@ -199,14 +198,10 @@ class KlipschAuth:
         # The body is PRETTY-printed (4-space indent); the signature is computed
         # over this exact serialization, so it must match the bytes that are
         # sent byte-for-byte (key order: path, role, value).
-        body = json.dumps(
-            {"path": path, "role": "value", "value": value_b64}, indent=4
-        )
+        body = json.dumps({"path": path, "role": "value", "value": value_b64}, indent=4)
 
         canonical = f"{self.username}.{nonce}.{ts}.{self.set_data_url}.{body}"
-        sig = base64.b64encode(
-            hmac.new(key, canonical.encode("utf-8"), hashlib.sha256).digest()
-        ).decode("ascii")
+        sig = base64.b64encode(hmac.new(key, canonical.encode("utf-8"), hashlib.sha256).digest()).decode("ascii")
 
         user_b64 = base64.b64encode(self.username.encode("ascii")).decode("ascii")
         authorization = f"{AUTH_SCHEME} {user_b64}.{nonce}.{ts}.{sig}"

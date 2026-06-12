@@ -84,12 +84,20 @@ Strings recovered from `libapp.so` reveal the full mechanism:
   `/api/event/modifyQueue` (subscribe/unsubscribe — the queue register that returns
   501 on plain :80), `/api/event/pollQueue?queueId=`.
 - Auth is a **per-device HTTP credential derived from the device MAC**, plus a
-  **challenge-response signature**:
+  **client-generated signature** (NOT a server challenge — see note below):
   - `generateUsernameFromMac(mac)`  → the webserver **username** (default seen: `user`)
   - `generatePasswordFromMac(mac)`  → the webserver **password**
-  - `buildSignature(...)` + `authChallenge` + `HMac.withDigest`/`impl.digest.sha256`
-    → request is signed with **HMAC-SHA256** in a challenge-response (`authChallenge`).
+  - `HmacAuthHelper.generateAuthHeader(...)` + `Hmac.convert` + `Encrypter.encrypt`
+    → request is signed with **HMAC-SHA256** and its body **AES-256-CBC** encrypted,
+    using a per-request key the client derives itself (`sha256(nonce + password)`).
   - Crypto via **PointyCastle** (bundled in the Dart snapshot).
+
+> ⚠️ Earlier notes assumed a server *challenge-response* (a `WWW-Authenticate` salt the
+> client echoes back). That was **wrong** — Frida ground-truth proved the nonce, IV and
+> timestamp are **all client-generated**, so the request is fully reproducible offline.
+> The `HMAC_SHA256_AES256` 401 header is only the device advertising the scheme, not a
+> live challenge. The challenge-model scaffolding (`parse_challenge`/`build_signature`)
+> was removed; the real entry point is `KlipschAuth.build_set_data`.
 - Onboarding flow (log strings): the app **provisions** this password onto the device
   (`setWebserverPassword`, "Pushing webserver password to device (username: user)"),
   derived from / synced to the MAC ("Could not resolve MAC / sync credentials,
@@ -105,9 +113,8 @@ Recovered from `libapp.so` (Flutter AOT, Connect Plus v2.3.7). Symbol → role:
 |---|---|---|
 | `generateUsernameFromMac(mac)` | webserver username (default `user`) | `generate_username_from_mac` |
 | `generatePasswordFromMac(mac)` | webserver password from MAC ✅ **solved** | `generate_password_from_mac` |
-| `authChallenge` / `WWW-Authenticate` parse | salt/nonce from the 401 | `parse_challenge` |
-| `HMac.withDigest(impl.digest.sha256)` (PointyCastle) | `key = sha256(salt+password)`, `HMAC_SHA256` | `_derive_key` + `build_signature` |
-| `buildSignature(...)` | canonical string + signature + header | `build_signature` |
+| `HmacAuthHelper.generateAuthHeader(...)` | full signed request (key, AES body, HMAC sig, header) ✅ **solved** | `KlipschAuth.build_set_data` |
+| `Hmac.convert` / `Encrypter.encrypt` (PointyCastle) | `key = sha256(nonce + password)`; AES-256-CBC body + HMAC-SHA256 sig | `_request_key` + `_encrypt_value` |
 | `setWebserverPassword` (onboarding) | pushes the MAC-derived password to the device | n/a (device already provisioned) |
 
 The MAC itself is **not secret** — it is read from `eureka_info` (port 8008) and is also
@@ -182,7 +189,11 @@ Key facts that matter for re-implementation:
 Implemented in [`auth.py`](../custom_components/klipsch_flexus/auth.py) as
 `KlipschAuth.build_set_data(path, value) -> (body, headers)`; the integration sends those
 verbatim over HTTPS (skip cert verification — self-signed Klipsch-CA). The constant can be
-re-extracted from a future APK with [`tools/extract_secret.py`](../tools/extract_secret.py).
+re-extracted from a future APK with [`tools/extract_secret.py`](../tools/extract_secret.py):
+it is fully self-contained — **self-downloads** the package via `apkeep` (APKPure, ~144 MB
+**XAPK**), **unpacks** the bundle and the nested split to reach `lib/arm64-v8a/libapp.so`,
+recovers `KlipschSupport!!88` (exact from the known password, else heuristic over the AOT
+strings — the secret surfaces as match #0), then **cleans up** the downloaded archive.
 
 Artifacts: APK + extracted libs under `.reverse/` (gitignored).
 

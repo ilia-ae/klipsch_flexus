@@ -33,21 +33,23 @@ Benutzerdefinierte Home Assistant Integration für **Klipsch Flexus** Soundbars 
 Ein Firmware-Update von 2026 (**Device Version `1.1.3.x`**, z. B. `1.1.3.0x7cd294e`, Cast-Build `20250512_0201_RC25`) hat die lokale HTTP-API auf zwei Arten geändert:
 
 1. **`setData` erfordert jetzt `POST` mit JSON-Body.** Das alte `GET /api/setData?...` liefert `405 Strict HTTP required!`. **Behoben in v2.4.1** — Integration aktualisieren.
-2. **Die meisten `setData`-Schreibvorgänge sind jetzt authentifiziert** (`settings:/webserver/authMode = setData`). Geschützte Befehle antworten mit `401 Forbidden` und `WWW-Authenticate: HMAC_SHA256_AES256`.
+2. **Die meisten `setData`-Schreibvorgänge sind jetzt authentifiziert** (`settings:/webserver/authMode = setData`). Geschützte Befehle antworten mit `401 Forbidden` und `WWW-Authenticate: HMAC_SHA256_AES256`. **Behoben in v2.5.0** — die Integration signiert diese Schreibvorgänge jetzt automatisch.
 
 ### Was mit der neuen Firmware funktioniert
 
 | Funktion | Status |
 |----------|--------|
 | Alle Sensoren / Status-Lesevorgänge (`getData`) | ✅ Funktioniert |
-| Lautstärke, Stummschaltung | ✅ Funktioniert (weiterhin ohne Auth) |
-| Eingang, Sound-Modus, Nacht/Dialog, Bass/Mitten/Höhen, EQ-Preset, Dirac, Subwoofer- & Surround-Pegel, Power | ❌ `401` — durch Firmware-Auth blockiert |
+| Lautstärke, Stummschaltung | ✅ Funktioniert |
+| Eingang, Sound-Modus, Nacht/Dialog, Bass/Mitten/Höhen, EQ-Preset, Dirac, Subwoofer- & Surround-Pegel, Power | ✅ Funktioniert (HMAC-signiert, ab v2.5.0) |
 
 Den Live-Status pro Befehl zeigt **Download diagnostics** (Abschnitt `command_health`, hinzugefügt in v2.4.2).
 
 ### Status der Lösung
 
-🚧 **Noch keine fertige Lösung — in Arbeit.** Volle Steuerung erfordert die Implementierung der `HMAC_SHA256_AES256`-Signierung. Das Signaturgeheimnis wird von der offiziellen App bereitgestellt und ist noch nicht identifiziert (kein Benutzerpasswort gesetzt, Geräte-Weboberfläche deaktiviert, daher funktioniert der Fall mit leerem Passwort nicht). Bis dahin bleiben Lesevorgänge und Lautstärke/Stummschaltung funktionsfähig.
+✅ **Gelöst in v2.5.0 — volle Steuerung wiederhergestellt, keine Benutzeraktion erforderlich.** Die `HMAC_SHA256_AES256`-Signierung ist jetzt implementiert. Die gerätespezifischen Anmeldedaten werden automatisch aus der MAC-Adresse der Soundbar abgeleitet (die die Integration ohnehin ermittelt), daher ist **nichts zu konfigurieren** — einfach die Integration aktualisieren. Signierte Schreibvorgänge gehen an den HTTPS-Endpunkt des Geräts; Lautstärke/Stummschaltung funktionieren weiterhin ohne Signatur.
+
+> Erfordert das Paket `cryptography` (im Manifest deklariert; mit Home Assistant gebündelt, also bereits vorhanden).
 
 Ältere Firmware (vor `1.1.3`) ist nicht betroffen und behält die volle Steuerung über den `GET`-Fallback.
 

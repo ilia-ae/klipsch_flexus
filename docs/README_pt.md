@@ -33,21 +33,23 @@ Integração personalizada do Home Assistant para soundbars **Klipsch Flexus** �
 Uma atualização de firmware de 2026 (**Device Version `1.1.3.x`**, ex. `1.1.3.0x7cd294e`, build do Cast `20250512_0201_RC25`) mudou a API HTTP local de duas formas:
 
 1. **`setData` agora exige `POST` com corpo JSON.** O antigo `GET /api/setData?...` retorna `405 Strict HTTP required!`. **Corrigido na v2.4.1** — atualize a integração.
-2. **A maioria das escritas `setData` agora exige autenticação** (`settings:/webserver/authMode = setData`). Comandos protegidos respondem `401 Forbidden` com `WWW-Authenticate: HMAC_SHA256_AES256`.
+2. **A maioria das escritas `setData` agora exige autenticação** (`settings:/webserver/authMode = setData`). Comandos protegidos respondem `401 Forbidden` com `WWW-Authenticate: HMAC_SHA256_AES256`. **Corrigido na v2.5.0** — a integração agora assina essas escritas automaticamente.
 
 ### O que funciona no novo firmware
 
 | Recurso | Status |
 |---------|--------|
 | Todos os sensores / leituras de status (`getData`) | ✅ Funciona |
-| Volume, mudo (Mute) | ✅ Funciona (ainda sem autenticação) |
-| Entrada, modo de som, noite/diálogo, graves/médios/agudos, preset de EQ, Dirac, níveis de subwoofer e surround, energia | ❌ `401` — bloqueado pela autenticação do firmware |
+| Volume, mudo (Mute) | ✅ Funciona |
+| Entrada, modo de som, noite/diálogo, graves/médios/agudos, preset de EQ, Dirac, níveis de subwoofer e surround, energia | ✅ Funciona (assinado com HMAC, v2.5.0+) |
 
 O status ao vivo de cada comando aparece em **Download diagnostics** (seção `command_health`, adicionada na v2.4.2).
 
 ### Status da correção
 
-🚧 **Ainda não há solução pronta — em andamento.** Restaurar o controle completo exige implementar a assinatura de requisições `HMAC_SHA256_AES256`. O segredo de assinatura é provisionado pelo aplicativo oficial e ainda está sendo identificado (nenhuma senha de usuário está definida e a interface web do dispositivo está desativada, então o caso de senha vazia não funciona). Até lá, leituras e volume/mudo continuam funcionando.
+✅ **Resolvido na v2.5.0 — controle completo restaurado, nenhuma ação do usuário necessária.** A assinatura de requisições `HMAC_SHA256_AES256` agora está implementada. A credencial do dispositivo é derivada automaticamente do endereço MAC da soundbar (que a integração já detecta), então **não há nada para configurar** — basta atualizar a integração. As escritas assinadas vão para o endpoint HTTPS do dispositivo; volume/mudo continuam funcionando sem assinatura.
+
+> Requer o pacote `cryptography` (declarado no manifesto; incluído no Home Assistant, portanto já presente).
 
 Firmware mais antigo (anterior à `1.1.3`) não é afetado e mantém o controle completo via fallback `GET`.
 

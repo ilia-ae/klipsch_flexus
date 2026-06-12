@@ -53,9 +53,14 @@ MOCK_AIRCAST_DISCOVERY = ZeroconfServiceInfo(
 
 async def test_user_flow_success(hass: HomeAssistant) -> None:
     """Test successful user config flow."""
-    with patch("custom_components.klipsch_flexus.config_flow.KlipschAPI") as mock_cls:
+    with (
+        patch("custom_components.klipsch_flexus.config_flow.KlipschAPI") as mock_cls,
+        patch("custom_components.klipsch_flexus.async_setup_entry", return_value=True),
+    ):
         api = mock_cls.return_value
         api.get_status = AsyncMock(return_value=MOCK_STATUS)
+        # No eureka_info → flow falls back to host-based unique_id and title.
+        api.get_device_info = AsyncMock(return_value=None)
         api.close = AsyncMock()
 
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
@@ -96,18 +101,19 @@ async def test_user_flow_exception(hass: HomeAssistant) -> None:
 
 async def test_zeroconf_discovery(hass: HomeAssistant) -> None:
     """Test Zeroconf discovery shows confirmation form."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_ZEROCONF},
-        data=MOCK_ZEROCONF_DISCOVERY,
-    )
-    assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "zeroconf_confirm"
+    with patch("custom_components.klipsch_flexus.async_setup_entry", return_value=True):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_ZEROCONF},
+            data=MOCK_ZEROCONF_DISCOVERY,
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "zeroconf_confirm"
 
-    result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == f"Klipsch Flexus ({MOCK_HOST})"
-    assert result["data"] == {CONF_HOST: MOCK_HOST}
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        assert result["title"] == f"Klipsch Flexus ({MOCK_HOST})"
+        assert result["data"] == {CONF_HOST: MOCK_HOST}
 
 
 async def test_zeroconf_rejects_aircast_proxy(hass: HomeAssistant) -> None:

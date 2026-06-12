@@ -10,6 +10,25 @@ from custom_components.klipsch_flexus.const import DOMAIN
 
 MOCK_HOST = "192.168.1.100"
 
+
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(request):
+    """Enable the custom integration (and mock zeroconf) for hass-based tests.
+
+    Only engaged when a test actually uses the ``hass`` fixture:
+    - ``enable_custom_integrations`` makes ``klipsch_flexus`` loadable, otherwise
+      ``flow.async_init`` raises ``IntegrationNotFound``.
+    - ``mock_async_zeroconf`` stops HA from setting up the real ``zeroconf``
+      dependency, which would open a socket (blocked by pytest-socket).
+
+    Pure unit tests (api/auth) don't request ``hass``, so they skip all of this
+    and stay fast and decoupled from the HA test harness.
+    """
+    if "hass" in request.fixturenames:
+        request.getfixturevalue("enable_custom_integrations")
+        request.getfixturevalue("mock_async_zeroconf")
+    yield
+
 MOCK_STATUS = {
     "online": True,
     "volume": 25,

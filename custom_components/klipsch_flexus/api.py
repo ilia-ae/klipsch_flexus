@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 import aiohttp
 
+from .auth import KlipschAuth
 from .const import (
     API_RETRIES,
     API_RETRY_DELAY,
@@ -39,6 +40,11 @@ class KlipschAPI:
         self._lock = asyncio.Lock()
         self._last_status: dict = {}
         self._set_post_unsupported = False  # pre-2026 firmware: setData via GET only
+        # 2026 firmware: writes (except volume/mute) need an HMAC signature.
+        # Built lazily from the device MAC on the first gated (401) write.
+        self._auth: KlipschAuth | None = None
+        self._auth_failed = False  # MAC unavailable → stop retrying signing
+        self._auth_required_paths: set[str] = set()  # paths known to need signing
         self.last_response_time: float | None = None  # ms
         self.total_requests: int = 0
         self.failed_requests: int = 0
@@ -115,21 +121,101 @@ class KlipschAPI:
         session = await self._ensure_session()
         client_timeout = aiohttp.ClientTimeout(total=timeout)
 
+        # 2026 firmware: this path was already seen to require signing → sign
+        # directly, skipping the doomed unsigned POST (the device is slow).
+        if path in self._auth_required_paths:
+            signed = await self._do_signed_set_data(session, path, value, timeout)
+            if signed is not None:
+                return signed
+            # Signing unavailable (no MAC) → fall through to the legacy attempts.
+
         if not self._set_post_unsupported:
             payload = {"path": path, "roles": roles, "value": value}
             async with session.post(f"{self._base}/api/setData", json=payload, timeout=client_timeout) as resp:
-                if resp.status < 400:
-                    return await resp.text()
-                self._set_post_unsupported = True
-                _LOGGER.info(
-                    "setData POST rejected with HTTP %d — falling back to legacy GET",
-                    resp.status,
-                )
+                status = resp.status
+                text = await resp.text()
+            if status < 400:
+                return text
+            if status in (401, 403):
+                # Write is gated behind an HMAC signature (authMode=setData).
+                self._auth_required_paths.add(path)
+                signed = await self._do_signed_set_data(session, path, value, timeout)
+                if signed is not None:
+                    return signed
+                # No credential available — surface the device's 401 body.
+                return text
+            # Any other 4xx/5xx → assume pre-2026 (GET-only) firmware.
+            self._set_post_unsupported = True
+            _LOGGER.info(
+                "setData POST rejected with HTTP %d — falling back to legacy GET",
+                status,
+            )
 
         val_str = json.dumps(value, separators=(",", ":"))
         url = f"{self._base}/api/setData?path={quote(path, safe=':/')}&roles={roles}&value={quote(val_str)}"
         async with session.get(url, timeout=client_timeout) as resp:
             return await resp.text()
+
+    async def _ensure_auth(self) -> KlipschAuth | None:
+        """Build (and cache) the HMAC signer from the device MAC.
+
+        The MAC comes from ``eureka_info`` (port 8008), the same source the
+        config flow and device registry already use. Returns ``None`` if the MAC
+        cannot be resolved — signing is then disabled and gated writes fail with
+        the device's 401, which surfaces in the logs rather than crashing.
+        """
+        if self._auth is not None:
+            return self._auth
+        if self._auth_failed:
+            return None
+
+        info = await self.get_device_info()
+        mac = info.get("mac_address") if info else None
+        if not mac:
+            self._auth_failed = True
+            _LOGGER.warning(
+                "Cannot sign setData for 2026 firmware: device MAC unavailable "
+                "from eureka_info (port 8008). Gated writes will be rejected."
+            )
+            return None
+
+        self._auth = KlipschAuth(mac, self._host)
+        _LOGGER.info(
+            "2026 firmware detected — setData signing enabled (username=%s)",
+            self._auth.username,
+        )
+        return self._auth
+
+    async def _do_signed_set_data(
+        self, session: aiohttp.ClientSession, path: str, value: dict, timeout: float
+    ) -> str | None:
+        """Send an HMAC-signed setData over HTTPS:443. ``None`` if unsignable.
+
+        The device serves a self-signed Klipsch-CA certificate, so TLS
+        verification is disabled (``ssl=False``) — this is a LAN device with no
+        public CA, exactly like the official app, which trusts Klipsch-CA.
+        """
+        auth = await self._ensure_auth()
+        if auth is None:
+            return None
+
+        body, headers = auth.build_set_data(path, value)
+        async with session.post(
+            auth.set_data_url,
+            data=body,
+            headers=headers,
+            ssl=False,
+            timeout=aiohttp.ClientTimeout(total=timeout),
+        ) as resp:
+            text = await resp.text()
+            if resp.status >= 400:
+                _LOGGER.warning(
+                    "Signed setData %s rejected with HTTP %d: %s",
+                    path,
+                    resp.status,
+                    text[:200],
+                )
+            return text
 
     async def get_auth_mode(self) -> str:
         """Read settings:/webserver/authMode.

@@ -19,3 +19,9 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["custom_components.klipsch_flexus"]
+
+[tool.pytest.ini_options]
+# Without this, pytest-asyncio silently SKIPS every `async def` test, so the
+# whole async suite never runs in CI. AUTO mode treats them as asyncio tests.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

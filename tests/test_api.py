@@ -40,7 +40,9 @@ async def test_get_data_retry_on_timeout(api: KlipschAPI) -> None:
     """Test retry logic on timeout."""
     call_count = 0
 
-    async def mock_get(*args, **kwargs):
+    def mock_get(*args, **kwargs):
+        # aiohttp's session.get is sync and returns an async context manager,
+        # so this mock must be a plain function (not async def).
         nonlocal call_count
         call_count += 1
         if call_count < 3:
@@ -237,6 +239,63 @@ async def test_set_data_falls_back_to_get(api: KlipschAPI) -> None:
     await api.set_data("player:volume", {"type": "i32_", "i32_": 30})
     mock_session.post.assert_called_once()
     assert mock_session.get.call_count == 2
+
+
+async def test_set_data_signs_on_401(api: KlipschAPI) -> None:
+    """2026 firmware: a gated write (401) is retried HMAC-signed over HTTPS."""
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.post = MagicMock(
+        side_effect=[_mock_response(status=401, text="Forbidden"), _mock_response(text="OK")]
+    )
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+    # MAC for credential derivation comes from eureka_info (port 8008).
+    api.get_device_info = AsyncMock(return_value={"mac_address": "34:3D:7F:00:2F:3D"})
+
+    result = await api.set_data(
+        "settings:/cinema/dialogMode",
+        {"type": "cinemaDialogMode", "cinemaDialogMode": "dialog_2"},
+    )
+
+    assert result == "OK"
+    assert mock_session.post.call_count == 2
+    # 1st: unsigned POST on http:80
+    assert mock_session.post.call_args_list[0].args[0] == "http://192.168.1.100:80/api/setData"
+    # 2nd: signed POST on https:443, TLS verification off, Authorization present
+    second = mock_session.post.call_args_list[1]
+    assert second.args[0] == "https://192.168.1.100/api/setData"
+    assert second.kwargs["ssl"] is False
+    assert second.kwargs["headers"]["Authorization"].startswith("HMAC_SHA256_AES256 ")
+
+    # Path is now remembered as gated → next write signs directly (single POST).
+    mock_session.post.reset_mock()
+    mock_session.post.side_effect = [_mock_response(text="OK2")]
+    result2 = await api.set_data(
+        "settings:/cinema/dialogMode",
+        {"type": "cinemaDialogMode", "cinemaDialogMode": "off"},
+    )
+    assert result2 == "OK2"
+    assert mock_session.post.call_count == 1
+    assert mock_session.post.call_args.args[0] == "https://192.168.1.100/api/setData"
+
+
+async def test_set_data_401_without_mac_returns_device_error(api: KlipschAPI) -> None:
+    """If the MAC can't be resolved, a gated write surfaces the 401 body."""
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.post = MagicMock(return_value=_mock_response(status=401, text="Forbidden"))
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)  # no MAC → cannot sign
+
+    result = await api.set_data(
+        "settings:/cinema/dialogMode",
+        {"type": "cinemaDialogMode", "cinemaDialogMode": "dialog_2"},
+    )
+
+    assert result == "Forbidden"
+    assert api._auth_failed is True
 
 
 async def test_probe_command_health(api: KlipschAPI) -> None:

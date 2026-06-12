@@ -33,21 +33,23 @@ Integración personalizada de Home Assistant para barras de sonido **Klipsch Fle
 Una actualización de firmware de 2026 (**Device Version `1.1.3.x`**, p. ej. `1.1.3.0x7cd294e`, build de Cast `20250512_0201_RC25`) cambió la API HTTP local de dos formas:
 
 1. **`setData` ahora requiere `POST` con cuerpo JSON.** El antiguo `GET /api/setData?...` devuelve `405 Strict HTTP required!`. **Corregido en v2.4.1** — actualiza la integración.
-2. **La mayoría de las escrituras `setData` ahora requieren autenticación** (`settings:/webserver/authMode = setData`). Los comandos protegidos responden `401 Forbidden` con `WWW-Authenticate: HMAC_SHA256_AES256`.
+2. **La mayoría de las escrituras `setData` ahora requieren autenticación** (`settings:/webserver/authMode = setData`). Los comandos protegidos responden `401 Forbidden` con `WWW-Authenticate: HMAC_SHA256_AES256`. **Corregido en v2.5.0** — la integración ahora firma estas escrituras automáticamente.
 
 ### Qué funciona con el nuevo firmware
 
 | Función | Estado |
 |---------|--------|
 | Todos los sensores / lecturas de estado (`getData`) | ✅ Funciona |
-| Volumen, silencio (Mute) | ✅ Funciona (aún sin autenticación) |
-| Entrada, modo de sonido, noche/diálogo, graves/medios/agudos, preajuste EQ, Dirac, niveles de subwoofer y surround, encendido | ❌ `401` — bloqueado por la autenticación del firmware |
+| Volumen, silencio (Mute) | ✅ Funciona |
+| Entrada, modo de sonido, noche/diálogo, graves/medios/agudos, preajuste EQ, Dirac, niveles de subwoofer y surround, encendido | ✅ Funciona (firmado con HMAC, v2.5.0+) |
 
 El estado en vivo por comando se ve en **Download diagnostics** (sección `command_health`, añadida en v2.4.2).
 
 ### Estado de la solución
 
-🚧 **Aún no hay solución lista — en desarrollo.** Recuperar el control completo requiere implementar la firma de solicitudes `HMAC_SHA256_AES256`. El secreto de firma lo aprovisiona la app oficial y aún se está identificando (no hay contraseña de usuario configurada y la interfaz web del dispositivo está deshabilitada, por lo que el caso de contraseña vacía no funciona). Hasta entonces, las lecturas y volumen/silencio siguen funcionando.
+✅ **Resuelto en v2.5.0 — control completo restaurado, no se requiere ninguna acción del usuario.** La firma de solicitudes `HMAC_SHA256_AES256` ya está implementada. La credencial del dispositivo se deriva automáticamente de la dirección MAC de la barra de sonido (que la integración ya detecta), por lo que **no hay nada que configurar** — solo actualiza la integración. Las escrituras firmadas van al endpoint HTTPS del dispositivo; volumen/silencio siguen funcionando sin firma.
+
+> Requiere el paquete `cryptography` (declarado en el manifiesto; incluido con Home Assistant, por lo que ya está presente).
 
 El firmware anterior (anterior a `1.1.3`) no se ve afectado y conserva el control completo mediante el respaldo `GET`.
 
