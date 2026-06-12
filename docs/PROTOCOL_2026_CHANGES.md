@@ -1,7 +1,7 @@
 # Klipsch Flexus — 2026 firmware protocol changes
 
 What the May-2026 firmware changed in the device "exchange", reverse-engineered from
-two PCAPdroid captures + live probing of the unit (`10.0.1.51`) on 2026-06-11.
+two PCAPdroid captures + live probing of the unit (`192.168.1.100`) on 2026-06-11.
 
 > **TL;DR** — The data model is **unchanged** (same `settings:/…` / `cinema:/…` paths
 > and value shapes). What changed is **transport + write authentication**:
@@ -13,9 +13,9 @@ two PCAPdroid captures + live probing of the unit (`10.0.1.51`) on 2026-06-11.
 
 | Request | Result |
 |---|---|
-| `GET http://10.0.1.51/api/getData?path=player:volume` | `[{"type":"i32_","i32_":21}]` — **200 OK** |
+| `GET http://192.168.1.100/api/getData?path=player:volume` | `[{"type":"i32_","i32_":21}]` — **200 OK** |
 | `GET http://…/api/getData?path=settings:/cinema/dialogMode` | `[{"cinemaDialogMode":"dialog_2",…}]` — **200 OK** |
-| `GET https://10.0.1.51/api/getData?…` (`-k`) | same JSON — **200 OK** (parallel TLS endpoint) |
+| `GET https://192.168.1.100/api/getData?…` (`-k`) | same JSON — **200 OK** (parallel TLS endpoint) |
 | TLS cert on :443 | self-signed **O=Klipsch Group Inc, CN=Klipsch-device**, issuer **CN=Klipsch-CA**, valid **2026-05-28 → 2027-05-28** |
 | `GET http://…/api/getData?path=settings:/webserver/authMode` | `[{"type":"webserverAuthMode","webserverAuthMode":"setData"}]` |
 | `POST http://…/api/setData` dialogMode (unsigned, idempotent) | `{"error":…"Forbidden"}` — **401** |
@@ -136,13 +136,13 @@ password = base64( utf8( cleaned + "KlipschSupport!!88" ) )
 
 The entire "secret" is the **hardcoded string `KlipschSupport!!88`** interpolated with the
 **public MAC**, then Base64-ed. Base64 is an *encoding, not encryption* — the password is
-trivially reversible (`base64 -d` → `343D7F002F3DKlipschSupport!!88`). There is no salt,
-no KDF, no per-install secret. Worked example for MAC `34:3D:7F:00:2F:3D`:
+trivially reversible (`base64 -d` → `AABBCCDDEEFFKlipschSupport!!88`). There is no salt,
+no KDF, no per-install secret. Worked example for MAC `AA:BB:CC:DD:EE:FF`:
 
 ```
-cleaned  = 343D7F002F3D
-password = base64("343D7F002F3DKlipschSupport!!88")
-         = MzQzRDdGMDAyRjNES2xpcHNjaFN1cHBvcnQhITg4
+cleaned  = AABBCCDDEEFF
+password = base64("AABBCCDDEEFFKlipschSupport!!88")
+         = QUFCQkNDRERFRUZGS2xpcHNjaFN1cHBvcnQhITg4
 ```
 
 > ⚠️ Note the regex keeps **uppercase** hex only — a lowercase MAC would lose its

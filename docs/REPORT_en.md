@@ -5,13 +5,17 @@ work happened. The technical reference lives in
 [`PROTOCOL_2026_CHANGES.md`](PROTOCOL_2026_CHANGES.md); this is the *story* — what we
 did, what we found, where we tripped. 🇷🇺 Russian original: [`REPORT.md`](REPORT.md).
 
+> Device identifiers (IP, MAC, password) in this report are **anonymized** —
+> replaced with placeholders (`192.168.1.100`, `AA:BB:CC:DD:EE:FF`). The
+> methodology and the play-by-play are unchanged.
+
 ---
 
 ## Day 1 — 2026-06-11
 
 ### The setup
 The integration stopped controlling the bar. The user's hypothesis: "they changed the
-exchange." In hand — two PCAPdroid captures (mode switches) and a live bar at `10.0.1.51`.
+exchange." In hand — two PCAPdroid captures (mode switches) and a live bar at `192.168.1.100`.
 
 ### What the traffic showed
 - In the pcap almost all device traffic moved to **TLS:443**; on :80 only the event
@@ -48,8 +52,8 @@ on the LAN reproduces the password → zero protection against a real attacker, 
 only for legitimate clients. Confirmed by the user: "there is no password prompt"
 (the app derives it itself from the MAC).
 
-For the bar (wired MAC `34:3D:7F:00:2F:3D`):
-`password = MzQzRDdGMDAyRjNES2xpcHNjaFN1cHBvcnQhITg4`. Wired into `auth.py`.
+For the bar (wired MAC `AA:BB:CC:DD:EE:FF`):
+`password = QUFCQkNDRERFRUZGS2xpcHNjaFN1cHBvcnQhITg4`. Wired into `auth.py`.
 
 ### Signature shape (from asm `generateAuthHeader`)
 ```
@@ -79,7 +83,7 @@ available, pushed **frida-server 17.11.0**, installed the Klipsch APK. Goal: hoo
 Capturing a live signature on the emulator is blocked by three things at once:
 1. **No BLE** — the app needs Bluetooth to read the MAC and see the bar; the emulator
    has no BLE.
-2. **No mDNS through NAT** — ping to `10.0.1.51` works, but Cast/eureka discovery
+2. **No mDNS through NAT** — ping to `192.168.1.100` works, but Cast/eureka discovery
    (multicast) does not cross the emulator NAT.
 3. **TLS without symbols** — Dart-HTTP goes through its own BoringSSL inside
    `libflutter.so`; the `SSL_write`/`SSL_read` symbols are stripped (0 exports, 0
@@ -92,7 +96,7 @@ The emulator capture is shelved. We already have: the cracked password, the full
 signature **shape** from asm, and an **oracle — the bar itself** (`200` vs `401` on an
 idempotent setData). What's left is reading off 4 byte-level details (order of the 4
 header fields, order of the canonical string, AES mode, HMAC key) and validating
-hypotheses straight against `10.0.1.51`.
+hypotheses straight against `192.168.1.100`.
 
 (The emulator + frida are left running — useful if we decide to capture ground truth
 dynamically after all via friTap + a Frida MAC override.)
@@ -157,12 +161,12 @@ expensive by static analysis. The header and password are closed; for a byte-exa
 ### 🎯 Capturing the signature — SUCCESS (iPhone + WireGuard-MITM)
 An HTTP proxy didn't catch the bar traffic (Flutter sends to the local IP bypassing the
 proxy; and iOS Flutter ignores the system proxy). The fix: **mitmproxy in WireGuard
-mode**, `AllowedIPs = 10.0.1.51/32` (only the bar through the tunnel, discovery stays on
+mode**, `AllowedIPs = 192.168.1.100/32` (only the bar through the tunnel, discovery stays on
 the direct Wi-Fi), `--ssl-insecure` (accept the bar's Klipsch-CA cert). The app does
 **not** pin to the bar — mitmproxy decrypted it. Captured 17 live signed setData calls:
 
 ```
-POST https://10.0.1.51/api/setData
+POST https://192.168.1.100/api/setData
 Authorization: HMAC_SHA256_AES256 dXNlcg==.UpnlFt5z.1781204748147.gncG+ZgSG5WsjzMtVoWOsRpZNw3c4VAo5AS2NLwXtyQ=
 Body: {"path":"settings:/cinema/dialogMode","role":"value","value":"<base64 AES, 80B>"}
 ```
@@ -204,7 +208,7 @@ BLE-MAC, which isn't in the Product Info).
   mDNS `_sues800device._tcp` (+ISCP, the bar doesn't answer it), and multicast doesn't
   reach the bar through the emulator NAT; the mDNS query itself is sent by the **system
   mdnsd**, not the app (Frida on the app doesn't catch it). An ISCP request to
-  `10.0.1.51:60128` — no answer.
+  `192.168.1.100:60128` — no answer.
 
 **Bottom line:** device asymmetry — Samsung sees the bar but has no Frida (Knox); the
 emulator has Frida but can't see the bar (NAT/multicast). Neither alone yields ground

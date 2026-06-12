@@ -24,8 +24,8 @@ and cryptographic keys to any host on the local network without authentication.
 | Model                   | Flexus Core 300                                    |
 | Friendly Name           | Klipsch Flexus CORE 300                            |
 | Manufacturer            | Klipsch Group Inc (Indianapolis, IN, US)           |
-| MAC Address (WiFi)      | 34:3D:7F:00:2F:3E                                 |
-| MAC Address (AirPlay)   | 34:3D:7F:00:2F:3D                                 |
+| MAC Address (WiFi)      | AA:BB:CC:DD:EE:FE                                 |
+| MAC Address (AirPlay)   | AA:BB:CC:DD:EE:FF                                 |
 | Hotspot BSSID           | FA:8F:CA:69:AA:9D                                 |
 | IP Address              | 192.168.1.100                                          |
 | Cast UUID (SSDP UDN)    | 3fb1d5cd-a039-be9c-934c-877174add9bf               |
@@ -74,7 +74,7 @@ The device announces itself via the following mDNS services:
 |--------------------------|----------------------------------------------------------|
 | _googlecast._tcp         | Flexus-Core-300-3fb1d5cda039be9c934c877174add9bf         |
 | _airplay._tcp            | Klipsch Flexus CORE 300                                  |
-| _raop._tcp               | 343D7F002F3D@Klipsch Flexus CORE 300                     |
+| _raop._tcp               | AABBCCDDEEFF@Klipsch Flexus CORE 300                     |
 | _tidalconnect._tcp       | Flexus Core 300-4dfa3390ef2658faae861e5d7736e08f         |
 | _spotify-connect._tcp    | ksb5000-ee414bba-482b-4873-8d78-976ac4923160             |
 | _http._tcp               | Klipsch Flexus CORE 300                                  |
