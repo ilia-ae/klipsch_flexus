@@ -11,8 +11,13 @@ Plus v2.3.7 it is ``KlipschSupport!!88``. When Klipsch ships a new app, run this
 on the new APK to re-extract the constant without redoing the reverse-engineering.
 
 Usage:
-    extract_secret.py <app.apk | libapp.so>
-        [--mac AA:BB:CC:DD:EE:FF] [--expect <known base64 password>]
+    extract_secret.py <app.apk | app.xapk | libapp.so | PACKAGE_ID>
+        [--mac AA:BB:CC:DD:EE:FF] [--expect <known base64 password>] [--keep]
+
+If the target is a package id (e.g. ``com.klipsch.connectxp``, the default when
+nothing is given) it is downloaded with ``apkeep`` (APKPure source) into a temp
+dir, the secret is extracted, and the download is deleted afterwards unless
+``--keep`` is passed. ``.xapk`` bundles (split APKs) are handled transparently.
 
 Strategy:
   * Pull ``libapp.so`` from the APK and collect its printable strings.
@@ -28,25 +33,69 @@ from __future__ import annotations
 
 import argparse
 import base64
+import glob
+import io
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import zipfile
 
 ANCHOR = b"[^A-F0-9]"            # regex immediately preceding the secret
 STR_RE = re.compile(rb"[\x20-\x7e]{3,80}")
+DEFAULT_PACKAGE = "com.klipsch.connectxp"
+PKG_RE = re.compile(r"^[A-Za-z][\w]*(\.[A-Za-z][\w]*)+$")
+
+
+def _libapp_from_zip(zf: zipfile.ZipFile) -> bytes | None:
+    """Find libapp.so in an APK zip (prefer arm64-v8a)."""
+    names = [n for n in zf.namelist() if n.endswith("libapp.so")]
+    if not names:
+        return None
+    names.sort(key=lambda n: ("arm64" not in n, n))
+    return zf.read(names[0])
 
 
 def load_libapp(path: str) -> bytes:
+    """Return libapp.so bytes from a .so, an .apk, or a split .xapk/.apks bundle."""
     if path.endswith(".so"):
         with open(path, "rb") as fh:
             return fh.read()
     with zipfile.ZipFile(path) as z:
-        names = [n for n in z.namelist() if n.endswith("libapp.so")]
-        if not names:
-            sys.exit("libapp.so not found in APK")
-        # prefer arm64
-        names.sort(key=lambda n: ("arm64" not in n, n))
-        return z.read(names[0])
+        direct = _libapp_from_zip(z)
+        if direct is not None:
+            return direct
+        # .xapk / .apks: a zip of split APKs — recurse into each inner APK.
+        for inner in z.namelist():
+            if inner.endswith(".apk"):
+                with zipfile.ZipFile(io.BytesIO(z.read(inner))) as iz:
+                    found = _libapp_from_zip(iz)
+                    if found is not None:
+                        return found
+    sys.exit("libapp.so not found in APK/XAPK")
+
+
+def download_apk(package: str, dest_dir: str) -> str:
+    """Download ``package`` from APKPure with apkeep into ``dest_dir``.
+
+    Returns the path of the downloaded .xapk/.apk. Requires the ``apkeep`` CLI
+    (``brew install apkeep`` / ``cargo install apkeep``).
+    """
+    if shutil.which("apkeep") is None:
+        sys.exit("apkeep not found — install it (brew install apkeep)")
+    print(f"downloading {package} via apkeep (APKPure)…", flush=True)
+    subprocess.run(
+        ["apkeep", "-a", package, "-d", "apk-pure", dest_dir],
+        check=True,
+    )
+    files = (glob.glob(os.path.join(dest_dir, "*.xapk"))
+             + glob.glob(os.path.join(dest_dir, "*.apk"))
+             + glob.glob(os.path.join(dest_dir, "*.apks")))
+    if not files:
+        sys.exit("apkeep produced no apk/xapk")
+    return max(files, key=os.path.getsize)
 
 
 VENDOR_MARKERS = ("klipsch", "support", "secret", "passwd", "password",
@@ -92,12 +141,40 @@ def find_candidates(blob: bytes) -> list[str]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("target", help="APK or libapp.so")
+    ap.add_argument("target", nargs="?", default=DEFAULT_PACKAGE,
+                    help="APK/XAPK/libapp.so path, or a package id to download "
+                         f"(default: {DEFAULT_PACKAGE})")
     ap.add_argument("--mac", help="device MAC, e.g. 34:3D:7F:00:2F:3D")
     ap.add_argument("--expect", help="known base64 password to verify against")
+    ap.add_argument("--keep", action="store_true",
+                    help="keep the downloaded APK instead of deleting it")
     args = ap.parse_args()
 
-    blob = load_libapp(args.target)
+    # A package id (or a missing/non-file target) is downloaded, then cleaned up.
+    tmpdir = None
+    target = args.target
+    if not os.path.exists(target) and PKG_RE.match(target):
+        tmpdir = tempfile.mkdtemp(prefix="apkextract_")
+        try:
+            target = download_apk(target, tmpdir)
+            print(f"downloaded: {os.path.basename(target)} "
+                  f"({os.path.getsize(target) // (1024 * 1024)} MB)")
+        except Exception:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            raise
+
+    try:
+        blob = load_libapp(target)
+        _run(blob, args)
+    finally:
+        if tmpdir is not None and not args.keep:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            print("(downloaded APK deleted)")
+        elif tmpdir is not None:
+            print(f"(kept download in {tmpdir})")
+
+
+def _run(blob: bytes, args: argparse.Namespace) -> None:
 
     # If we already know a password, the secret falls straight out of it.
     if args.expect and args.mac:
