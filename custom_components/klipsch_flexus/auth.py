@@ -55,9 +55,6 @@ _LOGGER = logging.getLogger(__name__)
 # "Pushing webserver password to device (username: user)".
 DEFAULT_USERNAME = "user"
 
-# Value of settings:/webserver/authMode that gates writes behind a signature.
-AUTH_MODE_SETDATA = "setData"
-
 # Scheme advertised by the device in the WWW-Authenticate header on 401.
 AUTH_SCHEME = "HMAC_SHA256_AES256"
 
@@ -72,22 +69,22 @@ _PASSWORD_SECRET = "KlipschSupport!!88"
 def normalize_mac(mac: str) -> str:
     """Reduce a MAC to its canonical form for credential derivation.
 
-    eureka_info reports the MAC as e.g. ``34:3D:7F:00:2F:3D``; the app may key
+    eureka_info reports the MAC as e.g. ``AA:BB:CC:DD:EE:FF``; the app may key
     derivation off a specific casing/separator. This returns lowercase hex with
-    no separators (``343d7f002f3d``) as the working assumption — adjust here if
+    no separators (``aabbccddeeff``) as the working assumption — adjust here if
     the decompiled ``generate*FromMac`` expects colons or uppercase.
     """
     return mac.replace(":", "").replace("-", "").lower()
 
 
 def generate_username_from_mac(mac: str) -> str:
-    """Webserver username derived from the device MAC.
+    """Webserver username — the literal ``"user"`` (resolved, not a placeholder).
 
-    Mirrors ``generateUsernameFromMac`` in the app. The default observed on the
-    wire is the literal ``"user"``; if the app actually derives a per-device
-    username, replace the body below with the exact derivation.
+    ``generateUsernameFromMac`` in Connect Plus v2.3.7 returns the constant
+    ``"user"`` regardless of MAC, confirmed from both the app logs ("username:
+    user") and the asm of ``generateAuthHeader``. The ``mac`` argument is kept
+    for signature symmetry with :func:`generate_password_from_mac`.
     """
-    # ── FILL IN (1/3): exact username derivation from decompiled app ──
     return DEFAULT_USERNAME
 
 

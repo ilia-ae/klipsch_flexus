@@ -238,7 +238,7 @@ def main() -> None:
         default=DEFAULT_PACKAGE,
         help=f"APK/XAPK/libapp.so path, or a package id to download (default: {DEFAULT_PACKAGE})",
     )
-    ap.add_argument("--mac", help="device MAC, e.g. 34:3D:7F:00:2F:3D")
+    ap.add_argument("--mac", help="device MAC, e.g. AA:BB:CC:DD:EE:FF")
     ap.add_argument("--expect", help="known base64 password to decode the secret from")
     ap.add_argument("--version", help="pin a specific app version to download (default: latest on APKPure)")
     ap.add_argument("--keep", action="store_true", help="keep the downloaded APK instead of deleting it")

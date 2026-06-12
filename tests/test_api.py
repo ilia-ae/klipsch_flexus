@@ -249,7 +249,7 @@ async def test_set_data_signs_on_401(api: KlipschAPI) -> None:
     api._session = mock_session
     api._own_session = False
     # MAC for credential derivation comes from eureka_info (port 8008).
-    api.get_device_info = AsyncMock(return_value={"mac_address": "34:3D:7F:00:2F:3D"})
+    api.get_device_info = AsyncMock(return_value={"mac_address": "AA:BB:CC:DD:EE:FF"})
 
     result = await api.set_data(
         "settings:/cinema/dialogMode",

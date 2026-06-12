@@ -18,25 +18,26 @@ _spec = importlib.util.spec_from_file_location("extract_secret", _ES_PATH)
 es = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(es)
 
-# base64("343D7F002F3D" + "KlipschSupport!!88")
-KNOWN_PASSWORD = base64.b64encode(b"343D7F002F3DKlipschSupport!!88").decode()
+# base64("AABBCCDDEEFF" + "KlipschSupport!!88") — placeholder MAC, no real device.
+KNOWN_PASSWORD = base64.b64encode(b"AABBCCDDEEFFKlipschSupport!!88").decode()
 
 
 def test_secret_from_password_decode_only():
     """A known password decodes to (MAC, secret) without needing --mac."""
     mac, secret = es.secret_from_password(KNOWN_PASSWORD, None)
-    assert mac == "343D7F002F3D"
+    assert mac == "AABBCCDDEEFF"
     assert secret == "KlipschSupport!!88"
 
 
 def test_secret_from_password_with_matching_mac():
-    mac, secret = es.secret_from_password(KNOWN_PASSWORD, "343D7F002F3D")
-    assert (mac, secret) == ("343D7F002F3D", "KlipschSupport!!88")
+    mac, secret = es.secret_from_password(KNOWN_PASSWORD, "AABBCCDDEEFF")
+    assert (mac, secret) == ("AABBCCDDEEFF", "KlipschSupport!!88")
 
 
 def test_secret_from_password_mac_mismatch_raises():
+    # a different MAC than the password encodes → prefix check fails
     with pytest.raises(ValueError, match="does not start with"):
-        es.secret_from_password(KNOWN_PASSWORD, "AABBCCDDEEFF")
+        es.secret_from_password(KNOWN_PASSWORD, "001122334455")
 
 
 def test_secret_from_password_bad_base64_raises():
