@@ -283,3 +283,47 @@ Android 13 (SDK 33), arm64, **Magisk root**, НЕ Samsung. Подключён п
 
 **Артефакты:** перехват 17 подписей `/tmp/klip_flows.log`; gadget-APK `~/Desktop/Klipsch-frida.apk`;
 рабочий хук `/tmp/hook.js` + драйвер `/tmp/op_spawn.py`; декомпиляция в `.reverse/blutter_out/`.
+
+### 🏁 ФИНАЛ — дома у бара: подпись взломана и работает (HTTP 200)
+
+Дома (OnePlus в одной WiFi с баром) собрали стенд и сняли ground-truth. Путь к успеху:
+
+1. **Attach к живому процессу хуки НЕ срабатывали** (трамплин в память пишется, но CPU
+   исполняет старый код горячей Dart-функции из icache). Лечится только **spawn** — патч до
+   первого исполнения. Python `device.spawn` интермиттентно таймаутит → надёжно зашло через
+   **frida CLI**: `sleep 600 | frida -D <serial> -f <pkg> -l hook.js` (держим stdin живым).
+2. **Запись идёт НЕ Basic-auth** (curl Basic → 401). Логи приложения показали: `setData`
+   успешен с первой попытки (200), `HmacAuthHelper: hasCredentials user / MzQz...` — то есть
+   подпись HMAC_SHA256_AES256, а 401-challenge это лишь fallback до провижининга.
+3. **Снято хуками** `generateAuthHeader` (method/url/body), `Hmac.convert` (ключ+канон),
+   `Encrypter.encrypt` (AES key/iv/plaintext/cipher).
+
+**Взломанный алгоритм** (воспроизведён в Python, бар ответил **200**, состояние реально
+сменилось — nightMode, dialogMode):
+
+```
+nonce = base64(6 rand);  ts = ms
+key   = SHA256(base64decode(nonce) + password)     # один ключ для AES и HMAC
+value = base64(iv + AES_256_CBC(key, iv, PKCS7(compact_json(value))))
+body  = json_pretty4(path, role=value, value)
+sig   = base64(HMAC_SHA256(key, "user."+nonce+"."+ts+"."+url+"."+body))
+Authorization: HMAC_SHA256_AES256 base64("user").nonce.ts.sig
+```
+
+Проверка: офлайн `build_set_data` совпал с приложением **байт-в-байт** (value, канон, sig);
+вживую `set nightMode_1/off`, `dialog_*` → **HTTP 200** + read-back подтвердил смену.
+
+**Реализация и выводы:**
+- [`auth.py`](../custom_components/klipsch_flexus/auth.py) → `KlipschAuth.build_set_data(path, value)`
+  отдаёт `(body, headers)` для подписанного `POST /api/setData`.
+- [`tools/extract_secret.py`](../tools/extract_secret.py) — извлекает константу
+  `KlipschSupport!!88` из APK (точно из известного пароля, либо эвристикой по строкам
+  `libapp.so` — секрет всплывает #0). Для будущих версий приложения.
+- **Срок действия:** нет — пароль детерминирован из MAC + константы, без времени/ротации.
+- **Универсальность:** секрет — общая константа во всех установках Connect Plus v2.3.7 →
+  формула `base64(MAC + "KlipschSupport!!88")` работает у **всех** Flexus-владельцев (меняется
+  только MAC, и он автодискаверится). Per-request ключ/nonce/iv клиент генерит сам — ничего
+  «ловить» в рантайме не надо, всё считается офлайн.
+- **«Безопасность»:** театр — захардкоженная константа + публичный MAC; AES/HMAC поверх
+  выводимого ключа не добавляют стойкости против LAN-атакующего, лишь поднимают цену
+  интеропа. Подробности — в `PROTOCOL_2026_CHANGES.md` (раздел «security theatre»).

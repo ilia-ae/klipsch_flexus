@@ -63,7 +63,7 @@ changes landing), so the signature is valid and lives inside the encrypted chann
 |---|---|
 | Read all state (`getData`, `getRows`) on :80 | ✅ works |
 | Set **volume / mute** | ✅ works **if** sent as POST (drop the GET fallback) |
-| Set mode / dialog / night / EQ / Dirac / channel levels / tone | ❌ **401** — needs HMAC signing (not yet implemented) |
+| Set mode / dialog / night / EQ / Dirac / channel levels / tone | ✅ **solved** — `auth.py` `build_set_data` signs the write (HMAC_SHA256_AES256), confirmed live (HTTP 200) |
 | Event-driven (instant) updates | ❌ not implemented (queue register is TLS-only) |
 
 `probe_command_health()` already surfaces this: gated commands report
@@ -97,31 +97,121 @@ Strings recovered from `libapp.so` reveal the full mechanism:
   (`hasWebserverPasswordCredentials`). That's why the unit already 401s unsigned
   writes — a MAC-derived password is set.
 
-### What's still needed (the exact byte-level algorithm)
+### Where each piece is computed (source map)
 
-The **bodies** of `generatePasswordFromMac` and `buildSignature` (salt/format, what
-string is signed, which header carries the signature) are inside the Dart AOT and need
-a Flutter-AOT decompiler. Options, in order of preference:
+Recovered from `libapp.so` (Flutter AOT, Connect Plus v2.3.7). Symbol → role:
 
-1. **`blutter`** on `libapp.so` — recovers pseudo-Dart for those two functions →
-   gives the exact password derivation + signature construction. Heavy/version-specific
-   build, but deterministic once it runs.
-2. **Frida** on the running app — hook the two functions and dump the live
-   username/password + the signed request for one `setData`. Needs a rooted/hookable
-   device but is the fastest way to ground-truth.
-3. Confirm against a **TLS-decrypted PCAPNG** if mitm can be made to work.
+| App symbol | Computes | Integration slot (`auth.py`) |
+|---|---|---|
+| `generateUsernameFromMac(mac)` | webserver username (default `user`) | `generate_username_from_mac` |
+| `generatePasswordFromMac(mac)` | webserver password from MAC ✅ **solved** | `generate_password_from_mac` |
+| `authChallenge` / `WWW-Authenticate` parse | salt/nonce from the 401 | `parse_challenge` |
+| `HMac.withDigest(impl.digest.sha256)` (PointyCastle) | `key = sha256(salt+password)`, `HMAC_SHA256` | `_derive_key` + `build_signature` |
+| `buildSignature(...)` | canonical string + signature + header | `build_signature` |
+| `setWebserverPassword` (onboarding) | pushes the MAC-derived password to the device | n/a (device already provisioned) |
 
-Once the derivation + signing are known, the integration computes
-`user = generateUsernameFromMac(mac)`, `pass = generatePasswordFromMac(mac)` from the
-device MAC it already discovers, then signs `POST /api/setData` per `buildSignature` —
-restoring mode/dialog/night/EQ/channel writes. Volume/mute may also just need the
-credential (they stay otherwise open but require POST, not the banned GET).
+The MAC itself is **not secret** — it is read from `eureka_info` (port 8008) and is also
+visible in ARP/mDNS and the device's BLE advertisement (the app's `DeviceMacUtils` scans
+BLE to obtain it). So `generatePasswordFromMac` is a reversible derivation, not a shared
+secret: any LAN client can reproduce it. The 2026 "auth" therefore adds friction for
+legitimate local clients (this integration) without changing the threat model — an
+attacker on the same LAN derives the same credential. That reversibility is exactly what
+lets us restore writes.
+
+### Password derivation — **solved** (exact)
+
+The body of `generatePasswordFromMac` is recovered verbatim from Connect Plus v2.3.7:
+
+```
+cleaned  = mac.replaceAll(RegExp("[^A-F0-9]"), "")    // keep UPPERCASE hex → 12 chars
+password = base64( utf8( cleaned + "KlipschSupport!!88" ) )
+```
+
+The entire "secret" is the **hardcoded string `KlipschSupport!!88`** interpolated with the
+**public MAC**, then Base64-ed. Base64 is an *encoding, not encryption* — the password is
+trivially reversible (`base64 -d` → `343D7F002F3DKlipschSupport!!88`). There is no salt,
+no KDF, no per-install secret. Worked example for MAC `34:3D:7F:00:2F:3D`:
+
+```
+cleaned  = 343D7F002F3D
+password = base64("343D7F002F3DKlipschSupport!!88")
+         = MzQzRDdGMDAyRjNES2xpcHNjaFN1cHBvcnQhITg4
+```
+
+> ⚠️ Note the regex keeps **uppercase** hex only — a lowercase MAC would lose its
+> `a–f` digits. `eureka_info` reports the MAC uppercased; `auth.py` re-uppercases
+> defensively so the derivation is casing-independent.
+
+This is implemented in
+[`generate_password_from_mac`](../custom_components/klipsch_flexus/auth.py) with a
+known-answer test in [`tests/test_auth.py`](../tests/test_auth.py).
+
+### Signature construction (`generateAuthHeader`) — **SOLVED** (confirmed live, HTTP 200)
+
+Recovered from `libapp.so` (blutter) and pinned byte-exact with a **Frida** hook on the
+running app (`HmacAuthHelper.generateAuthHeader`, `Hmac.convert`, `Encrypter.encrypt`),
+then reproduced in pure Python and **accepted live by the device (HTTP 200, state changed)**.
+
+Per signed `POST /api/setData`:
+
+```
+nonce      = base64(6 random bytes)                  # fresh per request, client-side
+ts         = current time in milliseconds (string)
+key        = SHA256( base64decode(nonce) + password )   # 32 bytes; the SAME key for AES and HMAC
+iv         = 16 random bytes
+cipher     = AES-256-CBC(key, iv).encrypt( PKCS7( compact_json(value) ) )
+value_b64  = base64( iv + cipher )                   # IV prepended; no separate IV field
+body       = json_pretty_4space({ "path": path, "role": "value", "value": value_b64 })
+canonical  = "user" + "." + nonce + "." + ts + "." + "https://<host>/api/setData" + "." + body
+sig        = base64( HMAC_SHA256(key, canonical) )
+Authorization: HMAC_SHA256_AES256 {base64("user")}.{nonce}.{ts}.{sig}
+```
+
+Key facts that matter for re-implementation:
+- **One 32-byte per-request key** (`SHA256(nonce_raw + password)`) does *both* the body
+  AES-256-CBC encryption and the HMAC-SHA256 signature.
+- The signed `body` is **pretty-printed** (4-space indent, key order `path, role, value`) —
+  it must be serialized exactly so, because the signature covers those bytes.
+- The encrypted `value` is the **compact** JSON of the value object; the IV is prepended to
+  the ciphertext inside the Base64 (`base64(iv || cipher)`).
+- **No server challenge/salt** — `nonce`, `iv`, `ts` are all client-generated. Everything is
+  reproducible offline from the public MAC + the hardcoded `KlipschSupport!!88`. The
+  `HMAC_SHA256_AES256` 401 challenge is only the *pre-provisioning* fallback path; once the
+  device has a provisioned webserver password it accepts this scheme directly.
+
+Implemented in [`auth.py`](../custom_components/klipsch_flexus/auth.py) as
+`KlipschAuth.build_set_data(path, value) -> (body, headers)`; the integration sends those
+verbatim over HTTPS (skip cert verification — self-signed Klipsch-CA). The constant can be
+re-extracted from a future APK with [`tools/extract_secret.py`](../tools/extract_secret.py).
 
 Artifacts: APK + extracted libs under `.reverse/` (gitignored).
 
 See [`SECURITY_ASSESSMENT_CORE_300.md`](SECURITY_ASSESSMENT_CORE_300.md) — it already
 notes a "signed data blob (Base64)" and TLS client-auth cert on a sibling Klipsch
 device; consistent with this StreamUnlimited signing scheme.
+
+## Security assessment — this is theatre, not security
+
+Putting the pieces together, the 2026 write-"auth" provides **no meaningful protection**:
+
+- The credential is `base64(UPPER_HEX_MAC + "KlipschSupport!!88")` — a hardcoded constant
+  plus a value (the MAC) that is broadcast in ARP, mDNS, and BLE advertisements. Any device
+  on the LAN computes the exact same password.
+- Base64 is reversible encoding, not encryption; there is no salt, KDF, or per-unit secret.
+- Net effect: a real attacker on the network is **unaffected** (they derive the credential
+  in one line), while legitimate local clients — Home Assistant, this integration — are the
+  only parties actually locked out until they reimplement the scheme. The change raised the
+  cost of *interoperability*, not the cost of *attack*. It is a compliance-shaped checkbox,
+  not a threat-model change.
+
+### Context / timeline (author's note)
+
+This integration and its reverse-engineering were documented publicly in
+["Klipsch Flexus × Home Assistant"](https://ilia.ae/en/blog/digital/klipsch-flexus-home-assistant-integration/).
+The May-2026 firmware (and Connect Plus v2.3.7, build 2026051321, identical on Android/iOS)
+introduced the write-lock described above shortly afterward. Whether causally related or not,
+the chosen mechanism does not withstand the same analysis the original article applied — a
+follow-up writeup is in progress.
 
 ## Notes
 - PCAPdroid mitm with the **standard (user) CA did NOT decrypt** the soundbar traffic
