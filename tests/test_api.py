@@ -244,9 +244,7 @@ async def test_set_data_falls_back_to_get(api: KlipschAPI) -> None:
 async def test_set_data_signs_on_401(api: KlipschAPI) -> None:
     """2026 firmware: a gated write (401) is retried HMAC-signed over HTTPS."""
     mock_session = AsyncMock(spec=aiohttp.ClientSession)
-    mock_session.post = MagicMock(
-        side_effect=[_mock_response(status=401, text="Forbidden"), _mock_response(text="OK")]
-    )
+    mock_session.post = MagicMock(side_effect=[_mock_response(status=401, text="Forbidden"), _mock_response(text="OK")])
     mock_session.closed = False
     api._session = mock_session
     api._own_session = False

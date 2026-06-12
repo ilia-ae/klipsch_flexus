@@ -3,6 +3,7 @@
 Хроника реверс-инжиниринга нового протокола Klipsch Flexus. Пишется по ходу работ.
 Технические детали — в [`PROTOCOL_2026_CHANGES.md`](PROTOCOL_2026_CHANGES.md);
 здесь — репортаж: что делали, что находили, на чём спотыкались.
+🇬🇧 English version: [`REPORT_en.md`](REPORT_en.md).
 
 ---
 

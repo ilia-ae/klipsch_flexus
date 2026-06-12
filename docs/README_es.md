@@ -51,6 +51,8 @@ El estado en vivo por comando se ve en **Download diagnostics** (sección `comma
 
 > Requiere el paquete `cryptography` (declarado en el manifiesto; incluido con Home Assistant, por lo que ya está presente).
 
+📖 **Cómo lo aplicamos ingeniería inversa** — la historia completa de la investigación (blutter, Frida, WireGuard-MITM, el análisis del «teatro de seguridad»): [informe](REPORT_en.md) (en inglés; ruso: [REPORT.md](REPORT.md)).
+
 El firmware anterior (anterior a `1.1.3`) no se ve afectado y conserva el control completo mediante el respaldo `GET`.
 
 ## Características

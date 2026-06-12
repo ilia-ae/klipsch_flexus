@@ -61,8 +61,7 @@ def test_build_set_data_known_answer(monkeypatch):
 
     nonce = "+QjQ8fsG"
     ts = "1781254222108"
-    iv = bytes([41, 28, 165, 84, 134, 164, 136, 76,
-                127, 113, 185, 83, 128, 233, 197, 26])
+    iv = bytes([41, 28, 165, 84, 134, 164, 136, 76, 127, 113, 185, 83, 128, 233, 197, 26])
     nonce_raw = base64.b64decode(nonce)
 
     # Inject the captured randomness/clock so the output is deterministic.
@@ -80,10 +79,7 @@ def test_build_set_data_known_answer(monkeypatch):
         "KRylVIakiEx/cblTgOnFGpo3+AwXpSXzJZbC3PSPAwo/+YpqdHZD3GpMnFoiCBH1"
         "TDxFY+zjHRBCZP9phtgOClnIpMOKMVoMUkAOq994i3Puu7vIPkHgoNGmW27YtEHT"
     )
-    expected_auth = (
-        "HMAC_SHA256_AES256 dXNlcg==.+QjQ8fsG.1781254222108."
-        "HKQvtPM3bntMfnnBSqgIwA94lUI1mW/hpFKDnncENSY="
-    )
+    expected_auth = "HMAC_SHA256_AES256 dXNlcg==.+QjQ8fsG.1781254222108.HKQvtPM3bntMfnnBSqgIwA94lUI1mW/hpFKDnncENSY="
 
     assert json.loads(body)["value"] == expected_value
     assert headers["Authorization"] == expected_auth

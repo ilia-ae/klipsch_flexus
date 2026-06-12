@@ -29,6 +29,7 @@ def auto_enable_custom_integrations(request):
         request.getfixturevalue("mock_async_zeroconf")
     yield
 
+
 MOCK_STATUS = {
     "online": True,
     "volume": 25,
