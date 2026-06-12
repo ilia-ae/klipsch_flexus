@@ -1,15 +1,21 @@
 {
   "domain": "klipsch_flexus",
   "name": "Klipsch Flexus",
-  "codeowners": ["@razqqm"],
+  "codeowners": [
+    "@razqqm"
+  ],
   "config_flow": true,
-  "dependencies": ["zeroconf"],
+  "dependencies": [
+    "zeroconf"
+  ],
   "documentation": "https://github.com/razqqm/klipsch_flexus",
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/razqqm/klipsch_flexus/issues",
-  "requirements": ["cryptography>=41.0.0"],
-  "version": "2.5.1",
+  "requirements": [
+    "cryptography>=41.0.0"
+  ],
+  "version": "2.5.2",
   "zeroconf": [
     {
       "type": "_googlecast._tcp.local.",

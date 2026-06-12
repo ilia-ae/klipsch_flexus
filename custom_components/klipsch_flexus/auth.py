@@ -208,11 +208,15 @@ class KlipschAuth:
     def set_data_url(self) -> str:
         return f"https://{self._host}/api/setData"
 
-    def build_set_data(self, path: str, value: dict) -> tuple[str, dict[str, str]]:
+    def build_set_data(self, path: str, value: dict, role: str = "value") -> tuple[str, dict[str, str]]:
         """Build a signed ``POST /api/setData`` request.
 
         ``value`` is the plaintext value object, e.g.
         ``{"type": "cinemaDialogMode", "cinemaDialogMode": "dialog_2"}``.
+        ``role`` is the StreamUnlimited data role — ``"value"`` for normal
+        settings, ``"activate"`` for action nodes (power, media transport). It
+        must match the node, or the device returns HTTP 500 even with a valid
+        signature.
 
         Returns ``(body, headers)`` — the request **body string** (with the
         value AES-encrypted) and the headers (incl. the ``Authorization``
@@ -243,7 +247,7 @@ class KlipschAuth:
         # The body is PRETTY-printed (4-space indent); the signature is computed
         # over this exact serialization, so it must match the bytes that are
         # sent byte-for-byte (key order: path, role, value).
-        body = json.dumps({"path": path, "role": "value", "value": value_b64}, indent=4)
+        body = json.dumps({"path": path, "role": role, "value": value_b64}, indent=4)
 
         canonical = f"{self.username}.{nonce}.{ts}.{self.set_data_url}.{body}"
         sig = base64.b64encode(hmac.new(key, canonical.encode("utf-8"), hashlib.sha256).digest()).decode("ascii")

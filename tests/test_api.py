@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -312,6 +313,33 @@ async def test_set_data_oracle_resolves_sibling_mac(api: KlipschAPI) -> None:
     )
     assert result2 == "OK2"
     assert mock_session.post.call_count == 1
+
+
+async def test_set_data_activate_role_and_500_resolves_mac(api: KlipschAPI) -> None:
+    """Power write: role is threaded as 'activate', and a 500 (valid signature,
+    wrong body) still resolves the MAC — only 401/403 means a wrong credential."""
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.post = MagicMock(
+        side_effect=[
+            _mock_response(status=401, text="Forbidden"),  # unsigned :80
+            _mock_response(status=401, text="Forbidden"),  # signed …3E (wrong MAC)
+            _mock_response(status=500, text="node error"),  # signed …3D (right MAC, body 500)
+        ]
+    )
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["34:3D:7F:00:2F:3E"])
+
+    result = await api.set_data(
+        "powermanager:targetRequest", {"target": "on", "reason": "userActivity"}, roles="activate"
+    )
+    assert result == "node error"  # 500 returned to caller
+    assert api._auth is not None  # but the MAC was resolved (500 ≠ 401)
+    # the signed body carried role="activate" (3rd POST = winning candidate)
+    signed = mock_session.post.call_args_list[2]
+    assert json.loads(signed.kwargs["data"])["role"] == "activate"
 
 
 async def test_set_data_raises_clear_error_when_no_mac_authenticates(api: KlipschAPI) -> None:

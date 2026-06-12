@@ -126,7 +126,7 @@ class KlipschAPI:
         # 2026 firmware: this path was already seen to require signing → sign
         # directly, skipping the doomed unsigned POST (the device is slow).
         if path in self._auth_required_paths:
-            signed = await self._do_signed_set_data(session, path, value, timeout)
+            signed = await self._do_signed_set_data(session, path, value, roles, timeout)
             if signed is not None:
                 return signed
             raise self._auth_error()
@@ -141,7 +141,7 @@ class KlipschAPI:
             if status in (401, 403):
                 # Write is gated behind an HMAC signature (authMode=setData).
                 self._auth_required_paths.add(path)
-                signed = await self._do_signed_set_data(session, path, value, timeout)
+                signed = await self._do_signed_set_data(session, path, value, roles, timeout)
                 if signed is not None:
                     return signed
                 raise self._auth_error()
@@ -198,8 +198,18 @@ class KlipschAPI:
             pass
         return expand_mac_candidates(seeds)
 
+    @staticmethod
+    def _sig_accepted(status: int | None) -> bool:
+        """True if the device accepted the signature.
+
+        Only ``401``/``403`` mean a *wrong* credential. Anything else — ``200`` or
+        even a ``500`` (valid signature but a wrong body/role) — means the MAC is
+        correct, so it resolves the credential.
+        """
+        return status is not None and status not in (401, 403)
+
     async def _send_signed(
-        self, session: aiohttp.ClientSession, auth: KlipschAuth, path: str, value: dict, timeout: float
+        self, session: aiohttp.ClientSession, auth: KlipschAuth, path: str, value: dict, roles: str, timeout: float
     ) -> tuple[str | None, int | None]:
         """POST one signed setData; return ``(text, status)`` or ``(None, None)`` on transport error.
 
@@ -208,7 +218,7 @@ class KlipschAPI:
         exactly like the official app, which trusts Klipsch-CA.
         """
         try:
-            body, headers = auth.build_set_data(path, value)
+            body, headers = auth.build_set_data(path, value, role=roles)
             async with session.post(
                 auth.set_data_url,
                 data=body,
@@ -222,19 +232,31 @@ class KlipschAPI:
             return None, None
 
     async def _do_signed_set_data(
-        self, session: aiohttp.ClientSession, path: str, value: dict, timeout: float
+        self, session: aiohttp.ClientSession, path: str, value: dict, roles: str, timeout: float
     ) -> str | None:
         """Sign and send a gated setData, resolving the device MAC by oracle.
 
-        Tries each candidate MAC; the one whose signature the device accepts
-        (HTTP < 400) is cached for all future writes. Returns the device response
-        text, or ``None`` if no candidate authenticates (the caller raises a clear
-        error). A cached credential that starts being rejected triggers one
-        re-resolution (e.g. the app re-provisioned the password).
+        Tries each candidate MAC; the first whose signature the device accepts
+        (anything but 401/403) is cached for all future writes. Returns the device
+        response text, or ``None`` if no candidate authenticates (the caller raises
+        a clear error). A cached credential is only re-resolved on a real auth
+        rejection (401/403), not on other command errors.
         """
         if self._auth is not None:
-            text, status = await self._send_signed(session, self._auth, path, value, timeout)
-            if status is not None and status < 400:
+            # Use the cached credential; transport errors propagate to the retry wrapper.
+            body, headers = self._auth.build_set_data(path, value, role=roles)
+            async with session.post(
+                self._auth.set_data_url,
+                data=body,
+                headers=headers,
+                ssl=False,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                text = await resp.text()
+                status = resp.status
+            if self._sig_accepted(status):
+                if status >= 400:
+                    _LOGGER.warning("Signed setData %s → HTTP %d: %s", path, status, text[:200])
                 return text
             _LOGGER.info("Cached Klipsch credential rejected (HTTP %s) — re-resolving MAC", status)
             self._auth = None
@@ -253,10 +275,12 @@ class KlipschAPI:
 
         for mac in candidates:
             auth = KlipschAuth(mac, self._host)
-            text, status = await self._send_signed(session, auth, path, value, timeout)
-            if status is not None and status < 400:
+            text, status = await self._send_signed(session, auth, path, value, roles, timeout)
+            if self._sig_accepted(status):
                 self._auth = auth
-                _LOGGER.info("Klipsch write-auth resolved: MAC %s accepted (username=%s)", mac, auth.username)
+                _LOGGER.info("Klipsch write-auth resolved: MAC %s accepted (HTTP %s)", mac, status)
+                if status >= 400:
+                    _LOGGER.warning("Signed setData %s → HTTP %d: %s", path, status, text[:200])
                 return text
 
         self._auth_failed = True
@@ -293,7 +317,7 @@ class KlipschAPI:
         async with self._lock:
             session = await self._ensure_session()
             try:
-                await self._do_signed_set_data(session, path, value, API_TIMEOUT_WRITE)
+                await self._do_signed_set_data(session, path, value, "value", API_TIMEOUT_WRITE)
             except (TimeoutError, aiohttp.ClientError, OSError):
                 return False
         return self._auth is not None

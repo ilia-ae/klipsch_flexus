@@ -68,6 +68,14 @@ def test_password_derivation_known_answer():
     assert generate_password_from_mac(normalize_mac(TEST_MAC)) == expected
 
 
+def test_build_set_data_threads_role():
+    auth = KlipschAuth(TEST_MAC, TEST_HOST)
+    body, _ = auth.build_set_data("powermanager:targetRequest", {"target": "on"}, role="activate")
+    assert json.loads(body)["role"] == "activate"
+    body2, _ = auth.build_set_data("cinema:cinemaBass", {"type": "i32_", "i32_": 0})
+    assert json.loads(body2)["role"] == "value"  # default
+
+
 def test_password_secret_is_reversible_theatre():
     # The "secret" is just a hardcoded string + the public MAC: base64 is
     # trivially reversible, demonstrating the credential adds no real secrecy.
