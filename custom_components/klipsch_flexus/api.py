@@ -9,8 +9,9 @@ import time
 from urllib.parse import quote
 
 import aiohttp
+from homeassistant.exceptions import HomeAssistantError
 
-from .auth import KlipschAuth
+from .auth import KlipschAuth, expand_mac_candidates
 from .const import (
     API_RETRIES,
     API_RETRY_DELAY,
@@ -43,8 +44,9 @@ class KlipschAPI:
         # 2026 firmware: writes (except volume/mute) need an HMAC signature.
         # Built lazily from the device MAC on the first gated (401) write.
         self._auth: KlipschAuth | None = None
-        self._auth_failed = False  # MAC unavailable → stop retrying signing
+        self._auth_failed = False  # no candidate MAC authenticated → stop retrying
         self._auth_required_paths: set[str] = set()  # paths known to need signing
+        self._mac_seeds: list[str] = []  # candidate MAC sources (registry/ARP/option)
         self.last_response_time: float | None = None  # ms
         self.total_requests: int = 0
         self.failed_requests: int = 0
@@ -127,7 +129,7 @@ class KlipschAPI:
             signed = await self._do_signed_set_data(session, path, value, timeout)
             if signed is not None:
                 return signed
-            # Signing unavailable (no MAC) → fall through to the legacy attempts.
+            raise self._auth_error()
 
         if not self._set_post_unsupported:
             payload = {"path": path, "roles": roles, "value": value}
@@ -142,8 +144,7 @@ class KlipschAPI:
                 signed = await self._do_signed_set_data(session, path, value, timeout)
                 if signed is not None:
                     return signed
-                # No credential available — surface the device's 401 body.
-                return text
+                raise self._auth_error()
             # Any other 4xx/5xx → assume pre-2026 (GET-only) firmware.
             self._set_post_unsupported = True
             _LOGGER.info(
@@ -156,66 +157,146 @@ class KlipschAPI:
         async with session.get(url, timeout=client_timeout) as resp:
             return await resp.text()
 
-    async def _ensure_auth(self) -> KlipschAuth | None:
-        """Build (and cache) the HMAC signer from the device MAC.
+    @property
+    def host(self) -> str:
+        return self._host
 
-        The MAC comes from ``eureka_info`` (port 8008), the same source the
-        config flow and device registry already use. Returns ``None`` if the MAC
-        cannot be resolved — signing is then disabled and gated writes fail with
-        the device's 401, which surfaces in the logs rather than crashing.
+    def set_mac_seeds(self, seeds: list[str]) -> None:
+        """Provide candidate MAC sources for write-auth (registry / ARP / option).
+
+        The coordinator passes whatever MACs Home Assistant knows for the device.
+        New seeds reset any cached/failed auth so resolution re-runs against them.
         """
-        if self._auth is not None:
-            return self._auth
-        if self._auth_failed:
-            return None
+        cleaned = [s for s in seeds if s]
+        if set(cleaned) != set(self._mac_seeds):
+            self._mac_seeds = cleaned
+            self._auth = None
+            self._auth_failed = False
 
-        info = await self.get_device_info()
-        mac = info.get("mac_address") if info else None
-        if not mac:
-            self._auth_failed = True
-            _LOGGER.warning(
-                "Cannot sign setData for 2026 firmware: device MAC unavailable "
-                "from eureka_info (port 8008). Gated writes will be rejected."
-            )
-            return None
-
-        self._auth = KlipschAuth(mac, self._host)
-        _LOGGER.info(
-            "2026 firmware detected — setData signing enabled (username=%s)",
-            self._auth.username,
+    def _auth_error(self) -> HomeAssistantError:
+        """Clear, user-facing error when a gated write cannot be signed."""
+        return HomeAssistantError(
+            "Klipsch Flexus: this command needs an HMAC signature (2026 firmware), but "
+            "the device credential could not be established — no candidate MAC authenticated. "
+            "Set the soundbar's MAC in the integration options "
+            "(Settings → Devices & Services → Klipsch Flexus → Configure)."
         )
-        return self._auth
+
+    async def _resolve_mac_candidates(self) -> list[str]:
+        """Ordered MAC candidates to try for the signing credential.
+
+        Seeds come from the coordinator (HA device registry / ARP / manual option)
+        plus ``eureka_info`` as a last resort; each is expanded with its last-byte
+        neighbours, since a unit's wired and wireless MACs differ by one.
+        """
+        seeds = list(self._mac_seeds)
+        try:
+            info = await self.get_device_info()
+            if info and info.get("mac_address"):
+                seeds.append(info["mac_address"])
+        except Exception:  # noqa: BLE001
+            pass
+        return expand_mac_candidates(seeds)
+
+    async def _send_signed(
+        self, session: aiohttp.ClientSession, auth: KlipschAuth, path: str, value: dict, timeout: float
+    ) -> tuple[str | None, int | None]:
+        """POST one signed setData; return ``(text, status)`` or ``(None, None)`` on transport error.
+
+        The device serves a self-signed Klipsch-CA certificate, so TLS
+        verification is disabled (``ssl=False``) — a LAN device with no public CA,
+        exactly like the official app, which trusts Klipsch-CA.
+        """
+        try:
+            body, headers = auth.build_set_data(path, value)
+            async with session.post(
+                auth.set_data_url,
+                data=body,
+                headers=headers,
+                ssl=False,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                return await resp.text(), resp.status
+        except (TimeoutError, aiohttp.ClientError, OSError) as err:
+            _LOGGER.debug("Signed setData transport error: %s", err)
+            return None, None
 
     async def _do_signed_set_data(
         self, session: aiohttp.ClientSession, path: str, value: dict, timeout: float
     ) -> str | None:
-        """Send an HMAC-signed setData over HTTPS:443. ``None`` if unsignable.
+        """Sign and send a gated setData, resolving the device MAC by oracle.
 
-        The device serves a self-signed Klipsch-CA certificate, so TLS
-        verification is disabled (``ssl=False``) — this is a LAN device with no
-        public CA, exactly like the official app, which trusts Klipsch-CA.
+        Tries each candidate MAC; the one whose signature the device accepts
+        (HTTP < 400) is cached for all future writes. Returns the device response
+        text, or ``None`` if no candidate authenticates (the caller raises a clear
+        error). A cached credential that starts being rejected triggers one
+        re-resolution (e.g. the app re-provisioned the password).
         """
-        auth = await self._ensure_auth()
-        if auth is None:
+        if self._auth is not None:
+            text, status = await self._send_signed(session, self._auth, path, value, timeout)
+            if status is not None and status < 400:
+                return text
+            _LOGGER.info("Cached Klipsch credential rejected (HTTP %s) — re-resolving MAC", status)
+            self._auth = None
+
+        if self._auth_failed:
             return None
 
-        body, headers = auth.build_set_data(path, value)
-        async with session.post(
-            auth.set_data_url,
-            data=body,
-            headers=headers,
-            ssl=False,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            text = await resp.text()
-            if resp.status >= 400:
-                _LOGGER.warning(
-                    "Signed setData %s rejected with HTTP %d: %s",
-                    path,
-                    resp.status,
-                    text[:200],
-                )
-            return text
+        candidates = await self._resolve_mac_candidates()
+        if not candidates:
+            self._auth_failed = True
+            _LOGGER.error(
+                "Klipsch: cannot sign writes — no candidate MAC available (eureka_info "
+                "reports 00:00:00:00:00:00). Set the device MAC in the integration options."
+            )
+            return None
+
+        for mac in candidates:
+            auth = KlipschAuth(mac, self._host)
+            text, status = await self._send_signed(session, auth, path, value, timeout)
+            if status is not None and status < 400:
+                self._auth = auth
+                _LOGGER.info("Klipsch write-auth resolved: MAC %s accepted (username=%s)", mac, auth.username)
+                return text
+
+        self._auth_failed = True
+        _LOGGER.error(
+            "Klipsch: none of %d candidate MAC(s) authenticated writes %s. "
+            "Set the soundbar's MAC in the integration options.",
+            len(candidates),
+            candidates,
+        )
+        return None
+
+    async def resolve_write_auth(self) -> bool:
+        """Eagerly resolve the signing MAC via an idempotent oracle probe.
+
+        Reads a benign value-role parameter (bass) and writes the same value back
+        signed, trying candidates until the device accepts one — so the first real
+        command succeeds immediately instead of probing then. No-op: the value
+        written equals the value just read. Returns ``True`` if resolved.
+        """
+        from .const import API_PATHS
+
+        if self._auth is not None:
+            return True
+        if self._auth_failed:
+            return False
+        path = API_PATHS["bass"]
+        try:
+            current = await self.get_data(path)
+        except Exception:  # noqa: BLE001
+            return False
+        value = current[0] if current else None
+        if value is None:
+            return False
+        async with self._lock:
+            session = await self._ensure_session()
+            try:
+                await self._do_signed_set_data(session, path, value, API_TIMEOUT_WRITE)
+            except (TimeoutError, aiohttp.ClientError, OSError):
+                return False
+        return self._auth is not None
 
     async def get_auth_mode(self) -> str:
         """Read settings:/webserver/authMode.

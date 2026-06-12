@@ -33,9 +33,16 @@
       "init": {
         "title": "Klipsch Flexus Settings",
         "data": {
-          "scan_interval": "Poll interval (seconds)"
+          "scan_interval": "Poll interval (seconds)",
+          "device_mac": "Device MAC (optional)"
+        },
+        "data_description": {
+          "device_mac": "Only needed if write commands (input, sound mode, EQ…) fail to authenticate on 2026 firmware. Leave empty to auto-detect; otherwise enter the soundbar's MAC address."
         }
       }
+    },
+    "error": {
+      "invalid_mac": "Not a valid MAC address (expected 12 hex digits, e.g. AA:BB:CC:DD:EE:FF)."
     }
   },
   "entity": {

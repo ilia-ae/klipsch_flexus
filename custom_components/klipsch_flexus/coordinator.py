@@ -5,12 +5,15 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import KlipschAPI
 from .const import (
     COMMAND_REFRESH_DELAY,
+    CONF_DEVICE_MAC,
     DOMAIN,
     SCAN_INTERVAL_SECONDS,
     SCAN_INTERVAL_STANDBY,
@@ -19,11 +22,29 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _arp_lookup(ip: str) -> str | None:
+    """Best-effort MAC for ``ip`` from the kernel ARP table (Linux / HA OS)."""
+    try:
+        with open("/proc/net/arp") as fh:
+            for line in fh.readlines()[1:]:
+                cols = line.split()
+                if len(cols) >= 4 and cols[0] == ip and cols[3] != "00:00:00:00:00:00":
+                    return cols[3]
+    except OSError:
+        pass
+    return None
+
+
 class KlipschCoordinator(DataUpdateCoordinator[dict]):
     """Coordinator to poll Klipsch device status."""
 
     def __init__(
-        self, hass: HomeAssistant, api: KlipschAPI, name: str, scan_interval: int = SCAN_INTERVAL_SECONDS
+        self,
+        hass: HomeAssistant,
+        api: KlipschAPI,
+        name: str,
+        scan_interval: int = SCAN_INTERVAL_SECONDS,
+        entry: ConfigEntry | None = None,
     ) -> None:
         super().__init__(
             hass,
@@ -32,10 +53,50 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
             update_interval=timedelta(seconds=scan_interval),
         )
         self.api = api
+        self.entry = entry
         self.dirac_filters: list[dict] = []
         self.device_info: dict | None = None  # eureka_info from port 8008
         self._normal_interval = timedelta(seconds=scan_interval)
         self._standby_interval = timedelta(seconds=SCAN_INTERVAL_STANDBY)
+        self._write_auth_ready = False  # signing credential resolved
+
+    async def _gather_mac_seeds(self) -> list[str]:
+        """Collect candidate MACs for the 2026 write-auth credential.
+
+        eureka_info reports ``00:00:00:00:00:00`` on this firmware, so the MAC is
+        taken from what HA already knows — a manual option, the device registry
+        (populated by discovery / a router integration), and the ARP table.
+        ``api`` expands each with last-byte neighbours and picks the one the
+        device accepts.
+        """
+        seeds: list[str] = []
+        if self.entry:
+            manual = self.entry.options.get(CONF_DEVICE_MAC)
+            if manual:
+                seeds.append(manual)
+            try:
+                reg = dr.async_get(self.hass)
+                for device in dr.async_entries_for_config_entry(reg, self.entry.entry_id):
+                    seeds.extend(val for ctype, val in device.connections if ctype == dr.CONNECTION_NETWORK_MAC)
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Klipsch: device-registry MAC lookup failed", exc_info=True)
+        arp = await self.hass.async_add_executor_job(_arp_lookup, self.api.host)
+        if arp:
+            seeds.append(arp)
+        return seeds
+
+    async def _ensure_write_auth(self) -> None:
+        """Resolve the signing credential once (retried each poll until ready)."""
+        if self._write_auth_ready:
+            return
+        seeds = await self._gather_mac_seeds()
+        self.api.set_mac_seeds(seeds)
+        try:
+            if await self.api.resolve_write_auth():
+                self._write_auth_ready = True
+                _LOGGER.info("Klipsch write commands enabled (signing credential resolved)")
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Klipsch: write-auth resolution attempt failed", exc_info=True)
 
     async def _async_update_data(self) -> dict:
         try:
@@ -67,6 +128,9 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
                 self.device_info = await self.api.get_device_info()
             except Exception:
                 _LOGGER.debug("Failed to fetch device info from port 8008")
+
+        # Resolve the 2026 write-auth credential (MAC oracle) once it's reachable
+        await self._ensure_write_auth()
 
         # Fetch Dirac filters once
         if not self.dirac_filters:

@@ -18,7 +18,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = entry.data[CONF_HOST]
     scan_interval = entry.options.get(CONF_SCAN_INTERVAL, SCAN_INTERVAL_SECONDS)
     api = KlipschAPI(host)
-    coordinator = KlipschCoordinator(hass, api, host, scan_interval)
+    coordinator = KlipschCoordinator(hass, api, host, scan_interval, entry=entry)
 
     await coordinator.async_config_entry_first_refresh()
 

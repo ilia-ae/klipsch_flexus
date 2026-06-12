@@ -278,21 +278,58 @@ async def test_set_data_signs_on_401(api: KlipschAPI) -> None:
     assert mock_session.post.call_args.args[0] == "https://192.168.1.100/api/setData"
 
 
-async def test_set_data_401_without_mac_returns_device_error(api: KlipschAPI) -> None:
-    """If the MAC can't be resolved, a gated write surfaces the 401 body."""
+async def test_set_data_oracle_resolves_sibling_mac(api: KlipschAPI) -> None:
+    """Auto-detect: the discovered MAC 401s, its sibling authenticates → cached."""
     mock_session = AsyncMock(spec=aiohttp.ClientSession)
-    mock_session.post = MagicMock(return_value=_mock_response(status=401, text="Forbidden"))
+    # unsigned 401 → signed with first candidate (…3E) 401 → sibling (…3D) 200
+    mock_session.post = MagicMock(
+        side_effect=[
+            _mock_response(status=401, text="Forbidden"),
+            _mock_response(status=401, text="Forbidden"),
+            _mock_response(text="OK"),
+        ]
+    )
     mock_session.closed = False
     api._session = mock_session
     api._own_session = False
-    api.get_device_info = AsyncMock(return_value=None)  # no MAC → cannot sign
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["34:3D:7F:00:2F:3E"])  # only the wireless MAC is known
 
     result = await api.set_data(
         "settings:/cinema/dialogMode",
         {"type": "cinemaDialogMode", "cinemaDialogMode": "dialog_2"},
     )
+    assert result == "OK"
+    assert mock_session.post.call_count == 3  # unsigned + 2 signed candidates
+    assert api._auth is not None  # working MAC cached
 
-    assert result == "Forbidden"
+    # Cached → next gated write is a single signed POST, no re-probing.
+    mock_session.post.reset_mock()
+    mock_session.post.side_effect = [_mock_response(text="OK2")]
+    result2 = await api.set_data(
+        "settings:/cinema/dialogMode",
+        {"type": "cinemaDialogMode", "cinemaDialogMode": "off"},
+    )
+    assert result2 == "OK2"
+    assert mock_session.post.call_count == 1
+
+
+async def test_set_data_raises_clear_error_when_no_mac_authenticates(api: KlipschAPI) -> None:
+    """No candidate MAC works → a clear HomeAssistantError (not 'unknown error')."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.post = MagicMock(return_value=_mock_response(status=401, text="Forbidden"))
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)  # no MAC anywhere
+
+    with pytest.raises(HomeAssistantError, match="HMAC signature"):
+        await api.set_data(
+            "settings:/cinema/dialogMode",
+            {"type": "cinemaDialogMode", "cinemaDialogMode": "dialog_2"},
+        )
     assert api._auth_failed is True
 
 

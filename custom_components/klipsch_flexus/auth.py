@@ -77,6 +77,54 @@ def normalize_mac(mac: str) -> str:
     return mac.replace(":", "").replace("-", "").lower()
 
 
+ZERO_MAC = "00:00:00:00:00:00"
+
+
+def mac_to_colon(mac: str) -> str | None:
+    """Return ``AA:BB:CC:DD:EE:FF`` (uppercase) or ``None`` if not 12 hex chars."""
+    if not mac:
+        return None
+    hexs = re.sub(r"[^0-9A-Fa-f]", "", mac).upper()
+    if len(hexs) != 12:
+        return None
+    return ":".join(hexs[i : i + 2] for i in range(0, 12, 2))
+
+
+def expand_mac_candidates(seeds: list[str], span: int = 2) -> list[str]:
+    """Expand seed MACs into ordered credential candidates.
+
+    The webserver password is derived from one specific device MAC, but the unit
+    only readily exposes *a* MAC (eureka_info is often ``00:00:00:00:00:00``; the
+    LAN/registry shows the active interface). A device's wired and wireless
+    interfaces share the OUI/prefix and usually differ only in the **last byte**
+    (e.g. ``…:3D`` wired vs ``…:3E`` wireless), so for each seed we also try the
+    last-byte neighbours ``±1…±span`` (nearest first). The all-zero MAC and
+    non-12-hex junk are dropped. Order: each seed, then its neighbours, so the
+    caller can probe them against the device and keep the first that authenticates.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _add(m: str | None) -> None:
+        if m and m not in seen and m != ZERO_MAC:
+            seen.add(m)
+            out.append(m)
+
+    deltas = [d for s in range(1, span + 1) for d in (-s, s)]
+    for seed in seeds:
+        colon = mac_to_colon(seed)
+        if not colon or colon == ZERO_MAC:
+            continue  # skip the all-zero sentinel and its meaningless neighbours
+        _add(colon)
+        prefix, last = colon.rsplit(":", 1)
+        base = int(last, 16)
+        for delta in deltas:
+            nb = base + delta
+            if 0 <= nb <= 255:
+                _add(f"{prefix}:{nb:02X}")
+    return out
+
+
 def generate_username_from_mac(mac: str) -> str:
     """Webserver username — the literal ``"user"`` (resolved, not a placeholder).
 

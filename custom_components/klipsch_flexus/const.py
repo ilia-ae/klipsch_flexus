@@ -5,6 +5,11 @@ DEFAULT_PORT = 80
 SCAN_INTERVAL_SECONDS = 15
 SCAN_INTERVAL_STANDBY = 60  # slower polling when soundbar is in standby
 CONF_SCAN_INTERVAL = "scan_interval"
+# Optional manual override for the device MAC used to derive the write-auth
+# credential (2026 firmware). Normally auto-detected; only needed if detection
+# fails (e.g. eureka_info reports 00:00:00:00:00:00 and the MAC isn't otherwise
+# discoverable on the network).
+CONF_DEVICE_MAC = "device_mac"
 
 # API timeouts (seconds) — soundbar is single-threaded and slow
 API_TIMEOUT_READ = 8

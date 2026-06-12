@@ -15,7 +15,8 @@ except ImportError:  # HA < 2026.2
     from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
 from .api import KlipschAPI
-from .const import CONF_SCAN_INTERVAL, DOMAIN, SCAN_INTERVAL_SECONDS
+from .auth import mac_to_colon
+from .const import CONF_DEVICE_MAC, CONF_SCAN_INTERVAL, DOMAIN, SCAN_INTERVAL_SECONDS
 
 
 class KlipschFlexusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -174,8 +175,16 @@ class KlipschOptionsFlow(config_entries.OptionsFlow):
         self._entry = config_entry
 
     async def async_step_init(self, user_input=None):
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            mac = str(user_input.get(CONF_DEVICE_MAC, "")).strip()
+            if mac and mac_to_colon(mac) is None:
+                errors[CONF_DEVICE_MAC] = "invalid_mac"
+            else:
+                data = {CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL]}
+                if mac:
+                    data[CONF_DEVICE_MAC] = mac_to_colon(mac)
+                return self.async_create_entry(data=data)
 
         return self.async_show_form(
             step_id="init",
@@ -185,6 +194,11 @@ class KlipschOptionsFlow(config_entries.OptionsFlow):
                         CONF_SCAN_INTERVAL,
                         default=self._entry.options.get(CONF_SCAN_INTERVAL, SCAN_INTERVAL_SECONDS),
                     ): vol.All(vol.Coerce(int), vol.Range(min=5, max=120)),
+                    vol.Optional(
+                        CONF_DEVICE_MAC,
+                        default=self._entry.options.get(CONF_DEVICE_MAC, ""),
+                    ): str,
                 }
             ),
+            errors=errors,
         )

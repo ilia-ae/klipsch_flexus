@@ -15,8 +15,10 @@ import json
 
 from custom_components.klipsch_flexus.auth import (
     KlipschAuth,
+    expand_mac_candidates,
     generate_password_from_mac,
     generate_username_from_mac,
+    mac_to_colon,
     normalize_mac,
 )
 
@@ -33,6 +35,29 @@ def test_normalize_mac_strips_separators_and_lowercases():
 
 def test_username_default_is_user():
     assert generate_username_from_mac(normalize_mac(TEST_MAC)) == "user"
+
+
+def test_mac_to_colon():
+    assert mac_to_colon("aa:bb:cc:dd:ee:ff") == "AA:BB:CC:DD:EE:FF"
+    assert mac_to_colon("AABBCCDDEEFF") == "AA:BB:CC:DD:EE:FF"
+    assert mac_to_colon("not-a-mac") is None
+    assert mac_to_colon("") is None
+
+
+def test_expand_mac_candidates_finds_sibling():
+    # eureka often gives the all-zero MAC; the LAN shows the wireless interface,
+    # but the credential is the wired sibling (last byte ±1) → must be a candidate.
+    cands = expand_mac_candidates(["00:00:00:00:00:00", "34:3D:7F:00:2F:3E"])
+    assert cands[0] == "34:3D:7F:00:2F:3E"
+    assert cands[1] == "34:3D:7F:00:2F:3D"  # wired sibling, nearest neighbour
+    # the all-zero sentinel and its neighbours never appear
+    assert not any(c.startswith("00:00:00:00:00") for c in cands)
+
+
+def test_expand_mac_candidates_manual_first_and_dedup():
+    cands = expand_mac_candidates(["34:3D:7F:00:2F:3D", "34:3d:7f:00:2f:3d"])
+    assert cands[0] == "34:3D:7F:00:2F:3D"
+    assert cands.count("34:3D:7F:00:2F:3D") == 1  # deduped across case/format
 
 
 def test_password_derivation_known_answer():
