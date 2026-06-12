@@ -51,6 +51,8 @@ O status ao vivo de cada comando aparece em **Download diagnostics** (seção `c
 
 > Requer o pacote `cryptography` (declarado no manifesto; incluído no Home Assistant, portanto já presente).
 
+📖 **Como fizemos a engenharia reversa** — a história completa da investigação (blutter, Frida, WireGuard-MITM, a análise do «teatro de segurança»): [relatório](REPORT_en.md) (em inglês; russo: [REPORT.md](REPORT.md)).
+
 Firmware mais antigo (anterior à `1.1.3`) não é afetado e mantém o controle completo via fallback `GET`.
 
 ## Recursos

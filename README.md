@@ -52,6 +52,8 @@ You can see the live per-command status on your own device via **Download diagno
 
 > Requires the `cryptography` package (declared in the manifest; bundled with Home Assistant, so it is already present).
 
+📖 **How we reverse-engineered it** — the full investigation story (blutter, Frida, WireGuard-MITM, the security-theatre teardown): [the field report](docs/REPORT_en.md) (also in [Russian](docs/REPORT.md)).
+
 Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy `GET` fallback.
 
 ## Features

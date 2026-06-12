@@ -51,6 +51,8 @@ Den Live-Status pro Befehl zeigt **Download diagnostics** (Abschnitt `command_he
 
 > Erfordert das Paket `cryptography` (im Manifest deklariert; mit Home Assistant gebündelt, also bereits vorhanden).
 
+📖 **Wie wir es reverse-engineered haben** — die ganze Story der Untersuchung (blutter, Frida, WireGuard-MITM, die „Security-Theater"-Analyse): [Field Report](REPORT_en.md) (auf Englisch; russisch: [REPORT.md](REPORT.md)).
+
 Ältere Firmware (vor `1.1.3`) ist nicht betroffen und behält die volle Steuerung über den `GET`-Fallback.
 
 ## Funktionen
