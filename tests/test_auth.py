@@ -47,17 +47,17 @@ def test_mac_to_colon():
 def test_expand_mac_candidates_finds_sibling():
     # eureka often gives the all-zero MAC; the LAN shows the wireless interface,
     # but the credential is the wired sibling (last byte ±1) → must be a candidate.
-    cands = expand_mac_candidates(["00:00:00:00:00:00", "34:3D:7F:00:2F:3E"])
-    assert cands[0] == "34:3D:7F:00:2F:3E"
-    assert cands[1] == "34:3D:7F:00:2F:3D"  # wired sibling, nearest neighbour
+    cands = expand_mac_candidates(["00:00:00:00:00:00", "AA:BB:CC:DD:EE:FE"])
+    assert cands[0] == "AA:BB:CC:DD:EE:FE"
+    assert cands[1] == "AA:BB:CC:DD:EE:FD"  # wired sibling, nearest neighbour
     # the all-zero sentinel and its neighbours never appear
     assert not any(c.startswith("00:00:00:00:00") for c in cands)
 
 
 def test_expand_mac_candidates_manual_first_and_dedup():
-    cands = expand_mac_candidates(["34:3D:7F:00:2F:3D", "34:3d:7f:00:2f:3d"])
-    assert cands[0] == "34:3D:7F:00:2F:3D"
-    assert cands.count("34:3D:7F:00:2F:3D") == 1  # deduped across case/format
+    cands = expand_mac_candidates(["AA:BB:CC:DD:EE:FD", "aa:bb:cc:dd:ee:fd"])
+    assert cands[0] == "AA:BB:CC:DD:EE:FD"
+    assert cands.count("AA:BB:CC:DD:EE:FD") == 1  # deduped across case/format
 
 
 def test_password_derivation_known_answer():

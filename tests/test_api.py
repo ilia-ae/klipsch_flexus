@@ -294,7 +294,7 @@ async def test_set_data_oracle_resolves_sibling_mac(api: KlipschAPI) -> None:
     api._session = mock_session
     api._own_session = False
     api.get_device_info = AsyncMock(return_value=None)
-    api.set_mac_seeds(["34:3D:7F:00:2F:3E"])  # only the wireless MAC is known
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])  # only the wireless MAC is known
 
     result = await api.set_data(
         "settings:/cinema/dialogMode",
@@ -330,7 +330,7 @@ async def test_set_data_activate_role_and_500_resolves_mac(api: KlipschAPI) -> N
     api._session = mock_session
     api._own_session = False
     api.get_device_info = AsyncMock(return_value=None)
-    api.set_mac_seeds(["34:3D:7F:00:2F:3E"])
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])
 
     result = await api.set_data(
         "powermanager:targetRequest", {"target": "on", "reason": "userActivity"}, roles="activate"
@@ -376,7 +376,7 @@ async def test_set_data_timeouts_do_not_latch_auth_failed(api: KlipschAPI) -> No
     api._session = mock_session
     api._own_session = False
     api.get_device_info = AsyncMock(return_value=None)
-    api.set_mac_seeds(["34:3D:7F:00:2F:3E"])
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])
 
     with pytest.raises(HomeAssistantError):
         await api.set_data("settings:/cinema/dialogMode", {"type": "cinemaDialogMode", "cinemaDialogMode": "off"})

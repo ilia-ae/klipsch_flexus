@@ -19,6 +19,12 @@
 
 Home Assistant custom integration for **Klipsch Flexus** soundbars — control via **native local HTTP API**, no cloud, no delays.
 
+## 📸 Dashboard
+
+A custom Lovelace dashboard driven entirely by the integration's entities — input, sound mode, night / dialog enhance, EQ presets, Dirac filter, tone (bass / mid / treble), surround channel levels and subwoofers — all controlled live over the local API.
+
+![Klipsch Flexus dashboard](docs/images/dashboard.png)
+
 ### Supported Models
 
 | Model | Channels | Features |
