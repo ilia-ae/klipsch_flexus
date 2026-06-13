@@ -1,4 +1,4 @@
-"""Number entities for Klipsch Flexus channel levels."""
+"""Number entities for Klipsch Flexus channel levels and settings."""
 
 from __future__ import annotations
 
@@ -9,14 +9,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CHANNEL_LEVELS, DELAY_NUMBERS, DOMAIN
+from .const import CHANNEL_LEVELS, CONFIG_NUMBERS, DOMAIN
 from .coordinator import KlipschCoordinator
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: KlipschCoordinator = hass.data[DOMAIN][entry.entry_id]
     entities: list[NumberEntity] = [KlipschChannelLevel(coordinator, entry, key, icon) for key, icon in CHANNEL_LEVELS]
-    entities += [KlipschDelayNumber(coordinator, entry, *cfg) for cfg in DELAY_NUMBERS]
+    entities += [KlipschSettingNumber(coordinator, entry, *cfg) for cfg in CONFIG_NUMBERS]
     async_add_entities(entities)
 
 
@@ -46,13 +46,8 @@ class KlipschChannelLevel(CoordinatorEntity[KlipschCoordinator], NumberEntity):
 
     @property
     def available(self) -> bool:
-        """Unavailable when device is offline or in standby (can't control)."""
-        data = self.coordinator.data or {}
-        if not data.get("online"):
-            return False
-        if data.get("power") == "networkStandby":
-            return False
-        return super().available
+        """Available whenever the device is reachable (shows last value in standby)."""
+        return bool((self.coordinator.data or {}).get("online")) and super().available
 
     @property
     def native_value(self) -> float | None:
@@ -71,11 +66,10 @@ class KlipschChannelLevel(CoordinatorEntity[KlipschCoordinator], NumberEntity):
         self.coordinator.async_request_delayed_refresh()
 
 
-class KlipschDelayNumber(CoordinatorEntity[KlipschCoordinator], NumberEntity):
-    """Lip-sync / speaker-delay number (advanced A/V sync & calibration)."""
+class KlipschSettingNumber(CoordinatorEntity[KlipschCoordinator], NumberEntity):
+    """Typed setting number — lip-sync delay (ms), balance (double), idle timeout (s)."""
 
     _attr_has_entity_name = True
-    _attr_mode = NumberMode.BOX
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(
@@ -84,11 +78,12 @@ class KlipschDelayNumber(CoordinatorEntity[KlipschCoordinator], NumberEntity):
         entry: ConfigEntry,
         key: str,
         icon: str,
-        unit: str,
-        minimum: int,
-        maximum: int,
-        step: int,
+        unit: str | None,
+        minimum: float,
+        maximum: float,
+        step: float,
         vtype: str,
+        mode: str,
     ) -> None:
         super().__init__(coordinator)
         self._key = key
@@ -99,18 +94,14 @@ class KlipschDelayNumber(CoordinatorEntity[KlipschCoordinator], NumberEntity):
         self._attr_native_min_value = minimum
         self._attr_native_max_value = maximum
         self._attr_native_step = step
+        self._attr_mode = NumberMode.SLIDER if mode == "slider" else NumberMode.BOX
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
 
     @property
     def available(self) -> bool:
-        """Unavailable when device is offline or in standby (can't control)."""
-        data = self.coordinator.data or {}
-        if not data.get("online"):
-            return False
-        if data.get("power") == "networkStandby":
-            return False
-        return super().available
+        """Available whenever the device is reachable (shows last value in standby)."""
+        return bool((self.coordinator.data or {}).get("online")) and super().available
 
     @property
     def native_value(self) -> float | None:
@@ -120,9 +111,10 @@ class KlipschDelayNumber(CoordinatorEntity[KlipschCoordinator], NumberEntity):
         return data.get(self._key, 0)
 
     async def async_set_native_value(self, value: float) -> None:
-        int_val = int(value)
-        await self.coordinator.api.set_delay(self._key, int_val, self._vtype)
+        # double settings (balance) keep fractional precision; integer types are rounded
+        val: float = float(value) if self._vtype == "double_" else int(value)
+        await self.coordinator.api.set_number(self._key, val, self._vtype)
         if self.coordinator.data:
-            self.coordinator.data[self._key] = int_val
+            self.coordinator.data[self._key] = val
             self.async_write_ha_state()
         self.coordinator.async_request_delayed_refresh()

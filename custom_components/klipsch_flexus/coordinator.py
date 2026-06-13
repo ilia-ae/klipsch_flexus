@@ -74,6 +74,17 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
         """
         seeds: list[str] = []
         sources: dict = {}
+        # Best source: the device reports its own wired MAC — the exact credential
+        # for write-signing — via an auth-free read. Deterministic for every client,
+        # so it goes first (the ARP/registry/neighbour guesswork below is a fallback).
+        try:
+            pm = await self.api.get_data("settings:/system/primaryMacAddress")
+            mac = pm[0].get("string_")
+            if mac and mac != "00:00:00:00:00:00":
+                seeds.append(mac)
+                sources["device_primary_mac"] = mac
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Klipsch: primaryMacAddress read failed", exc_info=True)
         if self.entry:
             manual = self.entry.options.get(CONF_DEVICE_MAC)
             if manual:

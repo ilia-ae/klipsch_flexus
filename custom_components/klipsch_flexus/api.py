@@ -521,6 +521,12 @@ class KlipschAPI:
             "led_mode": (API_PATHS["led_mode"], lambda d: d[0].get("cinemaLEDMode", "dim")),
             "operating_mode": (API_PATHS["operating_mode"], lambda d: d[0].get("cinemaOperatingMode", "unknown")),
             "speaker_test": (API_PATHS["speaker_test"], lambda d: d[0].get("cinemaSpeakerTestMode", "unknown")),
+            # other namespaces (mediaPlayer / system) — writable even in standby
+            "balance": (API_PATHS["balance"], lambda d: d[0].get("double_", 0)),
+            "loudness": (API_PATHS["loudness"], lambda d: d[0].get("bool_", False)),
+            "do_not_disturb": (API_PATHS["do_not_disturb"], lambda d: d[0].get("bool_", False)),
+            "auto_standby": (API_PATHS["auto_standby"], lambda d: d[0].get("bool_", False)),
+            "idle_timeout": (API_PATHS["idle_timeout"], lambda d: d[0].get("i32_", 0)),
         }
 
         poll_start = time.monotonic()
@@ -662,11 +668,14 @@ class KlipschAPI:
 
         await self.set_data(API_PATHS["led_mode"], {"type": "cinemaLEDMode", "cinemaLEDMode": mode})
 
-    async def set_delay(self, key: str, value: int, vtype: str = "i32_") -> None:
-        """Set a delay/sync number — lip-sync is i32 (ms), speaker delays i64 (µs)."""
+    async def set_number(self, key: str, value: float, vtype: str = "i32_") -> None:
+        """Set a typed numeric setting (i32 ms, i64 µs, or double like balance)."""
         from .const import API_PATHS
 
         await self.set_data(API_PATHS[key], {"type": vtype, vtype: value})
+
+    # Backwards-compatible alias (lip-sync delay was the first such number)
+    set_delay = set_number
 
     async def set_power(self, target: str) -> None:
         from .const import API_PATHS

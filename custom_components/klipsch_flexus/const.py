@@ -65,6 +65,14 @@ API_PATHS = {
     "led_mode": "settings:/cinema/ledMode",
     "operating_mode": "settings:/cinema/operatingMode",
     "speaker_test": "settings:/cinema/speakerTestMode",
+    # --- other namespaces (v2.5.9) ---
+    "balance": "settings:/mediaPlayer/balance",
+    "loudness": "settings:/mediaPlayer/loudness",
+    "do_not_disturb": "settings:/system/doNotDisturb",
+    "auto_standby": "settings:/system/autoStandby",
+    "idle_timeout": "settings:/system/maxIdleTime",
+    # Device-reported wired MAC — the exact credential for write-signing (auth-free read)
+    "primary_mac": "settings:/system/primaryMacAddress",
 }
 
 # Toggle settings exposed as switches — (key, icon). Some are config-category.
@@ -76,13 +84,18 @@ SWITCHES = [
     ("extra_modes", "mdi:surround-sound"),
     ("ble_pair", "mdi:bluetooth-audio"),
     ("ota_updates", "mdi:cloud-download-outline"),
+    # other namespaces (v2.5.9) — these accept writes even in standby
+    ("loudness", "mdi:volume-vibrate"),
+    ("do_not_disturb", "mdi:minus-circle-outline"),
+    ("auto_standby", "mdi:power-sleep"),
 ]
 
-# Writable delay numbers — (key, icon, unit, min, max, step, value-type).
-# Only manual lip-sync is modifiable; the speaker delays are auto-calibrated
-# (device returns "Setting is not modifiable") and are exposed read-only below.
-DELAY_NUMBERS = [
-    ("lipsync_delay", "mdi:av-timer", "ms", 0, 300, 5, "i32_"),
+# Writable settings numbers — (key, icon, unit, min, max, step, value-type, mode).
+# Speaker delays are auto-calibrated (device rejects writes) and are read-only below.
+CONFIG_NUMBERS = [
+    ("lipsync_delay", "mdi:av-timer", "ms", 0, 300, 5, "i32_", "box"),
+    ("balance", "mdi:scale-balance", None, -10, 10, 0.5, "double_", "slider"),
+    ("idle_timeout", "mdi:timer-sand", "s", 0, 3600, 30, "i32_", "box"),
 ]
 
 # Read-only info sensors — (key, icon, unit). Settings that are not user-modifiable

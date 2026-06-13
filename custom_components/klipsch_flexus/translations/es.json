@@ -120,6 +120,12 @@
       },
       "lipsync_delay": {
         "name": "Retardo de sincronización labial"
+      },
+      "balance": {
+        "name": "Balance"
+      },
+      "idle_timeout": {
+        "name": "Tiempo de inactividad"
       }
     },
     "sensor": {
@@ -201,6 +207,15 @@
       },
       "ota_updates": {
         "name": "Actualización automática de firmware"
+      },
+      "loudness": {
+        "name": "Loudness"
+      },
+      "do_not_disturb": {
+        "name": "No molestar"
+      },
+      "auto_standby": {
+        "name": "Auto-standby"
       }
     }
   }
