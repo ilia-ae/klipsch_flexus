@@ -2,6 +2,7 @@
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://hacs.xyz/)
 [![GitHub Release](https://img.shields.io/github/release/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/commits/main)
 [![License](https://img.shields.io/github/license/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](../LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#descubrimiento-automático)
 
@@ -17,6 +18,8 @@
 ---
 
 Integración personalizada de Home Assistant para barras de sonido **Klipsch Flexus** — control mediante **API HTTP local nativa**, sin nube, sin retrasos.
+
+> ✅ **Actualizado a v2.5.10 (2026-06-13)** — **41 entidades**, todos los comandos de escritura verificados en vivo contra el firmware de 2026 (firmados con HMAC), controlables en standby. Las insignias de arriba reflejan la versión publicada y el último push.
 
 ## 📸 Panel (Dashboard)
 
@@ -59,12 +62,13 @@ Una actualización de firmware de 2026 (**Device Version `1.1.3.x`**, p. ej. `1.
 | Todos los sensores / lecturas de estado (`getData`) | ✅ Funciona |
 | Volumen, silencio (Mute) | ✅ Funciona |
 | Entrada, modo de sonido, noche/diálogo, graves/medios/agudos, preajuste EQ, Dirac, niveles de subwoofer y surround, encendido | ✅ Funciona (firmado con HMAC, v2.5.0+) |
+| LED, Lip-sync, Balance, Loudness, No molestar, Espera automática + 4 conmutadores más | ✅ Funciona (firmado; añadido en v2.5.8–2.5.9) — también en standby |
 
 El estado en vivo por comando se ve en **Download diagnostics** (sección `command_health`, añadida en v2.4.2).
 
 ### Estado de la solución
 
-✅ **Resuelto en v2.5.0 — control completo restaurado, no se requiere ninguna acción del usuario.** La firma de solicitudes `HMAC_SHA256_AES256` ya está implementada. La credencial del dispositivo se deriva automáticamente de la dirección MAC de la barra de sonido (que la integración ya detecta), por lo que **no hay nada que configurar** — solo actualiza la integración. Las escrituras firmadas van al endpoint HTTPS del dispositivo; volumen/silencio siguen funcionando sin firma.
+✅ **Resuelto en v2.5.0 — control completo restaurado, no se requiere ninguna acción del usuario.** La firma de solicitudes `HMAC_SHA256_AES256` ya está implementada. La credencial del dispositivo se deriva automáticamente de la dirección MAC de la barra de sonido (que la integración ya detecta), por lo que **no hay nada que configurar** — solo actualiza la integración. Desde **v2.5.9** la MAC se lee de forma determinista del propio dispositivo (`settings:/system/primaryMacAddress`), por lo que la resolución funciona al primer intento en cada unidad (manteniendo el descubrimiento previo por registro/ARP como respaldo). Las escrituras firmadas van al endpoint HTTPS del dispositivo; volumen/silencio siguen funcionando sin firma.
 
 > Requiere el paquete `cryptography` (declarado en el manifiesto; incluido con Home Assistant, por lo que ya está presente).
 
@@ -98,10 +102,31 @@ El firmware anterior (anterior a `1.1.3`) no se ve afectado y conserva el contro
 - **Modo nocturno** — reduce el rango dinámico para escucha silenciosa
 - **Modo diálogo** — mejora la claridad del habla (3 niveles)
 - **Dirac Live** — filtro de corrección de sala (detectado automáticamente del dispositivo)
+- **Brillo del LED** — LED frontal: Apagado / Tenue / Brillante
+
+### Ajustes numéricos
+- **Retardo de labios (Lip-sync)** — sincronización A/V manual (0–300 ms)
+- **Balance** — balance izquierda/derecha (−10…+10)
+- **Tiempo de inactividad** — tiempo de inactividad para el modo espera automático (0–3600 s)
+
+### Conmutadores (Switches)
+- **Auto Lip-sync** — retardo A/V automático
+- **Bypass de EQ** — omite el ecualizador
+- **Encendido automático** — comportamiento de encendido/espera automático
+- **Loudness** — compensación de sonoridad a bajo volumen
+- **No molestar** — suprime notificaciones/sonidos
+- **Espera automática** — pasa a modo espera al estar inactivo
+- **Sonidos de la interfaz**, **Modos de sonido adicionales**, **Auto-emparejamiento del mando BLE**, **Actualización automática del firmware**
+
+> Todos los ajustes anteriores también se pueden escribir mientras la barra de sonido está en **standby** (el dispositivo los aplica y los conserva); la integración mantiene las entidades disponibles y recuerda el valor que estableciste en lugar de revertirlo.
 
 ### Diagnósticos
 - **Tiempo de respuesta** — duración de la consulta API en ms, contadores de peticiones/errores
 - **Estado del dispositivo** — Encendido / Espera / Sin conexión con info del decodificador, entrada y modo de sonido
+- **MAC de firma** — la MAC usada para firmar las escrituras del firmware de 2026 (esquema, candidatos, estado resuelto)
+- **Enlace de red** — interfaz activa cableada/inalámbrica, nombres de interfaz, orígenes de la MAC
+- **Modo de operación** / **Prueba de altavoces** — estado del dispositivo de solo lectura (expuesto, deliberadamente no controlable)
+- **Retardos de altavoces** (sub cableado/inalámbrico, surround inalámbrico) — solo lectura, calibrados automáticamente por el dispositivo
 - **Descargar diagnósticos** — exportación completa del estado (Ajustes > Dispositivos > Klipsch Flexus > Descargar diagnósticos)
 
 ### Traducciones
@@ -164,29 +189,26 @@ El Klipsch Flexus tiene un **servidor HTTP de un solo hilo** que procesa una pet
 | Reintento con espera | Errores temporales reintentados 2x con 0,5 s de espera |
 | Timeouts adaptativos | 8 s lectura, 10 s escritura, 15 s comandos de encendido |
 | Degradación elegante | Lecturas fallidas usan los últimos valores conocidos |
-| Actualizaciones optimistas | UI se actualiza al instante, luego se verifica por polling |
-| **Polling con detección de standby** | Primero se consulta el estado de energía; en standby solo 1 petición en vez de 20+, valores en caché preservados, intervalo reducido a 60 s |
+| Actualizaciones optimistas | UI se actualiza al instante, luego se verifica por polling; los valores aplicados en standby se almacenan en caché para que el sondeo en standby nunca los revierta |
+| **Polling con detección de standby** | Primero se consulta el estado de energía; en standby solo 1 petición en vez de 20+, valores en caché preservados, intervalo reducido a 60 s. Los ajustes siguen **disponibles y controlables** en standby — el dispositivo aplica las escrituras y la integración las recuerda |
 
 ## Entidades
 
 | Entidad | Tipo | Categoría |
 |---------|------|-----------|
 | Klipsch Flexus CORE 300 | Media Player | — |
-| Modo nocturno | Select | Configuración |
-| Modo diálogo | Select | Configuración |
-| Preajuste EQ | Select | Configuración |
-| Filtro Dirac | Select | Configuración |
-| Back Height / Left / Right | Number (x3) | Configuración |
-| Front Height | Number | Configuración |
-| Side Left / Right | Number (x2) | Configuración |
+| Modo nocturno / Modo diálogo / Preajuste EQ / Filtro Dirac / Brillo del LED | Select (x5) | Configuración |
+| Back Height / Left / Right, Front Height, Side Left / Right | Number (x6) | Configuración |
 | Subwoofer Wireless 1 / 2 | Number (x2) | Configuración |
 | Bass / Mid / Treble | Number (x3) | Configuración |
-| Tiempo de respuesta | Sensor | Diagnóstico |
-| Estado del dispositivo | Sensor | Diagnóstico |
-| Entrada activa | Sensor | Diagnóstico |
-| Modo de sonido activo | Sensor | Diagnóstico |
+| Retardo de labios, Balance, Tiempo de inactividad | Number (x3) | Configuración |
+| Auto Lip-sync, Bypass de EQ, Encendido automático, Sonidos de la interfaz, Modos de sonido adicionales, Auto-emparejamiento del mando BLE, Actualización automática del firmware | Switch (x7) | Configuración |
+| Loudness, No molestar, Espera automática | Switch (x3) | Configuración |
+| Tiempo de respuesta, Estado del dispositivo, Entrada activa, Modo de sonido activo | Sensor (x4) | Diagnóstico |
+| MAC de firma, Enlace de red | Sensor (x2) | Diagnóstico |
+| Modo de operación, Prueba de altavoces, Retardo de sub cableado/inalámbrico, Retardo de surround | Sensor (x5, solo lectura) | Diagnóstico |
 
-**Total: 20 entidades** (1 reproductor + 4 selects + 11 numbers + 4 sensors)
+**Total: 41 entidades** (1 reproductor + 5 selects + 14 numbers + 10 switches + 11 sensors)
 
 ## Solución de problemas
 

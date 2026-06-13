@@ -2,6 +2,7 @@
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://hacs.xyz/)
 [![GitHub Release](https://img.shields.io/github/release/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/commits/main)
 [![License](https://img.shields.io/github/license/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#auto-discovery)
 
@@ -18,6 +19,8 @@
 ---
 
 Home Assistant custom integration for **Klipsch Flexus** soundbars — control via **native local HTTP API**, no cloud, no delays.
+
+> ✅ **Up to date as of v2.5.10 (2026-06-13)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
 
 ## 📸 Dashboard
 
@@ -60,12 +63,13 @@ A 2026 soundbar firmware update (**Device Version `1.1.3.x`**, e.g. `1.1.3.0x7cd
 | All sensors / status reads (`getData`) | ✅ Works |
 | Volume, Mute | ✅ Works |
 | Input, Sound mode, Night / Dialog, Bass / Mid / Treble, EQ Preset, Dirac, Subwoofer & Surround levels, Power | ✅ Works (HMAC-signed, v2.5.0+) |
+| LED, Lip-sync, Balance, Loudness, DND, Auto-standby + 4 more toggles | ✅ Works (signed; added v2.5.8–2.5.9) — also in standby |
 
 You can see the live per-command status on your own device via **Download diagnostics** (the `command_health` section, added in v2.4.2).
 
 ### Status of the fix
 
-✅ **Solved in v2.5.0 — full control restored, no user action required.** The `HMAC_SHA256_AES256` request signing is now implemented. The per-device credential is derived automatically from the soundbar's MAC address (which the integration already discovers), so there is **nothing to configure** — just update the integration. Signed writes go to the device's HTTPS endpoint; volume/mute continue to work unsigned.
+✅ **Solved in v2.5.0 — full control restored, no user action required.** The `HMAC_SHA256_AES256` request signing is now implemented. The per-device credential is derived automatically from the soundbar's MAC address, so there is **nothing to configure** — just update the integration. Since **v2.5.9** the MAC is read deterministically from the device itself (`settings:/system/primaryMacAddress`), so resolution works on the first try for every unit (with the previous registry/ARP discovery kept as a fallback). Signed writes go to the device's HTTPS endpoint; volume/mute continue to work unsigned.
 
 > Requires the `cryptography` package (declared in the manifest; bundled with Home Assistant, so it is already present).
 
@@ -99,10 +103,31 @@ Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy
 - **Night Mode** — reduces dynamic range for quiet listening
 - **Dialog Mode** — boosts dialog clarity (3 levels)
 - **Dirac Live** — room correction filter (auto-discovered from device)
+- **LED Brightness** — front LED: Off / Dim / Bright
+
+### Settings Numbers
+- **Lip-sync Delay** — manual A/V sync (0–300 ms)
+- **Balance** — left/right balance (−10…+10)
+- **Idle Timeout** — auto-standby idle time (0–3600 s)
+
+### Toggles (Switches)
+- **Auto Lip-sync** — automatic A/V delay
+- **EQ Bypass** — bypass the equaliser
+- **Auto Power** — auto on/standby behaviour
+- **Loudness** — low-volume loudness compensation
+- **Do Not Disturb** — suppress notifications/sounds
+- **Auto Standby** — drop to standby when idle
+- **UI Sounds**, **Extra Sound Modes**, **BLE Remote Auto-pair**, **Firmware Auto-update**
+
+> All settings above are also writable while the soundbar is in **standby** (the device applies and persists them); the integration keeps the entities available and remembers the value you set rather than reverting it.
 
 ### Diagnostics
 - **Response Time** — API poll duration in ms, request/failure counters
 - **Device Status** — On / Standby / Offline with decoder, input, sound mode info
+- **Signing MAC** — the MAC used to sign 2026-firmware writes (scheme, candidates, resolved state)
+- **Network Link** — active wired/wireless interface, interface names, MAC sources
+- **Operating Mode** / **Speaker Test** — read-only device state (surfaced, deliberately not controllable)
+- **Speaker Delays** (wired/wireless sub, wireless surround) — read-only, auto-calibrated by the device
 - **Download diagnostics** — full device state export (Settings > Devices > Klipsch Flexus > Download diagnostics)
 
 ### Translations
@@ -165,29 +190,26 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Retry with backoff | Transient errors retried 2x with 0.5 s delay |
 | Adaptive timeouts | 8 s reads, 10 s writes, 15 s power commands |
 | Graceful degradation | Failed reads fall back to last-known cached values |
-| Optimistic updates | UI updates instantly, then verified via delayed poll |
-| **Standby-aware polling** | Power state probed first; in standby only 1 request instead of 20+, cached values preserved, poll interval slows to 60 s |
+| Optimistic updates | UI updates instantly, then verified via delayed poll; values applied in standby are cached so the standby poll never reverts them |
+| **Standby-aware polling** | Power state probed first; in standby only 1 request instead of 20+, cached values preserved, poll interval slows to 60 s. Settings stay **available and controllable** in standby — the device applies writes and the integration remembers them |
 
 ## Entities
 
 | Entity | Type | Category |
 |--------|------|----------|
 | Klipsch Flexus CORE 300 | Media Player | — |
-| Night Mode | Select | Config |
-| Dialog Mode | Select | Config |
-| EQ Preset | Select | Config |
-| Dirac Filter | Select | Config |
-| Back Height / Left / Right | Number (x3) | Config |
-| Front Height | Number | Config |
-| Side Left / Right | Number (x2) | Config |
+| Night Mode / Dialog Mode / EQ Preset / Dirac Filter / LED Brightness | Select (x5) | Config |
+| Back Height / Left / Right, Front Height, Side Left / Right | Number (x6) | Config |
 | Subwoofer Wireless 1 / 2 | Number (x2) | Config |
 | Bass / Mid / Treble | Number (x3) | Config |
-| Response Time | Sensor | Diagnostic |
-| Device Status | Sensor | Diagnostic |
-| Active Input | Sensor | Diagnostic |
-| Active Sound Mode | Sensor | Diagnostic |
+| Lip-sync Delay, Balance, Idle Timeout | Number (x3) | Config |
+| Auto Lip-sync, EQ Bypass, Auto Power, UI Sounds, Extra Sound Modes, BLE Remote Auto-pair, Firmware Auto-update | Switch (x7) | Config |
+| Loudness, Do Not Disturb, Auto Standby | Switch (x3) | Config |
+| Response Time, Device Status, Active Input, Active Sound Mode | Sensor (x4) | Diagnostic |
+| Signing MAC, Network Link | Sensor (x2) | Diagnostic |
+| Operating Mode, Speaker Test, Sub Wired/Wireless Delay, Surround Delay | Sensor (x5, read-only) | Diagnostic |
 
-**Total: 20 entities** (1 media player + 4 selects + 11 numbers + 4 sensors)
+**Total: 41 entities** (1 media player + 5 selects + 14 numbers + 10 switches + 11 sensors)
 
 ## Troubleshooting
 

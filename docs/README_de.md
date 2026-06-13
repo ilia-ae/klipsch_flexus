@@ -2,6 +2,7 @@
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://hacs.xyz/)
 [![GitHub Release](https://img.shields.io/github/release/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/commits/main)
 [![License](https://img.shields.io/github/license/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](../LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#automatische-erkennung)
 
@@ -17,6 +18,8 @@
 ---
 
 Benutzerdefinierte Home Assistant Integration für **Klipsch Flexus** Soundbars — Steuerung über **native lokale HTTP-API**, ohne Cloud, ohne Verzögerungen.
+
+> ✅ **Aktuell ab v2.5.10 (2026-06-13)** — **41 Entitäten**, alle Schreibbefehle live gegen die Firmware von 2026 verifiziert (HMAC-signiert), auch im Standby steuerbar. Die Badges oben spiegeln das aktuelle Release und den letzten Push wider.
 
 ## 📸 Dashboard
 
@@ -59,12 +62,13 @@ Ein Firmware-Update von 2026 (**Device Version `1.1.3.x`**, z. B. `1.1.3.0x7cd29
 | Alle Sensoren / Status-Lesevorgänge (`getData`) | ✅ Funktioniert |
 | Lautstärke, Stummschaltung | ✅ Funktioniert |
 | Eingang, Sound-Modus, Nacht/Dialog, Bass/Mitten/Höhen, EQ-Preset, Dirac, Subwoofer- & Surround-Pegel, Power | ✅ Funktioniert (HMAC-signiert, ab v2.5.0) |
+| LED, Lippensynchronisation, Balance, Loudness, Nicht stören, Auto-Standby + 4 weitere Schalter | ✅ Funktioniert (signiert; hinzugefügt in v2.5.8–2.5.9) — auch im Standby |
 
 Den Live-Status pro Befehl zeigt **Download diagnostics** (Abschnitt `command_health`, hinzugefügt in v2.4.2).
 
 ### Status der Lösung
 
-✅ **Gelöst in v2.5.0 — volle Steuerung wiederhergestellt, keine Benutzeraktion erforderlich.** Die `HMAC_SHA256_AES256`-Signierung ist jetzt implementiert. Die gerätespezifischen Anmeldedaten werden automatisch aus der MAC-Adresse der Soundbar abgeleitet (die die Integration ohnehin ermittelt), daher ist **nichts zu konfigurieren** — einfach die Integration aktualisieren. Signierte Schreibvorgänge gehen an den HTTPS-Endpunkt des Geräts; Lautstärke/Stummschaltung funktionieren weiterhin ohne Signatur.
+✅ **Gelöst in v2.5.0 — volle Steuerung wiederhergestellt, keine Benutzeraktion erforderlich.** Die `HMAC_SHA256_AES256`-Signierung ist jetzt implementiert. Die gerätespezifischen Anmeldedaten werden automatisch aus der MAC-Adresse der Soundbar abgeleitet (die die Integration ohnehin ermittelt), daher ist **nichts zu konfigurieren** — einfach die Integration aktualisieren. Seit **v2.5.9** wird die MAC-Adresse deterministisch direkt vom Gerät gelesen (`settings:/system/primaryMacAddress`), sodass die Auflösung bei jedem Gerät bereits im ersten Versuch gelingt (die bisherige Registry-/ARP-Erkennung bleibt als Fallback erhalten). Signierte Schreibvorgänge gehen an den HTTPS-Endpunkt des Geräts; Lautstärke/Stummschaltung funktionieren weiterhin ohne Signatur.
 
 > Erfordert das Paket `cryptography` (im Manifest deklariert; mit Home Assistant gebündelt, also bereits vorhanden).
 
@@ -98,10 +102,31 @@ Den Live-Status pro Befehl zeigt **Download diagnostics** (Abschnitt `command_he
 - **Nachtmodus** — reduziert den Dynamikbereich für leises Hören
 - **Dialogmodus** — verbessert die Sprachklarheit (3 Stufen)
 - **Dirac Live** — Raumkorrekturfilter (automatisch vom Gerät erkannt)
+- **LED-Helligkeit** — Front-LED: Aus / Gedimmt / Hell
+
+### Einstellungen (Numbers)
+- **Lippensynchronisations-Verzögerung** — manuelle A/V-Synchronisation (0–300 ms)
+- **Balance** — Links/Rechts-Balance (−10…+10)
+- **Leerlauf-Timeout** — Leerlaufzeit bis zum automatischen Standby (0–3600 s)
+
+### Schalter (Switches)
+- **Auto-Lippensynchronisation** — automatische A/V-Verzögerung
+- **EQ-Bypass** — Equalizer umgehen
+- **Auto-Power** — automatisches Ein-/Standby-Verhalten
+- **Loudness** — Loudness-Kompensation bei geringer Lautstärke
+- **Nicht stören** — Benachrichtigungen/Töne unterdrücken
+- **Auto-Standby** — bei Leerlauf in den Standby wechseln
+- **UI-Töne**, **Zusätzliche Klangmodi**, **BLE-Fernbedienung Auto-Kopplung**, **Firmware Auto-Update**
+
+> Alle oben genannten Einstellungen lassen sich auch schreiben, während sich die Soundbar im **Standby** befindet (das Gerät übernimmt und speichert sie dauerhaft); die Integration hält die Entitäten verfügbar und merkt sich den von Ihnen gesetzten Wert, anstatt ihn zurückzusetzen.
 
 ### Diagnose
 - **Antwortzeit** — API-Abfragedauer in ms, Anfrage-/Fehlerzähler
 - **Gerätestatus** — Ein / Standby / Offline mit Decoder-, Eingangs- und Klangmodus-Info
+- **Signing MAC** — die MAC-Adresse zum Signieren der Schreibvorgänge der 2026-Firmware (Schema, Kandidaten, aufgelöster Zustand)
+- **Netzwerkverbindung** — aktive kabelgebundene/drahtlose Schnittstelle, Schnittstellennamen, MAC-Quellen
+- **Betriebsmodus** / **Lautsprechertest** — schreibgeschützter Gerätezustand (sichtbar gemacht, bewusst nicht steuerbar)
+- **Lautsprecher-Verzögerungen** (kabelgebundener/drahtloser Subwoofer, drahtloser Surround) — schreibgeschützt, vom Gerät automatisch kalibriert
 - **Diagnose herunterladen** — vollständiger Gerätestatusdump (Einstellungen > Geräte > Klipsch Flexus > Diagnose herunterladen)
 
 ### Übersetzungen
@@ -164,29 +189,26 @@ Die Klipsch Flexus hat einen **Single-Thread HTTP-Server**, der jeweils eine Anf
 | Wiederholung mit Verzögerung | Vorübergehende Fehler werden 2x mit 0,5 s Verzögerung wiederholt |
 | Adaptive Timeouts | 8 s Lesen, 10 s Schreiben, 15 s Ein/Aus-Befehle |
 | Graceful Degradation | Fehlgeschlagene Lesevorgänge verwenden zuletzt bekannte Werte |
-| Optimistische Updates | UI aktualisiert sofort, dann durch verzögertes Polling bestätigt |
-| **Standby-bewusstes Polling** | Energiezustand wird zuerst abgefragt; im Standby nur 1 Anfrage statt 20+, zwischengespeicherte Werte bleiben erhalten, Abfrageintervall auf 60 s reduziert |
+| Optimistische Updates | UI aktualisiert sofort, dann durch verzögertes Polling bestätigt; im Standby angewendete Werte werden zwischengespeichert, sodass das Standby-Polling sie nie zurücksetzt |
+| **Standby-bewusstes Polling** | Energiezustand wird zuerst abgefragt; im Standby nur 1 Anfrage statt 20+, zwischengespeicherte Werte bleiben erhalten, Abfrageintervall auf 60 s reduziert. Einstellungen bleiben im Standby **verfügbar und steuerbar** — das Gerät übernimmt die Schreibvorgänge und die Integration merkt sie sich |
 
 ## Entitäten
 
 | Entität | Typ | Kategorie |
 |---------|-----|-----------|
 | Klipsch Flexus CORE 300 | Media Player | — |
-| Nachtmodus | Select | Konfiguration |
-| Dialogmodus | Select | Konfiguration |
-| EQ-Voreinstellung | Select | Konfiguration |
-| Dirac-Filter | Select | Konfiguration |
-| Back Height / Left / Right | Number (x3) | Konfiguration |
-| Front Height | Number | Konfiguration |
-| Side Left / Right | Number (x2) | Konfiguration |
+| Nachtmodus / Dialogmodus / EQ-Voreinstellung / Dirac-Filter / LED-Helligkeit | Select (x5) | Konfiguration |
+| Back Height / Left / Right, Front Height, Side Left / Right | Number (x6) | Konfiguration |
 | Subwoofer Wireless 1 / 2 | Number (x2) | Konfiguration |
 | Bass / Mid / Treble | Number (x3) | Konfiguration |
-| Antwortzeit | Sensor | Diagnose |
-| Gerätestatus | Sensor | Diagnose |
-| Aktiver Eingang | Sensor | Diagnose |
-| Aktiver Klangmodus | Sensor | Diagnose |
+| Lippensynchronisations-Verzögerung, Balance, Leerlauf-Timeout | Number (x3) | Konfiguration |
+| Auto-Lippensynchronisation, EQ-Bypass, Auto-Power, UI-Töne, Zusätzliche Klangmodi, BLE-Fernbedienung Auto-Kopplung, Firmware Auto-Update | Switch (x7) | Konfiguration |
+| Loudness, Nicht stören, Auto-Standby | Switch (x3) | Konfiguration |
+| Antwortzeit, Gerätestatus, Aktiver Eingang, Aktiver Klangmodus | Sensor (x4) | Diagnose |
+| Signing MAC, Netzwerkverbindung | Sensor (x2) | Diagnose |
+| Betriebsmodus, Lautsprechertest, Sub Wired/Wireless Delay, Surround Delay | Sensor (x5, schreibgeschützt) | Diagnose |
 
-**Gesamt: 20 Entitäten** (1 Media Player + 4 Selects + 11 Numbers + 4 Sensors)
+**Gesamt: 41 Entitäten** (1 Media Player + 5 Selects + 14 Numbers + 10 Switches + 11 Sensors)
 
 ## Fehlerbehebung
 
