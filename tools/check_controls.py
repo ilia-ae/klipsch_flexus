@@ -121,15 +121,14 @@ async def check(host: str, mac_seed: str | None = None) -> int:
     failures = 0
     print(f"Klipsch control self-check against {host}\n" + "-" * 62)
 
-    # Cinema controls reject writes in standby — wake the bar first if needed and
-    # remember to put it back exactly as we found it at the very end.
-    power_orig = await _power_target(api)
-    if power_orig == "networkStandby":
-        print("  ⏻ bar in standby — waking for full test…")
-        with contextlib.suppress(Exception):
-            await asyncio.wait_for(api.set_power("online"), timeout=12)
-        ok, secs = await _wait_power(api, "online", budget=50)
-        print(f"     {'awake' if ok else 'STILL ASLEEP — cinema writes may fail'} ({secs:.0f}s)")
+    # Signed writes are accepted in BOTH power states — every cinema/settings node
+    # applies and persists even while the bar is in network standby (verified
+    # against the device), so there's no need to wake it first. The only writes
+    # the firmware refuses are the genuinely read-only nodes (auto-calibrated
+    # speaker delays), which the integration exposes as read-only sensors and are
+    # not listed here. The power round-trip below exercises the on/standby path.
+    state = await _power_target(api)
+    print(f"  ⏻ bar state: {state} (settings writes work in either state)")
 
     # Changing tone (bass/mid/treble) flips eq_preset to 'custom' as a side
     # effect, so snapshot it and restore explicitly at the very end.
@@ -208,12 +207,6 @@ async def check(host: str, mac_seed: str | None = None) -> int:
     except Exception as err:  # noqa: BLE001
         failures += 1
         print(f"  ❌ {'Power':17} ERROR: {type(err).__name__}: {str(err)[:70]}")
-
-    # Put the bar back into standby if that's how we found it.
-    if power_orig == "networkStandby":
-        with contextlib.suppress(Exception):
-            await asyncio.wait_for(api.set_power("networkStandby"), timeout=12)
-        print("  ⏻ restored bar to original standby state")
 
     # --- Media transport: signed command accepted (auth path) + latency ---
     for ctl in ("pause", "play"):
