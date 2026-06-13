@@ -25,7 +25,16 @@ A custom Lovelace dashboard driven entirely by the integration's entities — in
 
 ![Klipsch Flexus dashboard](docs/images/dashboard.png)
 
-📋 **Full dashboard YAML + the required custom cards (Mushroom, button-card, card-mod):** [docs/DASHBOARD.md](docs/DASHBOARD.md)
+**Required HACS components** (all installable via [HACS](https://github.com/hacs/integration)):
+
+| Component | Repo | Used for |
+|-----------|------|----------|
+| Klipsch Flexus | [ilia-ae/klipsch_flexus](https://github.com/ilia-ae/klipsch_flexus) | this integration — the entities |
+| Mushroom | [piitaya/lovelace-mushroom](https://github.com/piitaya/lovelace-mushroom) | media-player card |
+| button-card | [custom-cards/button-card](https://github.com/custom-cards/button-card) | source / mode / EQ tiles with dynamic styling |
+| card-mod | [thomasloven/lovelace-card-mod](https://github.com/thomasloven/lovelace-card-mod) | active-state highlighting (CSS) |
+
+📋 **Full dashboard YAML + colour scheme:** [docs/DASHBOARD.md](docs/DASHBOARD.md)
 
 ### Supported Models
 
