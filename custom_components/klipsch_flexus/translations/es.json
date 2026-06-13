@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Klipsch Flexus",
-        "description": "Introduzca la dirección IP de su barra de sonido Klipsch Flexus CORE 300.\n\nEl dispositivo debe estar preconfigurado a través de la aplicación Klipsch Connect Plus.",
+        "description": "Introduzca la dirección IP de su barra de sonido Klipsch Flexus CORE 300.\n\nLa barra de sonido debe configurarse primero por completo en la aplicación Klipsch Connect Plus — complete todo el proceso al menos una vez. En el firmware de 2026 esto genera la credencial que la integración necesita para enviar comandos.",
         "data": {
           "host": "Dirección IP"
         }

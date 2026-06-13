@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Klipsch Flexus",
-        "description": "Geben Sie die IP-Adresse Ihrer Klipsch Flexus CORE 300 Soundbar ein.\n\nDas Gerät muss vorab über die Klipsch Connect Plus App eingerichtet werden.",
+        "description": "Geben Sie die IP-Adresse Ihrer Klipsch Flexus CORE 300 Soundbar ein.\n\nDie Soundbar muss zuerst vollständig in der Klipsch Connect Plus App eingerichtet werden — durchlaufen Sie die gesamte Ersteinrichtung mindestens einmal. Auf der 2026er-Firmware werden so die Zugangsdaten bereitgestellt, die die Integration zum Senden von Befehlen benötigt.",
         "data": {
           "host": "IP-Adresse"
         }

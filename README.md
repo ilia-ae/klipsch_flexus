@@ -20,7 +20,7 @@
 
 Home Assistant custom integration for **Klipsch Flexus** soundbars — control via **native local HTTP API**, no cloud, no delays.
 
-> ✅ **Up to date as of v2.5.11 (2026-06-13)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
+> ✅ **Up to date as of v2.5.12 (2026-06-13)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
 
 ## 📸 Dashboard
 
@@ -47,7 +47,7 @@ A custom Lovelace dashboard driven entirely by the integration's entities — in
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-> The soundbar must be pre-configured via the official Klipsch Connect Plus app (Wi-Fi, firmware, speaker pairing, Dirac calibration). This integration handles ongoing control only.
+> The soundbar must be **fully set up first in the official Klipsch Connect Plus app** — go through the entire onboarding at least once (Wi-Fi, firmware update, speaker pairing, Dirac calibration). On 2026 firmware this is also what provisions the write-auth credential the integration relies on, so a half-finished app setup leaves most commands unauthorized. This integration handles ongoing control only.
 
 ## ⚠️ Firmware Compatibility (2026 update)
 
@@ -224,18 +224,12 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Slow updates | Increase poll interval in Options (Settings > Devices > Klipsch Flexus > Configure) |
 | Integration not loading | Check Home Assistant logs for import errors. Ensure you're on HA 2024.11+ |
 
-## Legacy Alternative (no custom integration)
-
-If you prefer not to install a custom integration, see the [`legacy/`](legacy/) folder for a standalone approach using only built-in HA components (`command_line` sensor + `rest_command` + scripts).
-
-This was the original implementation before the custom integration was created. It provides basic volume/input/mode control via dashboard buttons but lacks media player entity, playback controls, auto-discovery, and translations. See [`legacy/README.md`](legacy/README.md) for setup instructions and a feature comparison.
-
 ## Known Limitations
 
 - One soundbar per integration entry (add multiple as separate entries)
 - No multi-room / wireless surround group management (use Klipsch Connect Plus app)
 - AirPlay and Cast protocols are not used — only the native HTTP API
-- Initial device setup requires the official Klipsch Connect Plus app
+- Initial setup must be completed **fully** in the official Klipsch Connect Plus app — go through the whole onboarding at least once (this is what provisions the 2026 write-auth credential)
 
 ## Security
 

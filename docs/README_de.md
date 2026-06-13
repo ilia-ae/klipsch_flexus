@@ -19,7 +19,7 @@
 
 Benutzerdefinierte Home Assistant Integration für **Klipsch Flexus** Soundbars — Steuerung über **native lokale HTTP-API**, ohne Cloud, ohne Verzögerungen.
 
-> ✅ **Aktuell ab v2.5.10 (2026-06-13)** — **41 Entitäten**, alle Schreibbefehle live gegen die Firmware von 2026 verifiziert (HMAC-signiert), auch im Standby steuerbar. Die Badges oben spiegeln das aktuelle Release und den letzten Push wider.
+> ✅ **Aktuell ab v2.5.12 (2026-06-13)** — **41 Entitäten**, alle Schreibbefehle live gegen die Firmware von 2026 verifiziert (HMAC-signiert), auch im Standby steuerbar. Die Badges oben spiegeln das aktuelle Release und den letzten Push wider.
 
 ## 📸 Dashboard
 
@@ -46,7 +46,7 @@ Ein eigenes Lovelace-Dashboard, komplett auf den Entitäten der Integration — 
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-> Die Soundbar muss vorab über die offizielle Klipsch Connect Plus App eingerichtet werden (WLAN, Firmware, Lautsprecher-Kopplung, Dirac-Kalibrierung). Diese Integration übernimmt nur die laufende Steuerung.
+> Die Soundbar muss zuerst **vollständig in der offiziellen Klipsch Connect Plus App eingerichtet werden** — durchlaufen Sie die gesamte Ersteinrichtung mindestens einmal (WLAN, Firmware-Update, Lautsprecher-Kopplung, Dirac-Kalibrierung). Auf der 2026er-Firmware werden dabei auch die Zugangsdaten zum Signieren der Befehle bereitgestellt, sodass eine unvollständige Einrichtung die meisten Befehle ohne Autorisierung lässt. Diese Integration übernimmt nur die laufende Steuerung.
 
 ## ⚠️ Firmware-Kompatibilität (Update 2026)
 
@@ -221,20 +221,14 @@ Die Klipsch Flexus hat einen **Single-Thread HTTP-Server**, der jeweils eine Anf
 | Verbindung nicht möglich | Prüfen Sie, ob die Soundbar im selben Netzwerk ist. Testen Sie: `http://<IP>/api/getData?path=player:volume&roles=value` |
 | Entitäten nicht verfügbar | Die Klipsch-App pollt möglicherweise gleichzeitig — schließen Sie sie |
 | Langsame Updates | Erhöhen Sie das Abfrageintervall in den Optionen |
-| Integration lädt nicht | Prüfen Sie die HA-Logs auf Importfehler. HA 2024.4.0+ erforderlich |
-
-## Legacy-Version (ohne Custom Integration)
-
-Wenn Sie keine Custom Integration installieren möchten, finden Sie im Ordner [`legacy/`](../legacy/) eine eigenständige Variante mit integrierten HA-Komponenten (`command_line` Sensor + `rest_command` + Skripte).
-
-Dies war die ursprüngliche Implementierung vor der Erstellung der Integration. Sie bietet grundlegende Lautstärke-/Eingangs-/Modus-Steuerung über Dashboard-Buttons, jedoch ohne Media-Player-Entity, Wiedergabesteuerung, automatische Erkennung und Übersetzungen. Siehe [`legacy/README.md`](../legacy/README.md).
+| Integration lädt nicht | Prüfen Sie die HA-Logs auf Importfehler. HA 2024.11+ erforderlich |
 
 ## Bekannte Einschränkungen
 
 - Eine Soundbar pro Integrationseintrag (für mehrere separat hinzufügen)
 - Kein Multi-Room / drahtlose Surround-Gruppenverwaltung (verwenden Sie Klipsch Connect Plus)
 - AirPlay und Cast werden nicht verwendet — nur die native HTTP-API
-- Ersteinrichtung erfordert die offizielle Klipsch Connect Plus App
+- Ersteinrichtung muss **vollständig** in der offiziellen Klipsch Connect Plus App erfolgen — die gesamte Ersteinrichtung mindestens einmal durchlaufen (dabei werden die Zugangsdaten für die 2026er-Firmware bereitgestellt)
 
 ## Lizenz
 

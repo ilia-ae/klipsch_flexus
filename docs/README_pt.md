@@ -19,7 +19,7 @@
 
 Integração personalizada do Home Assistant para soundbars **Klipsch Flexus** — controle via **API HTTP local nativa**, sem nuvem, sem atrasos.
 
-> ✅ **Atualizado até a v2.5.10 (2026-06-13)** — **41 entidades**, todos os comandos de escrita verificados ao vivo contra o firmware de 2026 (assinados com HMAC), controláveis em standby. Os selos acima refletem a versão publicada e o último push.
+> ✅ **Atualizado até a v2.5.12 (2026-06-13)** — **41 entidades**, todos os comandos de escrita verificados ao vivo contra o firmware de 2026 (assinados com HMAC), controláveis em standby. Os selos acima refletem a versão publicada e o último push.
 
 ## 📸 Painel (Dashboard)
 
@@ -46,7 +46,7 @@ Um painel Lovelace personalizado inteiramente baseado nas entidades da integraç
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-> A soundbar deve ser pré-configurada pelo aplicativo oficial Klipsch Connect Plus (Wi-Fi, firmware, pareamento de caixas, calibração Dirac). Esta integração cuida apenas do controle diário.
+> A soundbar deve ser **totalmente configurada primeiro no aplicativo oficial Klipsch Connect Plus** — conclua todo o processo de configuração pelo menos uma vez (Wi-Fi, atualização de firmware, pareamento de caixas, calibração Dirac). No firmware de 2026 isso também provisiona a credencial de assinatura dos comandos, então uma configuração incompleta deixa a maioria dos comandos sem autorização. Esta integração cuida apenas do controle diário.
 
 ## ⚠️ Compatibilidade de firmware (atualização 2026)
 
@@ -221,20 +221,14 @@ O Klipsch Flexus tem um **servidor HTTP single-thread** que processa uma requisi
 | Não conecta | Verifique se a soundbar está na mesma rede. Tente: `http://<IP>/api/getData?path=player:volume&roles=value` |
 | Entidades indisponíveis | O app Klipsch pode estar consultando simultaneamente — feche-o |
 | Atualizações lentas | Aumente o intervalo de consulta em Opções |
-| Integração não carrega | Verifique os logs do HA por erros de importação. Requer HA 2024.4.0+ |
-
-## Versão Legacy (sem integração personalizada)
-
-Se preferir não instalar uma integração personalizada, consulte a pasta [`legacy/`](../legacy/) para uma abordagem autônoma usando apenas componentes integrados do HA (`command_line` sensor + `rest_command` + scripts).
-
-Esta foi a implementação original antes da criação da integração. Fornece controle básico de volume/entrada/modo através de botões do painel, mas sem entidade de media player, controles de reprodução, descoberta automática e traduções. Consulte [`legacy/README.md`](../legacy/README.md).
+| Integração não carrega | Verifique os logs do HA por erros de importação. Requer HA 2024.11+ |
 
 ## Limitações conhecidas
 
 - Uma soundbar por entrada de integração (adicione várias separadamente)
 - Sem gerenciamento de multi-room / grupos surround sem fio (use Klipsch Connect Plus)
 - AirPlay e Cast não são utilizados — apenas a API HTTP nativa
-- A configuração inicial requer o app oficial Klipsch Connect Plus
+- A configuração inicial deve ser concluída **por completo** no app oficial Klipsch Connect Plus — todo o processo pelo menos uma vez (isso provisiona a credencial de escrita do firmware de 2026)
 
 ## Licença
 

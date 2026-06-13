@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Klipsch Flexus",
-        "description": "Entrez l'adresse IP de votre barre de son Klipsch Flexus CORE 300.\n\nL'appareil doit être préalablement configuré via l'application Klipsch Connect Plus.",
+        "description": "Entrez l'adresse IP de votre barre de son Klipsch Flexus CORE 300.\n\nLa barre de son doit d'abord être entièrement configurée dans l'application Klipsch Connect Plus — effectuez toute la configuration au moins une fois. Sur le firmware 2026, c'est ce qui provisionne l'identifiant dont l'intégration a besoin pour envoyer des commandes.",
         "data": {
           "host": "Adresse IP"
         }
