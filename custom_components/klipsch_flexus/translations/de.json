@@ -74,6 +74,14 @@
       },
       "dirac": {
         "name": "4. Dirac-Filter"
+      },
+      "led_mode": {
+        "name": "5. LED-Helligkeit",
+        "state": {
+          "off": "Aus",
+          "dim": "Gedimmt",
+          "bright": "Hell"
+        }
       }
     },
     "number": {
@@ -109,6 +117,9 @@
       },
       "treble": {
         "name": "Ton: Höhen"
+      },
+      "lipsync_delay": {
+        "name": "Lippensynchron-Verzögerung"
       }
     },
     "sensor": {
@@ -152,6 +163,44 @@
       },
       "network_link": {
         "name": "Netzwerkverbindung"
+      },
+      "operating_mode": {
+        "name": "Status: Betriebsmodus"
+      },
+      "speaker_test": {
+        "name": "Status: Lautsprechertest"
+      },
+      "sub_wired_delay": {
+        "name": "Verzögerung: Kabel-Subwoofer"
+      },
+      "sub_wireless_delay": {
+        "name": "Verzögerung: Funk-Subwoofer"
+      },
+      "surround_delay": {
+        "name": "Verzögerung: Funk-Surround"
+      }
+    },
+    "switch": {
+      "auto_lipsync": {
+        "name": "Auto-Lippensynchronisation"
+      },
+      "eq_bypass": {
+        "name": "EQ-Bypass"
+      },
+      "auto_power": {
+        "name": "Auto-Einschaltung"
+      },
+      "ui_sounds": {
+        "name": "UI-Töne"
+      },
+      "extra_modes": {
+        "name": "Zusätzliche Klangmodi"
+      },
+      "ble_pair": {
+        "name": "BLE-Fernbedienung autom. koppeln"
+      },
+      "ota_updates": {
+        "name": "Firmware-Auto-Update"
       }
     }
   }

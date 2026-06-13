@@ -74,6 +74,14 @@
       },
       "dirac": {
         "name": "4. Dirac Filter"
+      },
+      "led_mode": {
+        "name": "5. LED Brightness",
+        "state": {
+          "off": "Off",
+          "dim": "Dim",
+          "bright": "Bright"
+        }
       }
     },
     "number": {
@@ -109,6 +117,9 @@
       },
       "treble": {
         "name": "Tone: Treble"
+      },
+      "lipsync_delay": {
+        "name": "Lip-sync Delay"
       }
     },
     "sensor": {
@@ -152,6 +163,44 @@
       },
       "network_link": {
         "name": "Network Link"
+      },
+      "operating_mode": {
+        "name": "Status: Operating Mode"
+      },
+      "speaker_test": {
+        "name": "Status: Speaker Test"
+      },
+      "sub_wired_delay": {
+        "name": "Delay: Wired Subwoofer"
+      },
+      "sub_wireless_delay": {
+        "name": "Delay: Wireless Subwoofer"
+      },
+      "surround_delay": {
+        "name": "Delay: Wireless Surround"
+      }
+    },
+    "switch": {
+      "auto_lipsync": {
+        "name": "Auto Lip-sync"
+      },
+      "eq_bypass": {
+        "name": "EQ Bypass"
+      },
+      "auto_power": {
+        "name": "Auto Power"
+      },
+      "ui_sounds": {
+        "name": "UI Sounds"
+      },
+      "extra_modes": {
+        "name": "Extra Sound Modes"
+      },
+      "ble_pair": {
+        "name": "BLE Remote Auto-pair"
+      },
+      "ota_updates": {
+        "name": "Firmware Auto-update"
       }
     }
   }

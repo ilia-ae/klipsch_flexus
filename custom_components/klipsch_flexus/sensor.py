@@ -9,22 +9,22 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SOUND_MODES, SOURCES
+from .const import DOMAIN, INFO_SENSORS, SOUND_MODES, SOURCES
 from .coordinator import KlipschCoordinator
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: KlipschCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
-        [
-            KlipschResponseTimeSensor(coordinator, entry),
-            KlipschStatusSensor(coordinator, entry),
-            KlipschInputSensor(coordinator, entry),
-            KlipschSoundModeSensor(coordinator, entry),
-            KlipschSigningMacSensor(coordinator, entry),
-            KlipschNetworkLinkSensor(coordinator, entry),
-        ]
-    )
+    entities = [
+        KlipschResponseTimeSensor(coordinator, entry),
+        KlipschStatusSensor(coordinator, entry),
+        KlipschInputSensor(coordinator, entry),
+        KlipschSoundModeSensor(coordinator, entry),
+        KlipschSigningMacSensor(coordinator, entry),
+        KlipschNetworkLinkSensor(coordinator, entry),
+    ]
+    entities += [KlipschInfoSensor(coordinator, entry, key, icon, unit) for key, icon, unit in INFO_SENSORS]
+    async_add_entities(entities)
 
 
 class KlipschResponseTimeSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
@@ -221,3 +221,32 @@ class KlipschNetworkLinkSensor(CoordinatorEntity[KlipschCoordinator], SensorEnti
     def extra_state_attributes(self) -> dict:
         # ethernet_connected / eureka_mac / hotspot_bssid / wired+wireless interface / mac_sources
         return {k: v for k, v in self.coordinator.network_info.items() if k != "active_link"}
+
+
+class KlipschInfoSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+    """Read-only device info (operating mode / speaker test) — surfaced, not controlled.
+
+    These map to settings that can put the bar into retail/demo or speaker-test
+    states; we expose them as information only, deliberately without a control.
+    """
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self, coordinator: KlipschCoordinator, entry: ConfigEntry, key: str, icon: str, unit: str | None
+    ) -> None:
+        super().__init__(coordinator)
+        self._key = key
+        self._attr_translation_key = key
+        self._attr_icon = icon
+        self._attr_native_unit_of_measurement = unit
+        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+
+    @property
+    def native_value(self) -> str | int | None:
+        data = self.coordinator.data or {}
+        if not data.get("online"):
+            return None
+        return data.get(self._key)

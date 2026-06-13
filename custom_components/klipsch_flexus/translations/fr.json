@@ -74,6 +74,14 @@
       },
       "dirac": {
         "name": "4. Filtre Dirac"
+      },
+      "led_mode": {
+        "name": "5. Luminosité de la LED",
+        "state": {
+          "off": "Éteint",
+          "dim": "Faible",
+          "bright": "Vif"
+        }
       }
     },
     "number": {
@@ -109,6 +117,9 @@
       },
       "treble": {
         "name": "Tonalité : Aigus"
+      },
+      "lipsync_delay": {
+        "name": "Délai de synchronisation labiale"
       }
     },
     "sensor": {
@@ -152,6 +163,44 @@
       },
       "network_link": {
         "name": "Liaison réseau"
+      },
+      "operating_mode": {
+        "name": "État : mode de fonctionnement"
+      },
+      "speaker_test": {
+        "name": "État : test des haut-parleurs"
+      },
+      "sub_wired_delay": {
+        "name": "Délai : caisson filaire"
+      },
+      "sub_wireless_delay": {
+        "name": "Délai : caisson sans fil"
+      },
+      "surround_delay": {
+        "name": "Délai : surround sans fil"
+      }
+    },
+    "switch": {
+      "auto_lipsync": {
+        "name": "Synchronisation labiale auto"
+      },
+      "eq_bypass": {
+        "name": "Contournement de l'égaliseur"
+      },
+      "auto_power": {
+        "name": "Allumage automatique"
+      },
+      "ui_sounds": {
+        "name": "Sons de l'interface"
+      },
+      "extra_modes": {
+        "name": "Modes sonores supplémentaires"
+      },
+      "ble_pair": {
+        "name": "Appairage auto de la télécommande BLE"
+      },
+      "ota_updates": {
+        "name": "Mise à jour auto du firmware"
       }
     }
   }

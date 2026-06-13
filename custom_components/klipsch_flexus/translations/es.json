@@ -74,6 +74,14 @@
       },
       "dirac": {
         "name": "4. Filtro Dirac"
+      },
+      "led_mode": {
+        "name": "5. Brillo del LED",
+        "state": {
+          "off": "Apagado",
+          "dim": "Tenue",
+          "bright": "Brillante"
+        }
       }
     },
     "number": {
@@ -109,6 +117,9 @@
       },
       "treble": {
         "name": "Tono: Agudos"
+      },
+      "lipsync_delay": {
+        "name": "Retardo de sincronización labial"
       }
     },
     "sensor": {
@@ -152,6 +163,44 @@
       },
       "network_link": {
         "name": "Enlace de red"
+      },
+      "operating_mode": {
+        "name": "Estado: modo de funcionamiento"
+      },
+      "speaker_test": {
+        "name": "Estado: prueba de altavoces"
+      },
+      "sub_wired_delay": {
+        "name": "Retardo: subwoofer con cable"
+      },
+      "sub_wireless_delay": {
+        "name": "Retardo: subwoofer inalámbrico"
+      },
+      "surround_delay": {
+        "name": "Retardo: surround inalámbrico"
+      }
+    },
+    "switch": {
+      "auto_lipsync": {
+        "name": "Sincronización labial automática"
+      },
+      "eq_bypass": {
+        "name": "Omitir ecualizador"
+      },
+      "auto_power": {
+        "name": "Encendido automático"
+      },
+      "ui_sounds": {
+        "name": "Sonidos de interfaz"
+      },
+      "extra_modes": {
+        "name": "Modos de sonido extra"
+      },
+      "ble_pair": {
+        "name": "Emparejamiento automático del mando BLE"
+      },
+      "ota_updates": {
+        "name": "Actualización automática de firmware"
       }
     }
   }

@@ -426,3 +426,54 @@ async def test_close_session(api: KlipschAPI) -> None:
 
     await api.close()
     mock_session.close.assert_called_once()
+
+
+async def test_new_setters_payload_shapes(api: KlipschAPI) -> None:
+    """Switch / LED / delay setters build the correct setData payloads."""
+    calls: list[tuple] = []
+
+    async def fake_set_data(path, value, role="value"):
+        calls.append((path, value))
+        return "OK"
+
+    api.set_data = fake_set_data  # type: ignore[assignment]
+
+    await api.set_switch("eq_bypass", True)
+    await api.set_switch("ota_updates", False)
+    await api.set_led_mode("bright")
+    await api.set_delay("lipsync_delay", 40, "i32_")
+
+    assert calls == [
+        ("settings:/cinema/eqBypass", {"type": "bool_", "bool_": True}),
+        ("settings:/cinema/otaUpdateEnabled", {"type": "bool_", "bool_": False}),
+        ("settings:/cinema/ledMode", {"type": "cinemaLEDMode", "cinemaLEDMode": "bright"}),
+        ("settings:/cinema/dsp/manualLipSyncDelay", {"type": "i32_", "i32_": 40}),
+    ]
+
+
+async def test_get_status_includes_settings_group(api: KlipschAPI) -> None:
+    """When the device is on, the settings group (switches/LED/info) is polled."""
+
+    def value_for(path: str):
+        if path.endswith("powermanager:target") or "powermanager" in path:
+            return [{"powerTarget": {"target": "online"}}]
+        if path.endswith("ledMode"):
+            return [{"type": "cinemaLEDMode", "cinemaLEDMode": "dim"}]
+        if path.endswith("eqBypass"):
+            return [{"type": "bool_", "bool_": True}]
+        if path.endswith("manualLipSyncDelay"):
+            return [{"type": "i32_", "i32_": 0}]
+        if path.endswith("wiredSubwooferDelay"):
+            return [{"type": "i64_", "i64_": 8300}]
+        if path.endswith("operatingMode"):
+            return [{"type": "cinemaOperatingMode", "cinemaOperatingMode": "consumer"}]
+        return [{"i32_": 0, "bool_": False}]
+
+    api.get_data = AsyncMock(side_effect=value_for)
+    status = await api.get_status()
+
+    assert status["online"] is True
+    assert status["led_mode"] == "dim"
+    assert status["eq_bypass"] is True
+    assert status["sub_wired_delay"] == 8300
+    assert status["operating_mode"] == "consumer"

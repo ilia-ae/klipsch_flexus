@@ -50,7 +50,53 @@ API_PATHS = {
     "side_right": "settings:/cinema/dsp/sideRightVolume",
     "player": "player:player/data",
     "player_control": "player:player/control",
+    # --- additional settings (v2.5.7) ---
+    "auto_lipsync": "settings:/cinema/dsp/autoLipSyncDelayEnabled",
+    "eq_bypass": "settings:/cinema/eqBypass",
+    "auto_power": "settings:/cinema/automaticOperation",
+    "ui_sounds": "settings:/cinema/audioEffectsEnabled",
+    "extra_modes": "settings:/cinema/extraPostProcessorModesEnabled",
+    "ble_pair": "settings:/cinema/bleRcAutoPairEnabled",
+    "ota_updates": "settings:/cinema/otaUpdateEnabled",
+    "lipsync_delay": "settings:/cinema/dsp/manualLipSyncDelay",
+    "sub_wired_delay": "settings:/cinema/dsp/wiredSubwooferDelay",
+    "sub_wireless_delay": "settings:/cinema/dsp/wirelessSubwooferDelay",
+    "surround_delay": "settings:/cinema/dsp/wirelessSurroundDelay",
+    "led_mode": "settings:/cinema/ledMode",
+    "operating_mode": "settings:/cinema/operatingMode",
+    "speaker_test": "settings:/cinema/speakerTestMode",
 }
+
+# Toggle settings exposed as switches — (key, icon). Some are config-category.
+SWITCHES = [
+    ("auto_lipsync", "mdi:sync"),
+    ("eq_bypass", "mdi:equalizer-outline"),
+    ("auto_power", "mdi:power-settings"),
+    ("ui_sounds", "mdi:bullhorn-outline"),
+    ("extra_modes", "mdi:surround-sound"),
+    ("ble_pair", "mdi:bluetooth-audio"),
+    ("ota_updates", "mdi:cloud-download-outline"),
+]
+
+# Writable delay numbers — (key, icon, unit, min, max, step, value-type).
+# Only manual lip-sync is modifiable; the speaker delays are auto-calibrated
+# (device returns "Setting is not modifiable") and are exposed read-only below.
+DELAY_NUMBERS = [
+    ("lipsync_delay", "mdi:av-timer", "ms", 0, 300, 5, "i32_"),
+]
+
+# Read-only info sensors — (key, icon, unit). Settings that are not user-modifiable
+# or unsafe to control (operating/retail mode, speaker test, auto-calibrated delays).
+INFO_SENSORS = [
+    ("operating_mode", "mdi:cog", None),
+    ("speaker_test", "mdi:speaker-multiple", None),
+    ("sub_wired_delay", "mdi:timer-outline", "µs"),
+    ("sub_wireless_delay", "mdi:timer-outline", "µs"),
+    ("surround_delay", "mdi:timer-outline", "µs"),
+]
+
+# LED brightness options (the field accepts free strings; these are the standard set)
+LED_MODES = ["off", "dim", "bright"]
 
 # Channel levels — surround speakers, subwoofers, then tone controls
 # Display names are handled by translations (entity.number.<key>.name)

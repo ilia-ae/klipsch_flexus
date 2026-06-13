@@ -504,6 +504,25 @@ class KlipschAPI:
             "side_right": (API_PATHS["side_right"], lambda d: d[0].get("i32_", 0)),
         }
 
+        # Additional settings (toggles / LED / delays / read-only info). Polled
+        # only when the device is on; failures here never mark the device offline.
+        SETTINGS_PARAMS = {
+            "auto_lipsync": (API_PATHS["auto_lipsync"], lambda d: d[0].get("bool_", False)),
+            "eq_bypass": (API_PATHS["eq_bypass"], lambda d: d[0].get("bool_", False)),
+            "auto_power": (API_PATHS["auto_power"], lambda d: d[0].get("bool_", False)),
+            "ui_sounds": (API_PATHS["ui_sounds"], lambda d: d[0].get("bool_", False)),
+            "extra_modes": (API_PATHS["extra_modes"], lambda d: d[0].get("bool_", False)),
+            "ble_pair": (API_PATHS["ble_pair"], lambda d: d[0].get("bool_", False)),
+            "ota_updates": (API_PATHS["ota_updates"], lambda d: d[0].get("bool_", False)),
+            "lipsync_delay": (API_PATHS["lipsync_delay"], lambda d: d[0].get("i32_", 0)),
+            "sub_wired_delay": (API_PATHS["sub_wired_delay"], lambda d: d[0].get("i64_", 0)),
+            "sub_wireless_delay": (API_PATHS["sub_wireless_delay"], lambda d: d[0].get("i64_", 0)),
+            "surround_delay": (API_PATHS["surround_delay"], lambda d: d[0].get("i64_", 0)),
+            "led_mode": (API_PATHS["led_mode"], lambda d: d[0].get("cinemaLEDMode", "dim")),
+            "operating_mode": (API_PATHS["operating_mode"], lambda d: d[0].get("cinemaOperatingMode", "unknown")),
+            "speaker_test": (API_PATHS["speaker_test"], lambda d: d[0].get("cinemaSpeakerTestMode", "unknown")),
+        }
+
         poll_start = time.monotonic()
 
         # ── Step 1: probe power state first ──
@@ -518,7 +537,7 @@ class KlipschAPI:
         if power == "networkStandby":
             result: dict = {"online": True, "power": power}
             # Preserve all previously known values so sensors stay available
-            for key in ALL_PARAMS:
+            for key in (*ALL_PARAMS, *SETTINGS_PARAMS):
                 cached = self._last_status.get(key)
                 if cached is not None:
                     result[key] = cached
@@ -549,6 +568,15 @@ class KlipschAPI:
         # If ALL parameters failed (besides power), device is truly offline
         if fail_count == len(ALL_PARAMS):
             return {"online": False}
+
+        # Settings group — tolerated failures, cached fallback, not offline-counted
+        for key, (path, parser) in SETTINGS_PARAMS.items():
+            try:
+                result[key] = parser(await self.get_data(path))
+            except Exception:
+                cached = self._last_status.get(key)
+                if cached is not None:
+                    result[key] = cached
 
         result["poll_time_ms"] = round((time.monotonic() - poll_start) * 1000)
         result["failed_params"] = fail_count
@@ -622,6 +650,23 @@ class KlipschAPI:
         from .const import API_PATHS
 
         await self.set_data(API_PATHS["dirac"], {"type": "i32_", "i32_": filter_id})
+
+    async def set_switch(self, key: str, on: bool) -> None:
+        """Toggle a boolean setting (auto-lipsync, EQ bypass, auto-power, …)."""
+        from .const import API_PATHS
+
+        await self.set_data(API_PATHS[key], {"type": "bool_", "bool_": on})
+
+    async def set_led_mode(self, mode: str) -> None:
+        from .const import API_PATHS
+
+        await self.set_data(API_PATHS["led_mode"], {"type": "cinemaLEDMode", "cinemaLEDMode": mode})
+
+    async def set_delay(self, key: str, value: int, vtype: str = "i32_") -> None:
+        """Set a delay/sync number — lip-sync is i32 (ms), speaker delays i64 (µs)."""
+        from .const import API_PATHS
+
+        await self.set_data(API_PATHS[key], {"type": vtype, vtype: value})
 
     async def set_power(self, target: str) -> None:
         from .const import API_PATHS
