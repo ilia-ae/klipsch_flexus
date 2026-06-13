@@ -57,6 +57,22 @@ CONTROLS = [
     ("Input", "input", "value", "idempotent", None),
     ("Volume", "volume", "value", "idempotent", None),
     ("Mute", "mute", "value", "idempotent", None),
+    # v2.5.8 — cinema settings (need device ON)
+    ("LED mode", "led_mode", "value", "toggle", ["off", "dim", "bright"]),
+    ("Lip-sync delay", "lipsync_delay", "value", "toggle", None),
+    ("Auto lip-sync", "auto_lipsync", "value", "toggle", None),
+    ("EQ bypass", "eq_bypass", "value", "toggle", None),
+    ("Auto power", "auto_power", "value", "toggle", None),
+    ("UI sounds", "ui_sounds", "value", "toggle", None),
+    ("Extra modes", "extra_modes", "value", "toggle", None),
+    ("BLE auto-pair", "ble_pair", "value", "toggle", None),
+    ("OTA updates", "ota_updates", "value", "toggle", None),
+    # v2.5.9 — mediaPlayer/system (writable even in standby)
+    ("Balance", "balance", "value", "toggle", None),
+    ("Idle timeout", "idle_timeout", "value", "toggle", None),
+    ("Loudness", "loudness", "value", "toggle", None),
+    ("Do Not Disturb", "do_not_disturb", "value", "toggle", None),
+    ("Auto standby", "auto_standby", "value", "toggle", None),
 ]
 
 
@@ -104,6 +120,16 @@ async def check(host: str, mac_seed: str | None = None) -> int:
         api.set_mac_seeds([mac_seed])
     failures = 0
     print(f"Klipsch control self-check against {host}\n" + "-" * 62)
+
+    # Cinema controls reject writes in standby — wake the bar first if needed and
+    # remember to put it back exactly as we found it at the very end.
+    power_orig = await _power_target(api)
+    if power_orig == "networkStandby":
+        print("  ⏻ bar in standby — waking for full test…")
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(api.set_power("online"), timeout=12)
+        ok, secs = await _wait_power(api, "online", budget=50)
+        print(f"     {'awake' if ok else 'STILL ASLEEP — cinema writes may fail'} ({secs:.0f}s)")
 
     # Changing tone (bass/mid/treble) flips eq_preset to 'custom' as a side
     # effect, so snapshot it and restore explicitly at the very end.
@@ -182,6 +208,12 @@ async def check(host: str, mac_seed: str | None = None) -> int:
     except Exception as err:  # noqa: BLE001
         failures += 1
         print(f"  ❌ {'Power':17} ERROR: {type(err).__name__}: {str(err)[:70]}")
+
+    # Put the bar back into standby if that's how we found it.
+    if power_orig == "networkStandby":
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(api.set_power("networkStandby"), timeout=12)
+        print("  ⏻ restored bar to original standby state")
 
     # --- Media transport: signed command accepted (auth path) + latency ---
     for ctl in ("pause", "play"):
