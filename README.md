@@ -20,7 +20,7 @@
 
 Home Assistant custom integration for **Klipsch Flexus** soundbars — control via **native local HTTP API**, no cloud, no delays.
 
-> ✅ **Up to date as of v2.5.10 (2026-06-13)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
+> ✅ **Up to date as of v2.5.11 (2026-06-13)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
 
 ## 📸 Dashboard
 
@@ -222,7 +222,7 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Cannot connect | Check that the soundbar is on the same network. Try: `http://<IP>/api/getData?path=player:volume&roles=value` |
 | Entities unavailable | The Klipsch app may be polling simultaneously — close it and retry |
 | Slow updates | Increase poll interval in Options (Settings > Devices > Klipsch Flexus > Configure) |
-| Integration not loading | Check Home Assistant logs for import errors. Ensure you're on HA 2024.4.0+ |
+| Integration not loading | Check Home Assistant logs for import errors. Ensure you're on HA 2024.11+ |
 
 ## Legacy Alternative (no custom integration)
 

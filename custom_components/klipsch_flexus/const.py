@@ -23,6 +23,12 @@ API_RETRY_DELAY = 0.5  # seconds between retries
 # Delay before refresh after command (let device process)
 COMMAND_REFRESH_DELAY = 1.0
 
+# How long an optimistically-applied value shields itself from being reverted by
+# a full poll that races the device actually applying the write. Comfortably
+# covers COMMAND_REFRESH_DELAY plus the slow device's settle time; after it the
+# polled device value takes over again (so external changes aren't masked for long).
+OPTIMISTIC_TTL = 5.0
+
 # API paths
 API_PATHS = {
     "volume": "player:volume",

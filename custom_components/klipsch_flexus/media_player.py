@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .auth import ZERO_MAC, mac_to_colon
 from .const import DOMAIN, SOUND_MODES, SOURCES, SOURCES_REVERSE
 from .coordinator import KlipschCoordinator
 
@@ -73,8 +74,12 @@ class KlipschMediaPlayer(CoordinatorEntity[KlipschCoordinator], MediaPlayerEntit
                 device_info["name"] = eureka["name"]
             if eureka.get("cast_build_revision"):
                 device_info["sw_version"] = eureka["cast_build_revision"]
-            if eureka.get("mac_address"):
-                device_info["connections"] = {("mac", eureka["mac_address"].lower())}
+            # 2026 firmware reports the all-zero MAC here; registering it as a
+            # connection would make every Flexus share ('mac','00:…:00') and risk
+            # HA merging two physical units into one device. Only add a real MAC.
+            colon = mac_to_colon(eureka.get("mac_address") or "")
+            if colon and colon != ZERO_MAC:
+                device_info["connections"] = {("mac", colon.lower())}
         self._attr_device_info = device_info
         self._attr_source_list = list(SOURCES.values())
         self._attr_sound_mode_list = SOUND_MODES
@@ -114,10 +119,17 @@ class KlipschMediaPlayer(CoordinatorEntity[KlipschCoordinator], MediaPlayerEntit
         now = datetime.now(UTC)
 
         if state == "playing":
-            # New track or transition from non-playing → reset position
-            if title != self._prev_track_title or self._prev_player_state != "playing":
+            if title != self._prev_track_title:
+                # New track → restart from zero.
                 self._position = 0
                 self._position_updated_at = now
+            elif self._prev_player_state != "playing":
+                # Resumed from pause/idle → keep the frozen position but re-stamp,
+                # so the frontend extrapolates forward from now instead of jumping
+                # back to zero (the device API exposes no position of its own).
+                self._position_updated_at = now
+            # else: still playing the same track → leave position + timestamp
+            # untouched so the frontend keeps extrapolating elapsed time.
         elif state == "paused" and self._prev_player_state == "playing":
             # Freeze: calculate elapsed time since last update
             if self._position_updated_at is not None:
@@ -274,7 +286,10 @@ class KlipschMediaPlayer(CoordinatorEntity[KlipschCoordinator], MediaPlayerEntit
             "front_height": data.get("front_height", 0),
             "side_left": data.get("side_left", 0),
             "side_right": data.get("side_right", 0),
-            # Subwoofers
+            # Subwoofers. The CORE 300's two subs are both wireless, so the
+            # firmware's "wired"/"wireless" volume nodes are surfaced as Wireless
+            # 1/2 (matching the number-entity translations) — intentional mapping,
+            # not a copy/paste slip.
             "sub_wireless_1": data.get("sub_wired", 0),
             "sub_wireless_2": data.get("sub_wireless", 0),
             # Tone

@@ -494,3 +494,99 @@ async def test_note_cached_survives_standby_poll(api: KlipschAPI) -> None:
     api.note_cached({"mode": "music"})
     st2 = await api.get_status()
     assert st2["mode"] == "music"  # ...and it sticks across the standby poll
+
+
+def _on_value_for(volume: int = 40):
+    """get_data stub for an ON device: power 'on', a given volume, neutral rest."""
+
+    def value_for(path: str, timeout: float = 8):
+        if "powermanager" in path:
+            return [{"powerTarget": {"target": "online"}}]
+        if path.endswith("player:volume"):
+            return [{"i32_": volume}]
+        # Neutral payload — numeric parsers read i32_/bool_/double_/i64_, enum
+        # parsers fall back to their own defaults for the missing keys.
+        return [{"i32_": 0, "bool_": False, "double_": 0, "i64_": 0}]
+
+    return value_for
+
+
+async def test_optimistic_value_survives_racing_full_poll(api: KlipschAPI) -> None:
+    """A just-applied value must not be reverted by an ON-path poll that races the
+    device actually applying the write (the poll still reads the pre-write value)."""
+    api.get_data = AsyncMock(side_effect=_on_value_for(volume=40))  # device still reports 40
+
+    api.note_cached({"volume": 50})  # optimistic write succeeded → recorded
+    status = await api.get_status()
+
+    assert status["power"] == "online"
+    assert status["volume"] == 50  # optimistic value wins over the stale poll
+
+
+async def test_optimistic_value_expires(api: KlipschAPI) -> None:
+    """Once the optimistic window lapses, the polled device value takes over again
+    (so an external change is not masked indefinitely)."""
+    api.get_data = AsyncMock(side_effect=_on_value_for(volume=40))
+
+    api.note_cached({"volume": 50})
+    api._optimistic["volume"] = 0.0  # force the stamp into the past (expired)
+    status = await api.get_status()
+
+    assert status["volume"] == 40  # device value, optimistic override dropped
+
+
+async def test_cached_credential_re_resolves_on_401(api: KlipschAPI) -> None:
+    """A cached signing MAC that the device later rejects (401) is re-resolved
+    against the candidates instead of failing the command outright."""
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])  # candidates: FE, FD, FF, FC, …
+
+    # First gated write resolves + caches the …FE credential.
+    mock_session.post = MagicMock(side_effect=[_mock_response(status=401), _mock_response(text="OK")])
+    await api.set_data("settings:/cinema/dialogMode", {"type": "cinemaDialogMode", "cinemaDialogMode": "dialog_2"})
+    assert api.signing_mac == "AA:BB:CC:DD:EE:FE"
+
+    # Next write: the cached …FE is now rejected (401) → re-probe → …FD authenticates.
+    mock_session.post.reset_mock()
+    mock_session.post.side_effect = [
+        _mock_response(status=401),  # cached …FE rejected
+        _mock_response(status=401),  # candidate …FE rejected again
+        _mock_response(text="OK2"),  # candidate …FD accepted
+    ]
+    result = await api.set_data("settings:/cinema/dialogMode", {"type": "cinemaDialogMode", "cinemaDialogMode": "off"})
+    assert result == "OK2"
+    assert api.signing_mac == "AA:BB:CC:DD:EE:FD"  # credential re-resolved
+
+
+async def test_transient_timeout_reports_retryable_message(api: KlipschAPI) -> None:
+    """All signed probes timing out yields a 'device slow, will retry' message —
+    not the 'set your MAC' credential error — and does not latch auth-failed."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    mock_session.post = MagicMock(side_effect=[_mock_response(status=401), *([TimeoutError()] * 8)])
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])
+
+    with pytest.raises(HomeAssistantError, match="did not respond"):
+        await api.set_data("settings:/cinema/dialogMode", {"type": "cinemaDialogMode", "cinemaDialogMode": "off"})
+    assert api._auth_failed is False  # transient → next command retries
+
+
+async def test_night_mode_conversion_roundtrips() -> None:
+    """UI ↔ API night-mode mapping is consistent and defaults safely."""
+    from custom_components.klipsch_flexus.const import NIGHT_MODE_FROM_API, NIGHT_MODE_TO_API
+
+    assert NIGHT_MODE_TO_API["night_mode_1"] == "nightMode_1"
+    assert NIGHT_MODE_FROM_API["nightMode_1"] == "night_mode_1"
+    for ui in ("off", "night_mode_1"):
+        assert NIGHT_MODE_FROM_API[NIGHT_MODE_TO_API[ui]] == ui
+    # An unknown device value falls back to "off" (the get_status parser default).
+    assert NIGHT_MODE_FROM_API.get("somethingElse", "off") == "off"

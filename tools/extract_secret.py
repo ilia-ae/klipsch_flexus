@@ -110,6 +110,8 @@ def download_apk(package: str, dest_dir: str, version: str | None = None) -> tup
     # apkeep names downloads "<package>@<version>.<ext>".
     m = re.search(r"@([0-9][\w.\-]*)", os.path.basename(path))
     app_version = m.group(1) if m else (version or "unknown")
+    # the greedy capture also swallows the file extension — drop it for display.
+    app_version = re.sub(r"\.(apk|apks|xapk)$", "", app_version)
     return path, app_version
 
 
@@ -191,6 +193,12 @@ def secret_from_password(expect: str, mac_up: str | None) -> tuple[str, str]:
 
 def _run(blob: bytes, args: argparse.Namespace) -> int:
     mac_up = re.sub(r"[^A-F0-9]", "", args.mac.upper()) if args.mac else None
+    if mac_up is not None and len(mac_up) != 12:
+        print(
+            f"error: --mac must be a 6-byte MAC (12 hex chars), got {len(mac_up)}: {args.mac!r}",
+            file=sys.stderr,
+        )
+        return 2
 
     # If we already know a password, the secret falls straight out of it.
     if args.expect:

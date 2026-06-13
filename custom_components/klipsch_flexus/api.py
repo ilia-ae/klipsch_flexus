@@ -20,6 +20,7 @@ from .const import (
     API_TIMEOUT_WRITE,
     NIGHT_MODE_FROM_API,
     NIGHT_MODE_TO_API,
+    OPTIMISTIC_TTL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ class KlipschAPI:
         self.last_response_time: float | None = None  # ms
         self.total_requests: int = 0
         self.failed_requests: int = 0
+        # key -> monotonic expiry; values applied optimistically are shielded from
+        # a racing full poll until they expire (see note_cached / _apply_optimistic).
+        self._optimistic: dict[str, float] = {}
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -129,7 +133,7 @@ class KlipschAPI:
             signed = await self._do_signed_set_data(session, path, value, roles, timeout)
             if signed is not None:
                 return signed
-            raise self._auth_error()
+            raise self._write_unavailable_error()
 
         if not self._set_post_unsupported:
             payload = {"path": path, "roles": roles, "value": value}
@@ -144,7 +148,7 @@ class KlipschAPI:
                 signed = await self._do_signed_set_data(session, path, value, roles, timeout)
                 if signed is not None:
                     return signed
-                raise self._auth_error()
+                raise self._write_unavailable_error()
             # Any other 4xx/5xx → assume pre-2026 (GET-only) firmware.
             self._set_post_unsupported = True
             _LOGGER.info(
@@ -180,6 +184,23 @@ class KlipschAPI:
             "the device credential could not be established — no candidate MAC authenticated. "
             "Set the soundbar's MAC in the integration options "
             "(Settings → Devices & Services → Klipsch Flexus → Configure)."
+        )
+
+    def _write_unavailable_error(self) -> HomeAssistantError:
+        """Error for a gated write that couldn't be signed on this attempt.
+
+        Distinguishes a *permanent* credential failure (no candidate MAC ever
+        authenticated → the user must set the MAC) from a *transient* one (the
+        device didn't answer the signed write in time). The transient case keeps
+        ``_auth_failed`` unset, so the next command re-tries the resolution — and
+        the message says so instead of wrongly blaming the credential.
+        """
+        if self._auth_failed:
+            return self._auth_error()
+        return HomeAssistantError(
+            "Klipsch Flexus: the device did not respond to the signed write in time "
+            "(it can be slow, especially when waking from standby). The command was "
+            "not confirmed and will be retried on the next attempt."
         )
 
     async def _resolve_mac_candidates(self) -> list[str]:
@@ -586,18 +607,44 @@ class KlipschAPI:
 
         result["poll_time_ms"] = round((time.monotonic() - poll_start) * 1000)
         result["failed_params"] = fail_count
+        # Don't let a poll that races the device applying a just-issued write
+        # briefly revert the optimistic value (the standby path already preserves
+        # cached values; this does the same, time-bounded, for the full poll).
+        self._apply_optimistic(result)
         self._last_status = result
         return result
+
+    def _apply_optimistic(self, result: dict) -> None:
+        """Override freshly-polled values with still-valid optimistic ones.
+
+        ``note_cached`` records each optimistically-applied value in
+        ``_last_status`` and stamps an expiry in ``_optimistic``. Until that
+        expiry, the optimistic value (which the device *will* report, since the
+        write already succeeded) wins over a poll that read the pre-write value.
+        """
+        if not self._optimistic:
+            return
+        now = time.monotonic()
+        for key in [k for k, exp in self._optimistic.items() if exp <= now]:
+            del self._optimistic[key]
+        for key in self._optimistic:
+            if key in self._last_status:
+                result[key] = self._last_status[key]
 
     def note_cached(self, values: dict) -> None:
         """Record just-applied values in the status cache.
 
         The standby poll is cache-only (it doesn't re-read settings), so without
         this an optimistic UI update would be reverted to the stale cached value
-        on the next poll even though the write succeeded on the device.
+        on the next poll even though the write succeeded on the device. The expiry
+        stamps also shield the value from a racing *full* poll (see
+        :meth:`_apply_optimistic`).
         """
         if isinstance(self._last_status, dict):
             self._last_status.update(values)
+        expiry = time.monotonic() + OPTIMISTIC_TTL
+        for key in values:
+            self._optimistic[key] = expiry
 
     # --- Setters ---
 

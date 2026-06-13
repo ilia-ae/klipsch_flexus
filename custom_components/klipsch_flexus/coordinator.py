@@ -62,6 +62,7 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
         self.network_info: dict = {}  # link / interfaces / MAC sources (diagnostics)
         self._net_interfaces: dict | None = None  # cached interface names
         self._seed_sources: dict = {}  # where each candidate MAC came from
+        self._refresh_handles: set = set()  # pending delayed-refresh timers
 
     async def _gather_mac_seeds(self) -> list[str]:
         """Collect candidate MACs for the 2026 write-auth credential.
@@ -213,8 +214,20 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
         """Schedule a refresh after delay (non-blocking).
 
         Gives the soundbar time to process a command before we poll its state.
+        The timer handle is tracked so it can be cancelled on unload (otherwise a
+        command issued just before unload would fire a refresh on a dead entry).
         """
-        self.hass.loop.call_later(
-            delay,
-            lambda: self.hass.async_create_task(self.async_request_refresh()),
-        )
+
+        def _fire() -> None:
+            self._refresh_handles.discard(handle)
+            self.hass.async_create_task(self.async_request_refresh())
+
+        handle = self.hass.loop.call_later(delay, _fire)
+        self._refresh_handles.add(handle)
+
+    @callback
+    def cancel_pending_refreshes(self) -> None:
+        """Cancel any scheduled delayed refreshes (called on unload)."""
+        for handle in self._refresh_handles:
+            handle.cancel()
+        self._refresh_handles.clear()

@@ -25,7 +25,8 @@
     },
     "abort": {
       "already_configured": "Este dispositivo ya está configurado.",
-      "not_klipsch_device": "No es un dispositivo Klipsch Flexus."
+      "not_klipsch_device": "No es un dispositivo Klipsch Flexus.",
+      "wrong_device": "Esa IP pertenece a una barra de sonido diferente de la que estás reconfigurando."
     }
   },
   "options": {

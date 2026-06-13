@@ -25,7 +25,8 @@
     },
     "abort": {
       "already_configured": "Dieses Gerät ist bereits konfiguriert.",
-      "not_klipsch_device": "Kein Klipsch Flexus Gerät."
+      "not_klipsch_device": "Kein Klipsch Flexus Gerät.",
+      "wrong_device": "Diese IP gehört zu einer anderen Soundbar als der, die du neu konfigurierst."
     }
   },
   "options": {

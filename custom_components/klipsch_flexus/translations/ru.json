@@ -25,7 +25,8 @@
     },
     "abort": {
       "already_configured": "Это устройство уже настроено.",
-      "not_klipsch_device": "Это не устройство Klipsch Flexus."
+      "not_klipsch_device": "Это не устройство Klipsch Flexus.",
+      "wrong_device": "Этот IP принадлежит другой звуковой панели, а не той, что вы перенастраиваете."
     }
   },
   "options": {

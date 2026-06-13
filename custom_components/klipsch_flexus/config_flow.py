@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from ipaddress import IPv4Address
 
 import voluptuous as vol
@@ -15,8 +16,13 @@ except ImportError:  # HA < 2026.2
     from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
 from .api import KlipschAPI
-from .auth import mac_to_colon
+from .auth import ZERO_MAC, mac_to_colon
 from .const import CONF_DEVICE_MAC, CONF_SCAN_INTERVAL, DOMAIN, SCAN_INTERVAL_SECONDS
+
+
+def _is_mac_unique_id(unique_id: str | None) -> bool:
+    """True if the entry's unique_id is a bare 12-hex-char MAC (vs a host fallback)."""
+    return bool(unique_id) and re.fullmatch(r"[0-9a-f]{12}", unique_id) is not None
 
 
 class KlipschFlexusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -35,7 +41,12 @@ class KlipschFlexusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return KlipschOptionsFlow(config_entry)
 
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> config_entries.ConfigFlowResult:
-        """Handle Zeroconf/mDNS discovery (Google Cast or AirPlay)."""
+        """Handle Google Cast (``_googlecast._tcp``) mDNS discovery.
+
+        The soundbar always advertises over Google Cast (the manifest's only
+        matcher); the extra ``model``/``am`` lookups below just keep the
+        Klipsch/AirCast filtering robust against TXT-record variations.
+        """
         # Prefer IPv4 — the soundbar HTTP API only listens on IPv4
         host = None
         for addr in discovery_info.ip_addresses:
@@ -49,7 +60,7 @@ class KlipschFlexusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Google Cast TXT records use 'md' for model, 'fn' for friendly name
         model = properties.get("md", "")
         friendly_name = properties.get("fn", "")
-        # AirPlay uses 'model' and the service name directly
+        # Some records expose 'model' instead of 'md' — fall back to it.
         if not model:
             model = properties.get("model", "")
 
@@ -99,30 +110,31 @@ class KlipschFlexusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             api = KlipschAPI(host)
             try:
                 status = await api.get_status()
-                if status.get("online"):
-                    # Try eureka_info for stable unique ID (MAC) and model check
-                    device_info = await api.get_device_info()
-                    unique_id = host
-                    title = f"Klipsch Flexus ({host})"
-                    if device_info:
-                        mac = device_info.get("mac_address")
-                        if mac:
-                            unique_id = mac.replace(":", "").lower()
-                        name = device_info.get("name", "")
-                        if name:
-                            title = name
-                    await self.async_set_unique_id(unique_id)
-                    self._abort_if_unique_id_configured()
-                    return self.async_create_entry(
-                        title=title,
-                        data={CONF_HOST: host},
-                    )
-                else:
-                    errors["base"] = "cannot_connect"
-            except Exception:
-                errors["base"] = "cannot_connect"
+                # eureka_info gives a stable unique ID (MAC) and a friendly title
+                device_info = await api.get_device_info() if status.get("online") else None
+            except Exception:  # noqa: BLE001 — any connect/parse failure → cannot_connect
+                status, device_info = None, None
             finally:
                 await api.close()
+
+            if status and status.get("online"):
+                unique_id = host
+                title = f"Klipsch Flexus ({host})"
+                if device_info:
+                    # Ignore the all-zero MAC 2026 firmware reports in eureka_info —
+                    # it would make every device collide on unique_id "000000000000".
+                    colon = mac_to_colon(device_info.get("mac_address") or "")
+                    if colon and colon != ZERO_MAC:
+                        unique_id = colon.replace(":", "").lower()
+                    name = device_info.get("name", "")
+                    if name:
+                        title = name
+                # Outside the try: _abort_if_unique_id_configured raises AbortFlow,
+                # which must propagate rather than be turned into "cannot_connect".
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(title=title, data={CONF_HOST: host})
+            errors["base"] = "cannot_connect"
 
         return self.async_show_form(
             step_id="user",
@@ -144,18 +156,30 @@ class KlipschFlexusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             api = KlipschAPI(host)
             try:
                 status = await api.get_status()
-                if status.get("online"):
-                    return self.async_update_reload_and_abort(
-                        entry,
-                        data={CONF_HOST: host},
-                        title=f"Klipsch Flexus ({host})",
-                    )
-                else:
-                    errors["base"] = "cannot_connect"
-            except Exception:
-                errors["base"] = "cannot_connect"
+                device_info = await api.get_device_info() if status.get("online") else None
+            except Exception:  # noqa: BLE001 — any connect/parse failure → cannot_connect
+                status, device_info = None, None
             finally:
                 await api.close()
+
+            if status and status.get("online"):
+                # If this entry is keyed by MAC and the device reports a real MAC,
+                # make sure it's still the *same* unit — guards against typing a
+                # different device's IP into the reconfigure form.
+                colon = mac_to_colon((device_info or {}).get("mac_address") or "")
+                if (
+                    colon
+                    and colon != ZERO_MAC
+                    and _is_mac_unique_id(entry.unique_id)
+                    and colon.replace(":", "").lower() != entry.unique_id
+                ):
+                    return self.async_abort(reason="wrong_device")
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data={CONF_HOST: host},
+                    title=f"Klipsch Flexus ({host})",
+                )
+            errors["base"] = "cannot_connect"
 
         return self.async_show_form(
             step_id="reconfigure",
