@@ -361,6 +361,30 @@ async def test_set_data_raises_clear_error_when_no_mac_authenticates(api: Klipsc
     assert api._auth_failed is True
 
 
+async def test_set_data_timeouts_do_not_latch_auth_failed(api: KlipschAPI) -> None:
+    """All candidate probes timing out (device slow) is transient, not 'wrong MAC'.
+
+    The signer must NOT permanently latch _auth_failed on transport timeouts —
+    only on definitive 401/403 — so a later command retries once the bar responds.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_session = AsyncMock(spec=aiohttp.ClientSession)
+    # unsigned :80 → 401; every signed candidate then times out (transport error)
+    mock_session.post = MagicMock(side_effect=[_mock_response(status=401, text="Forbidden"), *([TimeoutError()] * 8)])
+    mock_session.closed = False
+    api._session = mock_session
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["34:3D:7F:00:2F:3E"])
+
+    with pytest.raises(HomeAssistantError):
+        await api.set_data("settings:/cinema/dialogMode", {"type": "cinemaDialogMode", "cinemaDialogMode": "off"})
+    # transient — stays un-latched so the next command can resolve
+    assert api._auth_failed is False
+    assert api._auth is None
+
+
 async def test_probe_command_health(api: KlipschAPI) -> None:
     """Test deep diagnostic: alive vs auth-blocked commands (2026 firmware)."""
 

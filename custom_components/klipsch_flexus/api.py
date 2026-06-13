@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 from homeassistant.exceptions import HomeAssistantError
 
-from .auth import KlipschAuth, expand_mac_candidates
+from .auth import AUTH_SCHEME, KlipschAuth, expand_mac_candidates
 from .const import (
     API_RETRIES,
     API_RETRY_DELAY,
@@ -273,6 +273,7 @@ class KlipschAPI:
             )
             return None
 
+        statuses: list[int | None] = []
         for mac in candidates:
             auth = KlipschAuth(mac, self._host)
             text, status = await self._send_signed(session, auth, path, value, roles, timeout)
@@ -282,14 +283,26 @@ class KlipschAPI:
                 if status >= 400:
                     _LOGGER.warning("Signed setData %s → HTTP %d: %s", path, status, text[:200])
                 return text
+            statuses.append(status)
 
-        self._auth_failed = True
-        _LOGGER.error(
-            "Klipsch: none of %d candidate MAC(s) authenticated writes %s. "
-            "Set the soundbar's MAC in the integration options.",
-            len(candidates),
-            candidates,
-        )
+        # Give up permanently only if EVERY candidate was definitively rejected
+        # (401/403 = wrong credential). All-timeouts (status None) means the device
+        # was slow/unreachable — not that the MAC is wrong — so stay un-failed and
+        # let the next command retry.
+        if statuses and all(s in (401, 403) for s in statuses):
+            self._auth_failed = True
+            _LOGGER.error(
+                "Klipsch: none of %d candidate MAC(s) authenticated writes %s. "
+                "Set the soundbar's MAC in the integration options.",
+                len(candidates),
+                candidates,
+            )
+        else:
+            _LOGGER.warning(
+                "Klipsch: could not resolve write-auth this attempt (device slow/unreachable; "
+                "statuses=%s) — will retry on the next command.",
+                statuses,
+            )
         return None
 
     async def resolve_write_auth(self) -> bool:
@@ -321,6 +334,31 @@ class KlipschAPI:
             except (TimeoutError, aiohttp.ClientError, OSError):
                 return False
         return self._auth is not None
+
+    def signing_info(self) -> dict:
+        """Snapshot of the 2026 write-auth state for diagnostics.
+
+        Exposes the resolved signing MAC, the candidate seeds tried, and a fresh
+        *sample* ``Authorization`` header (computed, not sent) so a user can see
+        the credential the integration derived. The header is not a secret: it is
+        derived from the public MAC + a constant hardcoded in the official app.
+        """
+        info: dict = {
+            "scheme": AUTH_SCHEME,
+            "resolved": self._auth is not None,
+            "auth_failed": self._auth_failed,
+            "candidate_seeds": list(self._mac_seeds),
+            "gated_paths_seen": sorted(self._auth_required_paths),
+        }
+        if self._auth is not None:
+            info["username"] = self._auth.username
+            info["signing_mac"] = self._auth.mac
+            try:
+                _, headers = self._auth.build_set_data("cinema:cinemaBass", {"type": "i32_", "i32_": 0})
+                info["sample_authorization"] = headers.get("Authorization")
+            except Exception:  # noqa: BLE001
+                pass
+        return info
 
     async def get_auth_mode(self) -> str:
         """Read settings:/webserver/authMode.

@@ -205,6 +205,11 @@ class KlipschAuth:
         return self._password
 
     @property
+    def mac(self) -> str:
+        """The device MAC this credential derives from (``AA:BB:CC:DD:EE:FF``)."""
+        return mac_to_colon(self._mac) or self._mac
+
+    @property
     def set_data_url(self) -> str:
         return f"https://{self._host}/api/setData"
 
