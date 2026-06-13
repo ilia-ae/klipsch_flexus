@@ -11,7 +11,7 @@ We take the security of Klipsch Flexus integration seriously. If you discover a 
 Instead, please report them privately by:
 
 1. **GitHub Security Advisories** (preferred):
-   - Go to https://github.com/razqqm/klipsch_flexus/security/advisories
+   - Go to https://github.com/ilia-ae/klipsch_flexus/security/advisories
    - Click "New draft security advisory"
    - Fill in the details of the vulnerability
 
