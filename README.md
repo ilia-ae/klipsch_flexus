@@ -195,6 +195,10 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 
 ## Entities
 
+![Klipsch Flexus device page in Home Assistant](docs/images/device-page.png)
+
+*The integration's Home Assistant device page — Device info, Controls, Configuration (Night / Dialog / EQ / Dirac / LED + toggles) and the Activity log.*
+
 | Entity | Type | Category |
 |--------|------|----------|
 | Klipsch Flexus CORE 300 | Media Player | — |

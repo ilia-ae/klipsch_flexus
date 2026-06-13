@@ -194,6 +194,10 @@ Die Klipsch Flexus hat einen **Single-Thread HTTP-Server**, der jeweils eine Anf
 
 ## Entitäten
 
+![Klipsch Flexus Geräteseite in Home Assistant](images/device-page.png)
+
+*Die Geräteseite in Home Assistant — Device info, Controls, Configuration (Night / Dialog / EQ / Dirac / LED + Schalter) und das Aktivitätsprotokoll.*
+
 | Entität | Typ | Kategorie |
 |---------|-----|-----------|
 | Klipsch Flexus CORE 300 | Media Player | — |

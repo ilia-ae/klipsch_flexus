@@ -194,6 +194,10 @@ Klipsch Flexus имеет **однопоточный HTTP-сервер**, обр
 
 ## Сущности
 
+![Страница устройства Klipsch Flexus в Home Assistant](images/device-page.png)
+
+*Страница устройства в Home Assistant — Device info, Controls, Configuration (Night / Dialog / EQ / Dirac / LED + переключатели) и журнал активности.*
+
 | Сущность | Тип | Категория |
 |----------|-----|-----------|
 | Klipsch Flexus CORE 300 | Медиаплеер | — |

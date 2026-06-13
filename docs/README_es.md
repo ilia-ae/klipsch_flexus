@@ -194,6 +194,10 @@ El Klipsch Flexus tiene un **servidor HTTP de un solo hilo** que procesa una pet
 
 ## Entidades
 
+![Página del dispositivo Klipsch Flexus en Home Assistant](images/device-page.png)
+
+*La página del dispositivo en Home Assistant — Device info, Controls, Configuration (Night / Dialog / EQ / Dirac / LED + interruptores) y el registro de actividad.*
+
 | Entidad | Tipo | Categoría |
 |---------|------|-----------|
 | Klipsch Flexus CORE 300 | Media Player | — |
