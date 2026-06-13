@@ -146,6 +146,12 @@
           "surround": "Surround",
           "stereo": "Stereo"
         }
+      },
+      "signing_mac": {
+        "name": "Signing MAC"
+      },
+      "network_link": {
+        "name": "Network Link"
       }
     }
   }

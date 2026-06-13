@@ -75,7 +75,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
         "device_status": coordinator.data or {},
         "dirac_filters": coordinator.dirac_filters,
         # 2026 write-auth: resolved signing MAC, candidates tried, sample signature
-        "write_auth": api.signing_info(),
+        "write_auth": api.signing_info(include_sample=True),
         "network": network,
         "command_health": command_health,
         "api_stats": {

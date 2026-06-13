@@ -33,9 +33,16 @@
       "init": {
         "title": "Ajustes de Klipsch Flexus",
         "data": {
-          "scan_interval": "Intervalo de consulta (segundos)"
+          "scan_interval": "Intervalo de consulta (segundos)",
+          "device_mac": "MAC del dispositivo (opcional)"
+        },
+        "data_description": {
+          "device_mac": "Solo necesario si los comandos de escritura (entrada, modo de sonido, EQ…) fallan la autenticación en el firmware 2026. Déjalo vacío para autodetección; de lo contrario, introduce la dirección MAC de la barra de sonido."
         }
       }
+    },
+    "error": {
+      "invalid_mac": "Dirección MAC no válida (se esperan 12 dígitos hexadecimales, p. ej. AA:BB:CC:DD:EE:FF)."
     }
   },
   "entity": {
@@ -139,6 +146,12 @@
           "surround": "Surround",
           "stereo": "Estéreo"
         }
+      },
+      "signing_mac": {
+        "name": "MAC de firma"
+      },
+      "network_link": {
+        "name": "Enlace de red"
       }
     }
   }

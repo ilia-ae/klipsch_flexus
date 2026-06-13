@@ -33,9 +33,16 @@
       "init": {
         "title": "Klipsch Flexus Einstellungen",
         "data": {
-          "scan_interval": "Abfrageintervall (Sekunden)"
+          "scan_interval": "Abfrageintervall (Sekunden)",
+          "device_mac": "Geräte-MAC (optional)"
+        },
+        "data_description": {
+          "device_mac": "Nur nötig, wenn Schreibbefehle (Eingang, Sound-Modus, EQ…) auf der 2026-Firmware nicht authentifiziert werden. Leer lassen für automatische Erkennung; andernfalls die MAC-Adresse der Soundbar eingeben."
         }
       }
+    },
+    "error": {
+      "invalid_mac": "Keine gültige MAC-Adresse (12 Hex-Zeichen erwartet, z. B. AA:BB:CC:DD:EE:FF)."
     }
   },
   "entity": {
@@ -139,6 +146,12 @@
           "surround": "Surround",
           "stereo": "Stereo"
         }
+      },
+      "signing_mac": {
+        "name": "Signatur-MAC"
+      },
+      "network_link": {
+        "name": "Netzwerkverbindung"
       }
     }
   }

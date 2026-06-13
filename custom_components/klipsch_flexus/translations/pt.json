@@ -33,9 +33,16 @@
       "init": {
         "title": "Configurações Klipsch Flexus",
         "data": {
-          "scan_interval": "Intervalo de consulta (segundos)"
+          "scan_interval": "Intervalo de consulta (segundos)",
+          "device_mac": "MAC do dispositivo (opcional)"
+        },
+        "data_description": {
+          "device_mac": "Necessário apenas se os comandos de escrita (entrada, modo de som, EQ…) falharem na autenticação no firmware 2026. Deixe vazio para deteção automática; caso contrário, introduza o endereço MAC da soundbar."
         }
       }
+    },
+    "error": {
+      "invalid_mac": "Endereço MAC inválido (esperados 12 dígitos hexadecimais, ex. AA:BB:CC:DD:EE:FF)."
     }
   },
   "entity": {
@@ -139,6 +146,12 @@
           "surround": "Surround",
           "stereo": "Estéreo"
         }
+      },
+      "signing_mac": {
+        "name": "MAC de assinatura"
+      },
+      "network_link": {
+        "name": "Ligação de rede"
       }
     }
   }

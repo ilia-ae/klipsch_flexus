@@ -59,6 +59,9 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
         self._normal_interval = timedelta(seconds=scan_interval)
         self._standby_interval = timedelta(seconds=SCAN_INTERVAL_STANDBY)
         self._write_auth_ready = False  # signing credential resolved
+        self.network_info: dict = {}  # link / interfaces / MAC sources (diagnostics)
+        self._net_interfaces: dict | None = None  # cached interface names
+        self._seed_sources: dict = {}  # where each candidate MAC came from
 
     async def _gather_mac_seeds(self) -> list[str]:
         """Collect candidate MACs for the 2026 write-auth credential.
@@ -70,20 +73,51 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
         device accepts.
         """
         seeds: list[str] = []
+        sources: dict = {}
         if self.entry:
             manual = self.entry.options.get(CONF_DEVICE_MAC)
             if manual:
                 seeds.append(manual)
+                sources["manual_option"] = manual
+            registry: list[str] = []
             try:
                 reg = dr.async_get(self.hass)
                 for device in dr.async_entries_for_config_entry(reg, self.entry.entry_id):
-                    seeds.extend(val for ctype, val in device.connections if ctype == dr.CONNECTION_NETWORK_MAC)
+                    registry.extend(val for ctype, val in device.connections if ctype == dr.CONNECTION_NETWORK_MAC)
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Klipsch: device-registry MAC lookup failed", exc_info=True)
+            seeds.extend(registry)
+            if registry:
+                sources["device_registry"] = registry
         arp = await self.hass.async_add_executor_job(_arp_lookup, self.api.host)
         if arp:
             seeds.append(arp)
+            sources["arp_table"] = arp
+        self._seed_sources = sources
         return seeds
+
+    async def _refresh_network_info(self) -> None:
+        """Build the network/interface diagnostic snapshot (for sensors + diag)."""
+        if self._net_interfaces is None:
+            self._net_interfaces = {}
+            try:
+                wired = await self.api.get_data("settings:/network/wiredInterface")
+                wireless = await self.api.get_data("settings:/network/wirelessInterface")
+                self._net_interfaces = {
+                    "wired_interface": wired[0].get("string_"),
+                    "wireless_interface": wireless[0].get("string_"),
+                }
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Klipsch: network interface read failed", exc_info=True)
+        eu = self.device_info or {}
+        self.network_info = {
+            "active_link": "wired" if eu.get("ethernet_connected") else "wireless",
+            "ethernet_connected": eu.get("ethernet_connected"),
+            "eureka_mac": eu.get("mac_address"),
+            "hotspot_bssid": eu.get("hotspot_bssid"),
+            **self._net_interfaces,
+            "mac_sources": self._seed_sources,
+        }
 
     async def _refresh_mac_seeds(self) -> None:
         """Keep the signer's candidate MACs fresh (cheap; no device writes).
@@ -142,6 +176,9 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
 
         # Resolve the 2026 write-auth credential up front (idempotent probe, device on)
         await self._eager_resolve_write_auth()
+
+        # Refresh the network/interface diagnostic snapshot (visible via sensors)
+        await self._refresh_network_info()
 
         # Fetch Dirac filters once
         if not self.dirac_filters:
