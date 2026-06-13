@@ -52,6 +52,7 @@ class KlipschSwitch(CoordinatorEntity[KlipschCoordinator], SwitchEntity):
 
     async def _set(self, on: bool) -> None:
         await self.coordinator.api.set_switch(self._key, on)
+        self.coordinator.api.note_cached({self._key: on})
         if self.coordinator.data:
             self.coordinator.data[self._key] = on
             self.async_write_ha_state()

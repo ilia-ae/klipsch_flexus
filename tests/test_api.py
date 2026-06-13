@@ -477,3 +477,20 @@ async def test_get_status_includes_settings_group(api: KlipschAPI) -> None:
     assert status["eq_bypass"] is True
     assert status["sub_wired_delay"] == 8300
     assert status["operating_mode"] == "consumer"
+
+
+async def test_note_cached_survives_standby_poll(api: KlipschAPI) -> None:
+    """A value applied while the bar is in standby must not be reverted by the
+    cache-only standby poll (regression: optimistic write getting clobbered)."""
+    api._last_status = {"mode": "movie", "led_mode": "dim"}
+    # Device reports standby → get_status takes the cache-only branch
+    api.get_data = AsyncMock(return_value=[{"powerTarget": {"target": "networkStandby"}}])
+
+    st = await api.get_status()
+    assert st["power"] == "networkStandby"
+    assert st["mode"] == "movie"  # served from cache
+
+    # A successful write records the new value in the status cache...
+    api.note_cached({"mode": "music"})
+    st2 = await api.get_status()
+    assert st2["mode"] == "music"  # ...and it sticks across the standby poll

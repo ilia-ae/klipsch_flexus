@@ -589,6 +589,16 @@ class KlipschAPI:
         self._last_status = result
         return result
 
+    def note_cached(self, values: dict) -> None:
+        """Record just-applied values in the status cache.
+
+        The standby poll is cache-only (it doesn't re-read settings), so without
+        this an optimistic UI update would be reverted to the stale cached value
+        on the next poll even though the write succeeded on the device.
+        """
+        if isinstance(self._last_status, dict):
+            self._last_status.update(values)
+
     # --- Setters ---
 
     async def set_volume(self, level: int) -> None:

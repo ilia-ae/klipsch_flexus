@@ -59,6 +59,7 @@ class KlipschNightModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_night_mode(option)
+        self.coordinator.api.note_cached({"night_mode": option})
         if self.coordinator.data:
             self.coordinator.data["night_mode"] = option
             self.async_write_ha_state()
@@ -93,6 +94,7 @@ class KlipschDialogModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntit
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_dialog_mode(option)
+        self.coordinator.api.note_cached({"dialog_mode": option})
         if self.coordinator.data:
             self.coordinator.data["dialog_mode"] = option
             self.async_write_ha_state()
@@ -127,6 +129,7 @@ class KlipschEqPresetSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity)
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_eq_preset(option)
+        self.coordinator.api.note_cached({"eq_preset": option})
         if self.coordinator.data:
             self.coordinator.data["eq_preset"] = option
             self.async_write_ha_state()
@@ -178,6 +181,7 @@ class KlipschDiracSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
         filter_id = self._dirac_map.get(option, -1)
         await self.coordinator.api.set_dirac(filter_id)
         # Optimistic update
+        self.coordinator.api.note_cached({"dirac": filter_id})
         if self.coordinator.data:
             self.coordinator.data["dirac"] = filter_id
             self.async_write_ha_state()
@@ -214,6 +218,7 @@ class KlipschLedModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_led_mode(option)
+        self.coordinator.api.note_cached({"led_mode": option})
         if self.coordinator.data:
             self.coordinator.data["led_mode"] = option
             self.async_write_ha_state()

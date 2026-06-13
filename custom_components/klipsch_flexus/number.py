@@ -59,7 +59,8 @@ class KlipschChannelLevel(CoordinatorEntity[KlipschCoordinator], NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         int_val = int(value)
         await self.coordinator.api.set_channel_level(self._param, int_val)
-        # Optimistic update
+        # Optimistic update (also cached so the standby poll won't revert it)
+        self.coordinator.api.note_cached({self._param: int_val})
         if self.coordinator.data:
             self.coordinator.data[self._param] = int_val
             self.async_write_ha_state()
@@ -114,6 +115,7 @@ class KlipschSettingNumber(CoordinatorEntity[KlipschCoordinator], NumberEntity):
         # double settings (balance) keep fractional precision; integer types are rounded
         val: float = float(value) if self._vtype == "double_" else int(value)
         await self.coordinator.api.set_number(self._key, val, self._vtype)
+        self.coordinator.api.note_cached({self._key: val})
         if self.coordinator.data:
             self.coordinator.data[self._key] = val
             self.async_write_ha_state()

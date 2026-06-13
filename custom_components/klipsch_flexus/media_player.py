@@ -136,6 +136,9 @@ class KlipschMediaPlayer(CoordinatorEntity[KlipschCoordinator], MediaPlayerEntit
 
     def _optimistic_update(self, **kwargs) -> None:
         """Update coordinator data in-memory and push state to all entities."""
+        # Persist into the status cache too, so the cache-only standby poll
+        # doesn't revert a just-applied value.
+        self.coordinator.api.note_cached(kwargs)
         if self.coordinator.data:
             self.coordinator.data.update(kwargs)
             self.coordinator.async_set_updated_data(self.coordinator.data)
