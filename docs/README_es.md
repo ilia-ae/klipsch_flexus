@@ -18,6 +18,23 @@
 
 Integración personalizada de Home Assistant para barras de sonido **Klipsch Flexus** — control mediante **API HTTP local nativa**, sin nube, sin retrasos.
 
+## 📸 Panel (Dashboard)
+
+Un panel Lovelace personalizado basado íntegramente en las entidades de la integración — entrada, modo de sonido, noche/diálogo, presets de EQ, filtro Dirac, tono (graves/medios/agudos), niveles de canales surround y subwoofers — todo en vivo por la API local.
+
+![Panel de Klipsch Flexus](images/dashboard.png)
+
+**Componentes HACS necesarios** (todos instalables vía [HACS](https://github.com/hacs/integration)):
+
+| Componente | Repositorio | Para qué |
+|------------|-------------|----------|
+| Klipsch Flexus | [ilia-ae/klipsch_flexus](https://github.com/ilia-ae/klipsch_flexus) | esta integración — las entidades |
+| Mushroom | [piitaya/lovelace-mushroom](https://github.com/piitaya/lovelace-mushroom) | tarjeta del reproductor |
+| button-card | [custom-cards/button-card](https://github.com/custom-cards/button-card) | botones de entrada/modo/EQ con estilo dinámico |
+| card-mod | [thomasloven/lovelace-card-mod](https://github.com/thomasloven/lovelace-card-mod) | resaltado del estado activo (CSS) |
+
+📋 **YAML completo del panel + esquema de colores:** [docs/DASHBOARD.md](DASHBOARD.md)
+
 ### Modelos compatibles
 
 | Modelo | Canales | Características |

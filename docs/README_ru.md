@@ -18,6 +18,23 @@
 
 Кастомная интеграция Home Assistant для саундбаров **Klipsch Flexus** — управление через **локальный HTTP API**, без облака, без задержек.
 
+## 📸 Панель (Dashboard)
+
+Кастомная Lovelace-панель целиком на сущностях интеграции — вход, звуковой режим, ночной/диалог, EQ-пресеты, фильтр Dirac, тон (bass/mid/treble), уровни surround-каналов и сабвуферы — всё вживую по локальному API.
+
+![Панель Klipsch Flexus](images/dashboard.png)
+
+**Нужные компоненты HACS** (всё ставится через [HACS](https://github.com/hacs/integration)):
+
+| Компонент | Репозиторий | Зачем |
+|-----------|-------------|-------|
+| Klipsch Flexus | [ilia-ae/klipsch_flexus](https://github.com/ilia-ae/klipsch_flexus) | сама интеграция — сущности |
+| Mushroom | [piitaya/lovelace-mushroom](https://github.com/piitaya/lovelace-mushroom) | карта медиаплеера |
+| button-card | [custom-cards/button-card](https://github.com/custom-cards/button-card) | тайлы вход/режим/EQ с динамической стилизацией |
+| card-mod | [thomasloven/lovelace-card-mod](https://github.com/thomasloven/lovelace-card-mod) | подсветка активного состояния (CSS) |
+
+📋 **Полный YAML панели + цветовая схема:** [docs/DASHBOARD.md](DASHBOARD.md)
+
 ### Поддерживаемые модели
 
 | Модель | Каналы | Особенности |

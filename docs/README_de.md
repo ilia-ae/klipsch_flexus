@@ -18,6 +18,23 @@
 
 Benutzerdefinierte Home Assistant Integration für **Klipsch Flexus** Soundbars — Steuerung über **native lokale HTTP-API**, ohne Cloud, ohne Verzögerungen.
 
+## 📸 Dashboard
+
+Ein eigenes Lovelace-Dashboard, komplett auf den Entitäten der Integration — Eingang, Sound-Modus, Nacht/Dialog, EQ-Presets, Dirac-Filter, Klang (Bass/Mitten/Höhen), Surround-Kanalpegel und Subwoofer — alles live über die lokale API.
+
+![Klipsch Flexus Dashboard](images/dashboard.png)
+
+**Benötigte HACS-Komponenten** (alle über [HACS](https://github.com/hacs/integration) installierbar):
+
+| Komponente | Repo | Wofür |
+|------------|------|-------|
+| Klipsch Flexus | [ilia-ae/klipsch_flexus](https://github.com/ilia-ae/klipsch_flexus) | diese Integration — die Entitäten |
+| Mushroom | [piitaya/lovelace-mushroom](https://github.com/piitaya/lovelace-mushroom) | Media-Player-Karte |
+| button-card | [custom-cards/button-card](https://github.com/custom-cards/button-card) | Eingang-/Modus-/EQ-Kacheln mit dynamischem Styling |
+| card-mod | [thomasloven/lovelace-card-mod](https://github.com/thomasloven/lovelace-card-mod) | Hervorhebung des aktiven Zustands (CSS) |
+
+📋 **Vollständiges Dashboard-YAML + Farbschema:** [docs/DASHBOARD.md](DASHBOARD.md)
+
 ### Unterstützte Modelle
 
 | Modell | Kanäle | Funktionen |
