@@ -85,12 +85,20 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
             seeds.append(arp)
         return seeds
 
-    async def _ensure_write_auth(self) -> None:
-        """Resolve the signing credential once (retried each poll until ready)."""
+    async def _refresh_mac_seeds(self) -> None:
+        """Keep the signer's candidate MACs fresh (cheap; no device writes).
+
+        Runs every poll until resolved — **including in standby** — so a turn_on
+        from standby still has candidates and resolves the credential lazily on
+        the power command.
+        """
+        if not self._write_auth_ready:
+            self.api.set_mac_seeds(await self._gather_mac_seeds())
+
+    async def _eager_resolve_write_auth(self) -> None:
+        """Resolve the credential up front via an idempotent probe (device on)."""
         if self._write_auth_ready:
             return
-        seeds = await self._gather_mac_seeds()
-        self.api.set_mac_seeds(seeds)
         try:
             if await self.api.resolve_write_auth():
                 self._write_auth_ready = True
@@ -118,6 +126,9 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
                 "standby" if is_standby else "active",
             )
 
+        # Always keep candidate MACs fresh — even in standby — so turn_on works.
+        await self._refresh_mac_seeds()
+
         # In standby skip heavy fetches (player data, eureka_info, dirac)
         if is_standby:
             return status
@@ -129,8 +140,8 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
             except Exception:
                 _LOGGER.debug("Failed to fetch device info from port 8008")
 
-        # Resolve the 2026 write-auth credential (MAC oracle) once it's reachable
-        await self._ensure_write_auth()
+        # Resolve the 2026 write-auth credential up front (idempotent probe, device on)
+        await self._eager_resolve_write_auth()
 
         # Fetch Dirac filters once
         if not self.dirac_filters:
