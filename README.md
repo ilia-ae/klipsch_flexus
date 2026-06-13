@@ -25,6 +25,8 @@ A custom Lovelace dashboard driven entirely by the integration's entities — in
 
 ![Klipsch Flexus dashboard](docs/images/dashboard.png)
 
+📋 **Full dashboard YAML + the required custom cards (Mushroom, button-card, card-mod):** [docs/DASHBOARD.md](docs/DASHBOARD.md)
+
 ### Supported Models
 
 | Model | Channels | Features |
