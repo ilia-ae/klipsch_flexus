@@ -29,6 +29,19 @@ _BASE_FEATURES = (
 )
 
 
+def _http_image_url(icon: object) -> str | None:
+    """Return ``icon`` only if it is a real http(s) artwork URL.
+
+    Physical inputs report a device-internal skin reference instead of a URL
+    (e.g. ``"skin:iconHdmi"`` for HDMI-eARC), which Home Assistant would try to
+    fetch and render as a broken image. Returning ``None`` for those falls back
+    to the default media-player icon.
+    """
+    if isinstance(icon, str) and icon.startswith(("http://", "https://")):
+        return icon
+    return None
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator: KlipschCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([KlipschMediaPlayer(coordinator, entry)])
@@ -209,8 +222,7 @@ class KlipschMediaPlayer(CoordinatorEntity[KlipschCoordinator], MediaPlayerEntit
     @property
     def media_image_url(self) -> str | None:
         player = self._player_data()
-        track = player.get("trackRoles", {})
-        return track.get("icon")
+        return _http_image_url(player.get("trackRoles", {}).get("icon"))
 
     @property
     def media_duration(self) -> int | None:
