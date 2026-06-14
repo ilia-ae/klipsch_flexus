@@ -20,7 +20,7 @@
 
 Home Assistant custom integration for **Klipsch Flexus** soundbars — control via **native local HTTP API**, no cloud, no delays.
 
-> ✅ **Up to date as of v2.5.12 (2026-06-13)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
+> ✅ **Up to date as of v2.5.13 (2026-06-14)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
 
 ## 📸 Dashboard
 
