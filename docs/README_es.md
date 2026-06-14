@@ -19,7 +19,7 @@
 
 Integración personalizada de Home Assistant para barras de sonido **Klipsch Flexus** — control mediante **API HTTP local nativa**, sin nube, sin retrasos.
 
-> ✅ **Actualizado a v2.5.13 (2026-06-14)** — **41 entidades**, todos los comandos de escritura verificados en vivo contra el firmware de 2026 (firmados con HMAC), controlables en standby. Las insignias de arriba reflejan la versión publicada y el último push.
+> ✅ **Actualizado a v2.5.15 (2026-06-14)** — **41 entidades**, todos los comandos de escritura verificados en vivo contra el firmware de 2026 (firmados con HMAC), controlables en standby. Las insignias de arriba reflejan la versión publicada y el último push.
 
 ## 📸 Panel (Dashboard)
 

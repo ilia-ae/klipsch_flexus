@@ -19,7 +19,7 @@
 
 Benutzerdefinierte Home Assistant Integration für **Klipsch Flexus** Soundbars — Steuerung über **native lokale HTTP-API**, ohne Cloud, ohne Verzögerungen.
 
-> ✅ **Aktuell ab v2.5.13 (2026-06-14)** — **41 Entitäten**, alle Schreibbefehle live gegen die Firmware von 2026 verifiziert (HMAC-signiert), auch im Standby steuerbar. Die Badges oben spiegeln das aktuelle Release und den letzten Push wider.
+> ✅ **Aktuell ab v2.5.15 (2026-06-14)** — **41 Entitäten**, alle Schreibbefehle live gegen die Firmware von 2026 verifiziert (HMAC-signiert), auch im Standby steuerbar. Die Badges oben spiegeln das aktuelle Release und den letzten Push wider.
 
 ## 📸 Dashboard
 

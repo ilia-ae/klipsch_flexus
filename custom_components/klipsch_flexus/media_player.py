@@ -13,11 +13,11 @@ from homeassistant.components.media_player import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .auth import ZERO_MAC, mac_to_colon
-from .const import DOMAIN, SOUND_MODES, SOURCES, SOURCES_REVERSE
+from .const import DIRAC_OFF, DOMAIN, SOUND_MODES, SOURCES, SOURCES_REVERSE
 from .coordinator import KlipschCoordinator
+from .entity import KlipschEntity
 
 _BASE_FEATURES = (
     MediaPlayerEntityFeature.VOLUME_SET
@@ -48,17 +48,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities([KlipschMediaPlayer(coordinator, entry)])
 
 
-class KlipschMediaPlayer(CoordinatorEntity[KlipschCoordinator], MediaPlayerEntity):
+class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
     """Klipsch Flexus media player."""
 
-    _attr_has_entity_name = True
     _attr_name = None
     _attr_icon = "mdi:speaker"
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry, "media_player")
         self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_media_player"
         host = entry.data.get("host", "")
         device_info: dict = {
             "identifiers": {(DOMAIN, entry.entry_id)},
@@ -90,17 +88,18 @@ class KlipschMediaPlayer(CoordinatorEntity[KlipschCoordinator], MediaPlayerEntit
         self._prev_track_title: str | None = None
 
     def _player_data(self) -> dict:
+        """Current player/media payload from the coordinator (empty dict if absent)."""
         data = self.coordinator.data or {}
         return data.get("player", {})
 
     def _dirac_filter_name(self) -> str:
         """Resolve Dirac filter ID to human name."""
         data = self.coordinator.data or {}
-        dirac_id = data.get("dirac", -1)
+        dirac_id = data.get("dirac", DIRAC_OFF)
         for f in self.coordinator.dirac_filters:
             if f["id"] == dirac_id:
                 return f["name"]
-        return "off" if dirac_id == -1 else str(dirac_id)
+        return "off" if dirac_id == DIRAC_OFF else str(dirac_id)
 
     def _source_app_name(self) -> str | None:
         """Get source app name from player metadata."""

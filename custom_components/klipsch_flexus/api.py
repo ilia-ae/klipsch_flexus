@@ -6,6 +6,8 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 from urllib.parse import quote
 
 import aiohttp
@@ -13,17 +15,21 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .auth import AUTH_SCHEME, KlipschAuth, expand_mac_candidates
 from .const import (
+    API_PATHS,
     API_RETRIES,
     API_RETRY_DELAY,
     API_TIMEOUT_POWER,
     API_TIMEOUT_READ,
     API_TIMEOUT_WRITE,
+    DIRAC_OFF,
     NIGHT_MODE_FROM_API,
     NIGHT_MODE_TO_API,
     OPTIMISTIC_TTL,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class KlipschAPI:
@@ -67,10 +73,10 @@ class KlipschAPI:
 
     async def _request_with_retry(
         self,
-        request_func,
+        request_func: Callable[[], Awaitable[T]],
         retries: int = API_RETRIES,
         delay: float = API_RETRY_DELAY,
-    ):
+    ) -> T:
         """Execute HTTP request with retry on transient errors."""
         for attempt in range(retries + 1):
             try:
@@ -87,12 +93,12 @@ class KlipschAPI:
                 )
                 await asyncio.sleep(delay)
 
-    async def get_data(self, path: str, timeout: float = API_TIMEOUT_READ) -> list:
+    async def get_data(self, path: str, timeout: float = API_TIMEOUT_READ) -> list[dict[str, Any]]:
         """GET /api/getData — serialized via lock."""
         async with self._lock:
             return await self._request_with_retry(lambda: self._do_get_data(path, timeout))
 
-    async def _do_get_data(self, path: str, timeout: float) -> list:
+    async def _do_get_data(self, path: str, timeout: float) -> list[dict[str, Any]]:
         session = await self._ensure_session()
         url = f"{self._base}/api/getData?path={quote(path, safe=':/')}&roles=value"
         t0 = time.monotonic()
@@ -334,8 +340,6 @@ class KlipschAPI:
         command succeeds immediately instead of probing then. No-op: the value
         written equals the value just read. Returns ``True`` if resolved.
         """
-        from .const import API_PATHS
-
         if self._auth is not None:
             return True
         if self._auth_failed:
@@ -411,8 +415,6 @@ class KlipschAPI:
         blocks it (auth required). Power is probed read-only since it has no
         safe no-op. Nothing is changed on the device.
         """
-        from .const import API_PATHS
-
         # (key, roles) — only value-roles paths have a safe idempotent write-back.
         probes = [
             ("volume", "value"),
@@ -496,8 +498,6 @@ class KlipschAPI:
         all other parameters and keep cached values. This prevents response-time
         spikes (up to 40 s) and sensor unavailability during standby.
         """
-        from .const import API_PATHS
-
         ALL_PARAMS = {
             "volume": (API_PATHS["volume"], lambda d: d[0].get("i32_", 0)),
             "muted": (API_PATHS["mute"], lambda d: d[0].get("bool_", False)),
@@ -513,7 +513,7 @@ class KlipschAPI:
             "treble": (API_PATHS["treble"], lambda d: d[0].get("i32_", 0)),
             "decoder": (API_PATHS["decoder"], lambda d: d[0].get("cinemaAudioDecoder", "unknown")),
             "eq_preset": (API_PATHS["eq_preset"], lambda d: d[0].get("cinemaEqPreset", "unknown")),
-            "dirac": (API_PATHS["dirac"], lambda d: d[0].get("i32_", -1)),
+            "dirac": (API_PATHS["dirac"], lambda d: d[0].get("i32_", DIRAC_OFF)),
             "sub_wired": (API_PATHS["sub_wired"], lambda d: d[0].get("i32_", 0)),
             "sub_wireless": (API_PATHS["sub_wireless"], lambda d: d[0].get("i32_", 0)),
             # Surround channel levels
@@ -649,34 +649,24 @@ class KlipschAPI:
     # --- Setters ---
 
     async def set_volume(self, level: int) -> None:
-        from .const import API_PATHS
-
         await self.set_data(API_PATHS["volume"], {"type": "i32_", "i32_": level})
 
     async def set_mute(self, muted: bool) -> None:
-        from .const import API_PATHS
-
         await self.set_data(API_PATHS["mute"], {"type": "bool_", "bool_": muted})
 
     async def set_input(self, source: str) -> None:
-        from .const import API_PATHS
-
         await self.set_data(
             API_PATHS["input"],
             {"type": "cinemaPhysicalAudioInput", "cinemaPhysicalAudioInput": source},
         )
 
     async def set_sound_mode(self, mode: str) -> None:
-        from .const import API_PATHS
-
         await self.set_data(
             API_PATHS["mode"],
             {"type": "cinemaPostProcessorMode", "cinemaPostProcessorMode": mode},
         )
 
     async def set_night_mode(self, mode: str) -> None:
-        from .const import API_PATHS
-
         api_val = NIGHT_MODE_TO_API.get(mode, mode)
         await self.set_data(
             API_PATHS["night"],
@@ -684,8 +674,6 @@ class KlipschAPI:
         )
 
     async def set_dialog_mode(self, mode: str) -> None:
-        from .const import API_PATHS
-
         await self.set_data(
             API_PATHS["dialog"],
             {"type": "cinemaDialogMode", "cinemaDialogMode": mode},
@@ -693,8 +681,6 @@ class KlipschAPI:
 
     async def set_channel_level(self, param: str, value: int) -> None:
         """Set any channel level (bass/mid/treble/surround/sub) by key."""
-        from .const import API_PATHS
-
         await self.set_data(API_PATHS[param], {"type": "i32_", "i32_": value})
 
     # Legacy aliases
@@ -702,41 +688,29 @@ class KlipschAPI:
     set_sub = set_channel_level
 
     async def set_eq_preset(self, preset: str) -> None:
-        from .const import API_PATHS
-
         await self.set_data(
             API_PATHS["eq_preset"],
             {"type": "cinemaEqPreset", "cinemaEqPreset": preset},
         )
 
     async def set_dirac(self, filter_id: int) -> None:
-        from .const import API_PATHS
-
         await self.set_data(API_PATHS["dirac"], {"type": "i32_", "i32_": filter_id})
 
     async def set_switch(self, key: str, on: bool) -> None:
         """Toggle a boolean setting (auto-lipsync, EQ bypass, auto-power, …)."""
-        from .const import API_PATHS
-
         await self.set_data(API_PATHS[key], {"type": "bool_", "bool_": on})
 
     async def set_led_mode(self, mode: str) -> None:
-        from .const import API_PATHS
-
         await self.set_data(API_PATHS["led_mode"], {"type": "cinemaLEDMode", "cinemaLEDMode": mode})
 
     async def set_number(self, key: str, value: float, vtype: str = "i32_") -> None:
         """Set a typed numeric setting (i32 ms, i64 µs, or double like balance)."""
-        from .const import API_PATHS
-
         await self.set_data(API_PATHS[key], {"type": vtype, vtype: value})
 
     # Backwards-compatible alias (lip-sync delay was the first such number)
     set_delay = set_number
 
     async def set_power(self, target: str) -> None:
-        from .const import API_PATHS
-
         await self.set_data(
             API_PATHS["power_req"],
             {"target": target, "reason": "userActivity"},
@@ -750,8 +724,6 @@ class KlipschAPI:
 
     async def get_player_data(self) -> dict | None:
         """Fetch current player/media data."""
-        from .const import API_PATHS
-
         try:
             data = await self.get_data(API_PATHS["player"])
             if data and isinstance(data, list) and len(data) > 0:
@@ -762,8 +734,6 @@ class KlipschAPI:
 
     async def media_control(self, control: str) -> None:
         """Send media control command (pause/next/previous)."""
-        from .const import API_PATHS
-
         await self.set_data(
             API_PATHS["player_control"],
             {"control": control},

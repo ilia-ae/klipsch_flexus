@@ -7,16 +7,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DIALOG_MODES,
+    DIRAC_OFF,
     DOMAIN,
     EQ_PRESETS,
     LED_MODES,
     NIGHT_MODES,
 )
 from .coordinator import KlipschCoordinator
+from .entity import KlipschControllableEntity
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
@@ -31,24 +32,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(entities)
 
 
-class KlipschNightModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
+class KlipschNightModeSelect(KlipschControllableEntity, SelectEntity):
     """Night mode selector."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "night_mode"
     _attr_icon = "mdi:weather-night"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_night_mode"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "night_mode")
         self._attr_options = NIGHT_MODES
-
-    @property
-    def available(self) -> bool:
-        """Available whenever the device is reachable (shows last value in standby)."""
-        return bool((self.coordinator.data or {}).get("online")) and super().available
 
     @property
     def current_option(self) -> str | None:
@@ -59,31 +52,19 @@ class KlipschNightModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_night_mode(option)
-        self.coordinator.api.note_cached({"night_mode": option})
-        if self.coordinator.data:
-            self.coordinator.data["night_mode"] = option
-            self.async_write_ha_state()
-        self.coordinator.async_request_delayed_refresh()
+        self._optimistic_update(night_mode=option)
 
 
-class KlipschDialogModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
+class KlipschDialogModeSelect(KlipschControllableEntity, SelectEntity):
     """Dialog mode selector."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "dialog_mode"
     _attr_icon = "mdi:account-voice"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_dialog_mode"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "dialog_mode")
         self._attr_options = DIALOG_MODES
-
-    @property
-    def available(self) -> bool:
-        """Available whenever the device is reachable (shows last value in standby)."""
-        return bool((self.coordinator.data or {}).get("online")) and super().available
 
     @property
     def current_option(self) -> str | None:
@@ -94,31 +75,19 @@ class KlipschDialogModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntit
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_dialog_mode(option)
-        self.coordinator.api.note_cached({"dialog_mode": option})
-        if self.coordinator.data:
-            self.coordinator.data["dialog_mode"] = option
-            self.async_write_ha_state()
-        self.coordinator.async_request_delayed_refresh()
+        self._optimistic_update(dialog_mode=option)
 
 
-class KlipschEqPresetSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
+class KlipschEqPresetSelect(KlipschControllableEntity, SelectEntity):
     """EQ preset selector."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "eq_preset"
     _attr_icon = "mdi:tune-variant"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_eq_preset"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "eq_preset")
         self._attr_options = EQ_PRESETS
-
-    @property
-    def available(self) -> bool:
-        """Available whenever the device is reachable (shows last value in standby)."""
-        return bool((self.coordinator.data or {}).get("online")) and super().available
 
     @property
     def current_option(self) -> str | None:
@@ -129,30 +98,24 @@ class KlipschEqPresetSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity)
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_eq_preset(option)
-        self.coordinator.api.note_cached({"eq_preset": option})
-        if self.coordinator.data:
-            self.coordinator.data["eq_preset"] = option
-            self.async_write_ha_state()
-        self.coordinator.async_request_delayed_refresh()
+        self._optimistic_update(eq_preset=option)
 
 
-class KlipschDiracSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
+class KlipschDiracSelect(KlipschControllableEntity, SelectEntity):
     """Dirac room correction filter selector."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "dirac"
     _attr_icon = "mdi:tune"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_dirac"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "dirac")
         self._dirac_map: dict[str, int] = {}
         self._dirac_reverse: dict[int, str] = {}
         self._update_filter_options()
 
     def _update_filter_options(self) -> None:
+        """Sync the name<->id Dirac maps + option list from the coordinator's filters."""
         filters = self.coordinator.dirac_filters
         if filters:
             self._dirac_map = {f["name"]: f["id"] for f in filters}
@@ -160,13 +123,8 @@ class KlipschDiracSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
             self._attr_options = [f["name"] for f in filters]
         else:
             self._attr_options = ["off"]
-            self._dirac_map = {"off": -1}
-            self._dirac_reverse = {-1: "off"}
-
-    @property
-    def available(self) -> bool:
-        """Available whenever the device is reachable (shows last value in standby)."""
-        return bool((self.coordinator.data or {}).get("online")) and super().available
+            self._dirac_map = {"off": DIRAC_OFF}
+            self._dirac_reverse = {DIRAC_OFF: "off"}
 
     @property
     def current_option(self) -> str | None:
@@ -174,38 +132,25 @@ class KlipschDiracSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        dirac_id = data.get("dirac", -1)
+        dirac_id = data.get("dirac", DIRAC_OFF)
         return self._dirac_reverse.get(dirac_id, "off")
 
     async def async_select_option(self, option: str) -> None:
-        filter_id = self._dirac_map.get(option, -1)
+        filter_id = self._dirac_map.get(option, DIRAC_OFF)
         await self.coordinator.api.set_dirac(filter_id)
-        # Optimistic update
-        self.coordinator.api.note_cached({"dirac": filter_id})
-        if self.coordinator.data:
-            self.coordinator.data["dirac"] = filter_id
-            self.async_write_ha_state()
-        self.coordinator.async_request_delayed_refresh()
+        self._optimistic_update(dirac=filter_id)
 
 
-class KlipschLedModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
+class KlipschLedModeSelect(KlipschControllableEntity, SelectEntity):
     """Front LED brightness selector."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "led_mode"
     _attr_icon = "mdi:led-on"
     _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_led_mode"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "led_mode")
         self._attr_options = LED_MODES
-
-    @property
-    def available(self) -> bool:
-        """Available whenever the device is reachable (shows last value in standby)."""
-        return bool((self.coordinator.data or {}).get("online")) and super().available
 
     @property
     def current_option(self) -> str | None:
@@ -218,8 +163,4 @@ class KlipschLedModeSelect(CoordinatorEntity[KlipschCoordinator], SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         await self.coordinator.api.set_led_mode(option)
-        self.coordinator.api.note_cached({"led_mode": option})
-        if self.coordinator.data:
-            self.coordinator.data["led_mode"] = option
-            self.async_write_ha_state()
-        self.coordinator.async_request_delayed_refresh()
+        self._optimistic_update(led_mode=option)

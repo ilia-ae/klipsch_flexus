@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
-
 import pytest
-
-from custom_components.klipsch_flexus.const import DOMAIN
 
 MOCK_HOST = "192.168.1.100"
 
@@ -56,46 +52,3 @@ MOCK_STATUS = {
     "poll_time_ms": 850,
     "failed_params": 0,
 }
-
-
-@pytest.fixture
-def mock_api():
-    """Create a mocked KlipschAPI."""
-    with patch("custom_components.klipsch_flexus.api.KlipschAPI", autospec=True) as mock_cls:
-        api = mock_cls.return_value
-        api.get_status = AsyncMock(return_value=MOCK_STATUS.copy())
-        api.get_dirac_filters = AsyncMock(return_value=[{"id": 1, "name": "Filter 1"}, {"id": 2, "name": "Filter 2"}])
-        api.get_player_data = AsyncMock(return_value=None)
-        api.set_volume = AsyncMock()
-        api.set_mute = AsyncMock()
-        api.set_input = AsyncMock()
-        api.set_sound_mode = AsyncMock()
-        api.set_night_mode = AsyncMock()
-        api.set_dialog_mode = AsyncMock()
-        api.set_channel_level = AsyncMock()
-        api.set_eq_preset = AsyncMock()
-        api.set_dirac = AsyncMock()
-        api.set_power = AsyncMock()
-        api.media_control = AsyncMock()
-        api.close = AsyncMock()
-        api.last_response_time = 42.5
-        api.total_requests = 100
-        api.failed_requests = 2
-        yield api
-
-
-@pytest.fixture
-def mock_config_entry():
-    """Create a mock config entry."""
-    from homeassistant.config_entries import ConfigEntry
-
-    return ConfigEntry(
-        version=1,
-        minor_version=1,
-        domain=DOMAIN,
-        title=f"Klipsch Flexus ({MOCK_HOST})",
-        data={"host": MOCK_HOST},
-        source="user",
-        unique_id=MOCK_HOST,
-        entry_id="test_entry_id",
-    )

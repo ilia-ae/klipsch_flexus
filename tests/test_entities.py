@@ -12,8 +12,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from custom_components.klipsch_flexus.const import DOMAIN
 from custom_components.klipsch_flexus.number import KlipschChannelLevel
 from custom_components.klipsch_flexus.select import KlipschEqPresetSelect
+from custom_components.klipsch_flexus.sensor import KlipschStatusSensor
 from custom_components.klipsch_flexus.switch import KlipschSwitch
 
 
@@ -77,3 +79,32 @@ async def test_select_optimistic_update(coordinator, entry) -> None:
     coordinator.api.note_cached.assert_called_once_with({"eq_preset": "rock"})
     assert coordinator.data["eq_preset"] == "rock"
     coordinator.async_request_delayed_refresh.assert_called_once()
+
+
+# --- Shared base-entity behavior (KlipschEntity / KlipschControllableEntity) ---
+
+
+def test_control_available_is_gated_on_online(coordinator, entry) -> None:
+    """A control is available only while the device reports online."""
+    coordinator.last_update_success = True
+    switch = KlipschSwitch(coordinator, entry, "loudness", "mdi:volume-vibrate")
+    coordinator.data = {"online": True}
+    assert switch.available is True
+    coordinator.data = {"online": False}
+    assert switch.available is False
+
+
+def test_diagnostic_sensor_stays_available_when_offline(coordinator, entry) -> None:
+    """The status sensor must NOT be online-gated — it has to report 'offline'."""
+    coordinator.last_update_success = True
+    sensor = KlipschStatusSensor(coordinator, entry)
+    coordinator.data = {"online": False}
+    assert sensor.available is True
+    assert sensor.native_value == "offline"
+
+
+def test_base_sets_unique_id_and_device(coordinator, entry) -> None:
+    """The base entity derives unique_id + device link consistently."""
+    switch = KlipschSwitch(coordinator, entry, "loudness", "mdi:volume-vibrate")
+    assert switch.unique_id == "e1_loudness"
+    assert switch.device_info == {"identifiers": {(DOMAIN, "e1")}}

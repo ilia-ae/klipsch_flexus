@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -12,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import KlipschAPI
 from .const import (
+    API_PATHS,
     COMMAND_REFRESH_DELAY,
     CONF_DEVICE_MAC,
     DOMAIN,
@@ -35,7 +37,7 @@ def _arp_lookup(ip: str) -> str | None:
     return None
 
 
-class KlipschCoordinator(DataUpdateCoordinator[dict]):
+class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator to poll Klipsch device status."""
 
     def __init__(
@@ -79,7 +81,7 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
         # for write-signing — via an auth-free read. Deterministic for every client,
         # so it goes first (the ARP/registry/neighbour guesswork below is a fallback).
         try:
-            pm = await self.api.get_data("settings:/system/primaryMacAddress")
+            pm = await self.api.get_data(API_PATHS["primary_mac"])
             mac = pm[0].get("string_")
             if mac and mac != "00:00:00:00:00:00":
                 seeds.append(mac)
@@ -152,7 +154,7 @@ class KlipschCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             _LOGGER.debug("Klipsch: write-auth resolution attempt failed", exc_info=True)
 
-    async def _async_update_data(self) -> dict:
+    async def _async_update_data(self) -> dict[str, Any]:
         try:
             status = await self.api.get_status()
         except Exception as err:

@@ -7,10 +7,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, INFO_SENSORS, SOUND_MODES, SOURCES
 from .coordinator import KlipschCoordinator
+from .entity import KlipschEntity
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
@@ -27,10 +27,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(entities)
 
 
-class KlipschResponseTimeSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+class KlipschResponseTimeSensor(KlipschEntity, SensorEntity):
     """API response time (last request)."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "response_time"
     _attr_icon = "mdi:timer-outline"
     _attr_native_unit_of_measurement = UnitOfTime.MILLISECONDS
@@ -39,9 +38,7 @@ class KlipschResponseTimeSensor(CoordinatorEntity[KlipschCoordinator], SensorEnt
     _attr_suggested_display_precision = 0
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_response_time"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "response_time")
 
     @property
     def native_value(self) -> float | None:
@@ -60,10 +57,9 @@ class KlipschResponseTimeSensor(CoordinatorEntity[KlipschCoordinator], SensorEnt
         }
 
 
-class KlipschStatusSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+class KlipschStatusSensor(KlipschEntity, SensorEntity):
     """Device online/offline status with decoder info."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "device_status"
     _attr_icon = "mdi:soundbar"
     _attr_device_class = SensorDeviceClass.ENUM
@@ -71,9 +67,7 @@ class KlipschStatusSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_status"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "status")
 
     @property
     def native_value(self) -> str:
@@ -103,10 +97,9 @@ class KlipschStatusSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
         return attrs
 
 
-class KlipschInputSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+class KlipschInputSensor(KlipschEntity, SensorEntity):
     """Active audio input source."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "active_input"
     _attr_icon = "mdi:audio-input-stereo-minijack"
     _attr_device_class = SensorDeviceClass.ENUM
@@ -114,9 +107,7 @@ class KlipschInputSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_active_input"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "active_input")
 
     @property
     def available(self) -> bool:
@@ -140,10 +131,9 @@ class KlipschInputSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
         return {"display_name": SOURCES.get(raw, raw)}
 
 
-class KlipschSoundModeSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+class KlipschSoundModeSensor(KlipschEntity, SensorEntity):
     """Active sound mode."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "active_sound_mode"
     _attr_icon = "mdi:surround-sound"
     _attr_device_class = SensorDeviceClass.ENUM
@@ -151,9 +141,7 @@ class KlipschSoundModeSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_active_sound_mode"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "active_sound_mode")
 
     @property
     def available(self) -> bool:
@@ -171,18 +159,15 @@ class KlipschSoundModeSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity
         return data.get("mode")
 
 
-class KlipschSigningMacSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+class KlipschSigningMacSensor(KlipschEntity, SensorEntity):
     """The MAC the integration uses to sign 2026-firmware write commands."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "signing_mac"
     _attr_icon = "mdi:key-chain-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_signing_mac"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "signing_mac")
 
     @property
     def native_value(self) -> str:
@@ -197,17 +182,14 @@ class KlipschSigningMacSensor(CoordinatorEntity[KlipschCoordinator], SensorEntit
         return self.coordinator.api.signing_info()
 
 
-class KlipschNetworkLinkSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+class KlipschNetworkLinkSensor(KlipschEntity, SensorEntity):
     """Which network interface the soundbar is connected through (wired/wireless)."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "network_link"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_network_link"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
+        super().__init__(coordinator, entry, "network_link")
 
     @property
     def icon(self) -> str:
@@ -223,26 +205,23 @@ class KlipschNetworkLinkSensor(CoordinatorEntity[KlipschCoordinator], SensorEnti
         return {k: v for k, v in self.coordinator.network_info.items() if k != "active_link"}
 
 
-class KlipschInfoSensor(CoordinatorEntity[KlipschCoordinator], SensorEntity):
+class KlipschInfoSensor(KlipschEntity, SensorEntity):
     """Read-only device info (operating mode / speaker test) — surfaced, not controlled.
 
     These map to settings that can put the bar into retail/demo or speaker-test
     states; we expose them as information only, deliberately without a control.
     """
 
-    _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self, coordinator: KlipschCoordinator, entry: ConfigEntry, key: str, icon: str, unit: str | None
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry, key)
         self._key = key
         self._attr_translation_key = key
         self._attr_icon = icon
         self._attr_native_unit_of_measurement = unit
-        self._attr_unique_id = f"{entry.entry_id}_{key}"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}}
 
     @property
     def native_value(self) -> str | int | None:
