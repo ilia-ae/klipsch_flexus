@@ -3,7 +3,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://hacs.xyz/)
 [![GitHub Release](https://img.shields.io/github/release/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/commits/main)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](../LICENSE)
+[![License](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/badge-license-mit.svg)](https://github.com/ilia-ae/klipsch_flexus/blob/main/LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#automatische-erkennung)
 
 [![Validate](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
@@ -25,7 +25,7 @@ Benutzerdefinierte Home Assistant Integration für **Klipsch Flexus** Soundbars 
 
 Ein eigenes Lovelace-Dashboard, komplett auf den Entitäten der Integration — Eingang, Sound-Modus, Nacht/Dialog, EQ-Presets, Dirac-Filter, Klang (Bass/Mitten/Höhen), Surround-Kanalpegel und Subwoofer — alles live über die lokale API.
 
-![Klipsch Flexus Dashboard](images/dashboard.png)
+![Klipsch Flexus Dashboard](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/dashboard.png)
 
 **Benötigte HACS-Komponenten** (alle über [HACS](https://github.com/hacs/integration) installierbar):
 
@@ -194,7 +194,7 @@ Die Klipsch Flexus hat einen **Single-Thread HTTP-Server**, der jeweils eine Anf
 
 ## Entitäten
 
-![Klipsch Flexus Geräteseite in Home Assistant](images/device-page.png)
+![Klipsch Flexus Geräteseite in Home Assistant](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/device-page.png)
 
 *Die Geräteseite in Home Assistant — Device info, Controls, Configuration (Night / Dialog / EQ / Dirac / LED + Schalter) und das Aktivitätsprotokoll.*
 

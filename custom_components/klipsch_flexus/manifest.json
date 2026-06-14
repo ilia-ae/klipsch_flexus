@@ -15,7 +15,7 @@
   "requirements": [
     "cryptography>=41.0.0"
   ],
-  "version": "2.5.13",
+  "version": "2.5.14",
   "zeroconf": [
     {
       "type": "_googlecast._tcp.local.",

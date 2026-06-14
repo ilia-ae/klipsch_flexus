@@ -3,7 +3,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://hacs.xyz/)
 [![GitHub Release](https://img.shields.io/github/release/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/commits/main)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](../LICENSE)
+[![License](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/badge-license-mit.svg)](https://github.com/ilia-ae/klipsch_flexus/blob/main/LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#descubrimiento-automático)
 
 [![Validate](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
@@ -25,7 +25,7 @@ Integración personalizada de Home Assistant para barras de sonido **Klipsch Fle
 
 Un panel Lovelace personalizado basado íntegramente en las entidades de la integración — entrada, modo de sonido, noche/diálogo, presets de EQ, filtro Dirac, tono (graves/medios/agudos), niveles de canales surround y subwoofers — todo en vivo por la API local.
 
-![Panel de Klipsch Flexus](images/dashboard.png)
+![Panel de Klipsch Flexus](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/dashboard.png)
 
 **Componentes HACS necesarios** (todos instalables vía [HACS](https://github.com/hacs/integration)):
 
@@ -194,7 +194,7 @@ El Klipsch Flexus tiene un **servidor HTTP de un solo hilo** que procesa una pet
 
 ## Entidades
 
-![Página del dispositivo Klipsch Flexus en Home Assistant](images/device-page.png)
+![Página del dispositivo Klipsch Flexus en Home Assistant](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/device-page.png)
 
 *La página del dispositivo en Home Assistant — Device info, Controls, Configuration (Night / Dialog / EQ / Dirac / LED + interruptores) y el registro de actividad.*
 

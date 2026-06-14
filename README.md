@@ -3,7 +3,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://hacs.xyz/)
 [![GitHub Release](https://img.shields.io/github/release/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/commits/main)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
+[![License](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/badge-license-mit.svg)](https://github.com/ilia-ae/klipsch_flexus/blob/main/LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#auto-discovery)
 
 [![Validate](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
@@ -26,7 +26,7 @@ Home Assistant custom integration for **Klipsch Flexus** soundbars — control v
 
 A custom Lovelace dashboard driven entirely by the integration's entities — input, sound mode, night / dialog enhance, EQ presets, Dirac filter, tone (bass / mid / treble), surround channel levels and subwoofers — all controlled live over the local API.
 
-![Klipsch Flexus dashboard](docs/images/dashboard.png)
+![Klipsch Flexus dashboard](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/dashboard.png)
 
 **Required HACS components** (all installable via [HACS](https://github.com/hacs/integration)):
 
@@ -195,7 +195,7 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 
 ## Entities
 
-![Klipsch Flexus device page in Home Assistant](docs/images/device-page.png)
+![Klipsch Flexus device page in Home Assistant](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/device-page.png)
 
 *The integration's Home Assistant device page — Device info, Controls, Configuration (Night / Dialog / EQ / Dirac / LED + toggles) and the Activity log.*
 
