@@ -230,6 +230,12 @@ O Klipsch Flexus tem um **servidor HTTP single-thread** que processa uma requisi
 - AirPlay e Cast não são utilizados — apenas a API HTTP nativa
 - A configuração inicial deve ser concluída **por completo** no app oficial Klipsch Connect Plus — todo o processo pelo menos uma vez (isso provisiona a credencial de escrita do firmware de 2026)
 
+## Segurança
+
+Política de segurança e boas práticas em [SECURITY.md](../SECURITY.md).
+
+**Aviso de segurança de rede:** a soundbar comunica por HTTP simples e a sua API local está praticamente sem autenticação na LAN. Firmware antigo não exigia autenticação nenhuma; o firmware de 2026 (`1.1.3.x`) assina a maioria das escritas (`HMAC_SHA256_AES256`), mas isto **não é uma fronteira de segurança real** — a credencial é derivada do próprio MAC do dispositivo (que ele divulga sem autenticação) mais uma constante fixa em toda a linha de produtos, por isso qualquer host na rede pode forjá-la. As leituras estão sempre abertas. **Mantenha a soundbar num segmento de rede confiável / isolado.** Análise completa no [relatório de avaliação de segurança](SECURITY_ASSESSMENT_CORE_300.md) (secção 12).
+
 ## Licença
 
 MIT — ver [LICENSE](../LICENSE).

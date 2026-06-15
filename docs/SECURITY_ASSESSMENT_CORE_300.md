@@ -15,6 +15,8 @@ since January 2024. Multiple information disclosure issues were identified, alon
 CVEs (4 High severity). The device exposes 11 TCP ports, TLS certificates, device identifiers,
 and cryptographic keys to any host on the local network without authentication.
 
+> **Update (June 2026):** the device has since received a 2026 firmware update (**Device Version `1.1.3.x`**) that reworked the local write API and added a request-signing scheme (`HMAC_SHA256_AES256`). Analysis in **Section 12** shows the scheme provides *no real access-control boundary on the LAN*: the per-device credential is derived from the device's own MAC — which the device discloses unauthenticated — plus a hardcoded constant that is identical across the product line, so any local host can forge valid signatures. Reads stay unauthenticated; `volume`/`mute` writes stay unsigned. Technical reverse-engineering: `docs/PROTOCOL_2026_CHANGES.md`.
+
 ---
 
 ## 2. Device Identification
@@ -238,6 +240,8 @@ Port 16500 runs MiniUPnPc/2.0 (UPnP client). Historical vulnerabilities in MiniU
 | 13 | Reboot/factory_reset disabled (good)   | Info     | Positive Finding       |
 | 14 | WiFi scan/config blocked (good)        | Info     | Positive Finding       |
 
+> **2026 firmware update:** the device later added a write-signing scheme. See **Section 12.4** for additional findings (#15–19) specific to it — most importantly that the scheme is defeatable by any LAN host and is not an effective access control.
+
 ---
 
 ## 7. Metasploit Modules Tested
@@ -324,6 +328,90 @@ dns-sd -B _spotify-connect._tcp local
 - https://www.rapid7.com/db/modules/auxiliary/scanner/http/chromecast_webserver/
 - https://www.cvedetails.com/product/47859/Google-Chromecast-Firmware.html
 - https://therecord.media/chromecast-hardware-vulnerabilities-google-patch
+- `docs/PROTOCOL_2026_CHANGES.md` — full reverse-engineering of the 2026 write-auth scheme (in-repo)
+- `docs/REPORT_en.md` / `docs/REPORT.md` — investigation narrative, EN / RU (in-repo)
+
+---
+
+## 12. Addendum — 2026 Firmware Write-Authentication Analysis (June 2026)
+
+This addendum extends the February 2026 assessment after the unit received a 2026
+firmware update (**Device Version `1.1.3.x`**, Cast build `20250512_0201_RC25`).
+The update reworked the local write API and added a request-signing scheme. The
+sections above reflect the January-2024 firmware as scanned; the findings below
+are specific to the 2026 firmware. Full reverse-engineering: `docs/PROTOCOL_2026_CHANGES.md`.
+
+### 12.1 Protocol changes
+
+| Area | Before (≤ 2024 fw) | After (2026 fw, 1.1.3.x) |
+|------|--------------------|--------------------------|
+| `setData` transport | `GET /api/setData?...` over HTTP:80 | `POST /api/setData` + JSON body; legacy GET → `405` |
+| Write authorization | none | `settings:/webserver/authMode = setData`; protected writes return `401` + `WWW-Authenticate: HMAC_SHA256_AES256` |
+| Signed-write endpoint | n/a | parallel **HTTPS:443** using the self-signed Klipsch-CA cert (Section 5.1) |
+| Event subscription | open | moved behind TLS (push model) |
+
+Reads (`getData` / `getRows`) remain **fully unauthenticated**. `volume` and `mute`
+writes remain **unsigned**; all other settings are gated. Signed writes are accepted
+in any power state (including network standby), and a handful of nodes are read-only
+(auto-calibrated values reject writes with "Setting is not modifiable").
+
+### 12.2 The signing scheme
+
+Recovered from `libapp.so` (Connect Plus v2.3.7; blutter + Frida) and confirmed live
+(HTTP 200). It is entirely client-side — there is no server challenge, salt, or
+replay window:
+
+```
+username  = "user"
+password  = base64( MAC_UPPER_HEX + "KlipschSupport!!88" )    # hardcoded constant
+nonce     = base64(6 random bytes)        # client-generated, fresh per request
+key       = sha256( base64decode(nonce) + password )          # keys AES *and* HMAC
+value_b64 = base64( iv + AES-256-CBC(key, iv, PKCS7(value_json)) )
+sig       = base64( HMAC-SHA256(key, f"{username}.{nonce}.{ts}.{url}.{body}") )
+header    = "HMAC_SHA256_AES256 " + base64(username) + "." + nonce + "." + ts + "." + sig
+```
+
+(MAC shown as the placeholder `AABBCCDDEEFF`; the real value is redacted per this
+report's convention.)
+
+### 12.3 Finding: the write-authentication is cryptographic theatre
+
+The scheme provides **no access-control boundary against a LAN attacker**. Three
+properties collapse it:
+
+1. **The credential seed (MAC) is not secret.** The device discloses its own signing
+   MAC, unauthenticated, through multiple channels:
+   `GET /api/getData?path=settings:/system/primaryMacAddress` returns the exact wired
+   MAC used for signing with no auth; it is also in `eureka_info` (port 8008), the
+   `_raop._tcp` mDNS record (`AABBCCDDEEFF@…`, Section 3.2), the TLS client-cert CN
+   (Section 5.1), and the ARP table.
+2. **The other half is a hardcoded, product-line-wide constant** (`KlipschSupport!!88`),
+   extractable once from the app and identical on every unit.
+3. **No server-side state.** Nonce, IV and timestamp are all client-generated; there is
+   no challenge, salt, or replay protection. The request is fully reproducible offline.
+
+Therefore any host on the LAN can read the MAC, append the known constant, and forge
+valid signatures for arbitrary protected writes. The signing raises the bar only for a
+client that has not read the app — it is obfuscation, not authentication.
+
+### 12.4 Additional findings (2026 firmware)
+
+| #  | Issue                                                                                         | Severity | Category               |
+|----|-----------------------------------------------------------------------------------------------|----------|------------------------|
+| 15 | Write-auth credential derivable by any LAN host (MAC + hardcoded constant) → signature forgery | **High** | Access Control         |
+| 16 | Signing MAC disclosed unauthenticated (`primaryMacAddress`, eureka, mDNS, TLS CN) — elevates finding #2 now that the MAC is a credential seed | Medium | Information Disclosure |
+| 17 | Hardcoded shared secret (`KlipschSupport!!88`) identical across the entire product line        | **High** | Cryptography           |
+| 18 | No replay protection (client-supplied nonce/timestamp, no server challenge)                     | Medium   | Cryptography           |
+| 19 | Signed-write endpoint uses a self-signed cert (no trust anchor); `volume`/`mute` still unsigned | Low      | Configuration          |
+
+### 12.5 Additional recommendations
+
+6. **Do not rely on the 2026 write-auth as a security control.** For threat-modelling,
+   treat the local API as unauthenticated and enforce access at the network layer
+   (VLAN / firewall, Section 9).
+7. Real authentication would require a **server-side per-device secret with a
+   server-issued challenge/nonce** — not a MAC-plus-constant derivation that the device
+   itself hands out unauthenticated.
 
 ---
 
@@ -331,6 +419,7 @@ dns-sd -B _spotify-connect._tcp local
 
 **Author:** ilia.ae  
 **Report Date:** February 16, 2026  
+**Revised:** June 15, 2026 — added Section 12 (2026 firmware `1.1.3.x` write-authentication analysis)  
 **Tools Used:** Metasploit Framework 6.4.115-dev, Nmap 7.97, dns-sd, curl, OpenSSL  
 **Assessment Type:** Network Security Assessment (Local Network)  
 **Classification:** Internal Security Report

@@ -235,7 +235,7 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 
 See [SECURITY.md](SECURITY.md) for security policy and best practices.
 
-**Network Security Notice**: The soundbar communicates over HTTP. Older firmware required no authentication at all; the 2026 firmware (`1.1.3.x`) authenticates most write commands but reads stay open (see [Firmware Compatibility](#️-firmware-compatibility-2026-update)). Keep it on a trusted network segment. Read the [Security Assessment Report](docs/SECURITY_ASSESSMENT_CORE_300.md) for detailed security analysis.
+**Network Security Notice**: The soundbar speaks plain HTTP, and its local API is effectively unauthenticated on the LAN. Older firmware required no authentication at all; the 2026 firmware (`1.1.3.x`) signs most writes (`HMAC_SHA256_AES256`), but this is **not a real security boundary** — the credential is derived from the device's own MAC (which it discloses unauthenticated) plus a hardcoded, product-line-wide constant, so any host on the network can forge it. Reads stay open (see [Firmware Compatibility](#️-firmware-compatibility-2026-update)). **Keep it on a trusted / isolated network segment.** See the [Security Assessment Report](docs/SECURITY_ASSESSMENT_CORE_300.md) (Section 12) for the full analysis.
 
 ## License
 
