@@ -188,7 +188,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        return data.get("volume", 0) / 100.0
+        return data.get("volume", 0) / 50.0
 
     @property
     def is_volume_muted(self) -> bool | None:
@@ -307,7 +307,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
     # --- Commands with optimistic updates ---
 
     async def async_set_volume_level(self, volume: float) -> None:
-        level = round(volume * 100)
+        level = round(volume * 50)
         await self.coordinator.api.set_volume(level)
         self._optimistic_update(volume=level)
         self.coordinator.async_request_delayed_refresh()
@@ -315,7 +315,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
     async def async_volume_up(self) -> None:
         data = self.coordinator.data or {}
         current = data.get("volume", 0)
-        new_level = min(current + 5, 100)
+        new_level = min(current + 5, 50)
         await self.coordinator.api.set_volume(new_level)
         self._optimistic_update(volume=new_level)
         self.coordinator.async_request_delayed_refresh()
