@@ -56,6 +56,9 @@ class KlipschAPI:
         self._auth_failed = False  # no candidate MAC authenticated → stop retrying
         self._auth_required_paths: set[str] = set()  # paths known to need signing
         self._mac_seeds: list[str] = []  # candidate MAC sources (registry/ARP/option)
+        self._resolve_warned = False  # "could not resolve write-auth" logged at WARNING once
+        # path -> HTTP status of the last real write (None = no answer); diagnostics
+        self._last_write_status: dict[str, int | None] = {}
         self.last_response_time: float | None = None  # ms
         self.total_requests: int = 0
         self.failed_requests: int = 0
@@ -126,15 +129,41 @@ class KlipschAPI:
         value: dict,
         roles: str = "value",
         timeout: float = API_TIMEOUT_WRITE,
+        retries: int = API_RETRIES,
     ) -> str:
         """POST /api/setData — serialized via lock.
 
         Firmware released in 2026 requires POST with a JSON body; older
         firmware only understands GET with query params, so a rejected POST
         falls back to GET and the working method is remembered.
+
+        ``retries=0`` is for non-idempotent commands (``activate`` media
+        controls): a write the device executed but answered too late must not
+        be sent again (one tap on "next" would skip twice).
         """
         async with self._lock:
-            return await self._request_with_retry(lambda: self._do_set_data(path, value, roles, timeout))
+            return await self._request_with_retry(lambda: self._do_set_data(path, value, roles, timeout), retries)
+
+    @staticmethod
+    def _rejected_error(path: str, status: int, text: str) -> HomeAssistantError:
+        """Error for a write the device answered with HTTP >= 400."""
+        return HomeAssistantError(f"Klipsch Flexus: {path} rejected (HTTP {status}): {text[:200]}")
+
+    async def _signed_write(
+        self, session: aiohttp.ClientSession, path: str, value: dict, roles: str, timeout: float
+    ) -> str:
+        """Signed write on behalf of a caller: raise unless the device accepted it."""
+        signed = await self._do_signed_set_data(session, path, value, roles, timeout)
+        if signed is None:
+            self._last_write_status[path] = None
+            raise self._write_unavailable_error()
+        text, status = signed
+        self._last_write_status[path] = status
+        if status >= 400:
+            # Valid signature (the credential stays cached) but the command itself
+            # failed, e.g. a node this model lacks — don't report it as applied.
+            raise self._rejected_error(path, status, text)
+        return text
 
     async def _do_set_data(self, path: str, value: dict, roles: str, timeout: float) -> str:
         session = await self._ensure_session()
@@ -143,36 +172,47 @@ class KlipschAPI:
         # 2026 firmware: this path was already seen to require signing → sign
         # directly, skipping the doomed unsigned POST (the device is slow).
         if path in self._auth_required_paths:
-            signed = await self._do_signed_set_data(session, path, value, roles, timeout)
-            if signed is not None:
-                return signed
-            raise self._write_unavailable_error()
+            return await self._signed_write(session, path, value, roles, timeout)
 
+        post_error: tuple[int, str] | None = None
         if not self._set_post_unsupported:
             payload = {"path": path, "roles": roles, "value": value}
             async with session.post(f"{self._base}/api/setData", json=payload, timeout=client_timeout) as resp:
                 status = resp.status
                 text = await resp.text()
             if status < 400:
+                self._last_write_status[path] = status
                 return text
             if status in (401, 403):
                 # Write is gated behind an HMAC signature (authMode=setData).
                 self._auth_required_paths.add(path)
-                signed = await self._do_signed_set_data(session, path, value, roles, timeout)
-                if signed is not None:
-                    return signed
-                raise self._write_unavailable_error()
-            # Any other 4xx/5xx → assume pre-2026 (GET-only) firmware.
-            self._set_post_unsupported = True
-            _LOGGER.info(
-                "setData POST rejected with HTTP %d — falling back to legacy GET",
-                status,
-            )
+                return await self._signed_write(session, path, value, roles, timeout)
+            # Any other 4xx/5xx may mean pre-2026 (GET-only) firmware — or just a
+            # failed command. Try the legacy GET once, but only remember the switch
+            # if GET works: 2026 firmware answers GET setData with 405 "Strict HTTP
+            # required!", so latching on a stray 5xx would break every later write.
+            post_error = (status, text)
 
         val_str = json.dumps(value, separators=(",", ":"))
         url = f"{self._base}/api/setData?path={quote(path, safe=':/')}&roles={roles}&value={quote(val_str)}"
         async with session.get(url, timeout=client_timeout) as resp:
-            return await resp.text()
+            get_status = resp.status
+            get_text = await resp.text()
+        if get_status >= 400:
+            if post_error is not None:
+                # GET doesn't work either → POST stays the method; report its error.
+                self._last_write_status[path] = post_error[0]
+                raise self._rejected_error(path, *post_error)
+            self._last_write_status[path] = get_status
+            if get_status == 405:
+                # The firmware now insists on POST ("Strict HTTP required!").
+                self._set_post_unsupported = False
+            raise self._rejected_error(path, get_status, get_text)
+        self._last_write_status[path] = get_status
+        if post_error is not None:
+            self._set_post_unsupported = True
+            _LOGGER.info("setData POST rejected with HTTP %d — falling back to legacy GET", post_error[0])
+        return get_text
 
     @property
     def host(self) -> str:
@@ -267,14 +307,16 @@ class KlipschAPI:
 
     async def _do_signed_set_data(
         self, session: aiohttp.ClientSession, path: str, value: dict, roles: str, timeout: float
-    ) -> str | None:
+    ) -> tuple[str, int] | None:
         """Sign and send a gated setData, resolving the device MAC by oracle.
 
         Tries each candidate MAC; the first whose signature the device accepts
         (anything but 401/403) is cached for all future writes. Returns the device
-        response text, or ``None`` if no candidate authenticates (the caller raises
-        a clear error). A cached credential is only re-resolved on a real auth
-        rejection (401/403), not on other command errors.
+        response ``(text, status)`` — the status may still be >= 400 (valid
+        signature, failed command), which callers check — or ``None`` if no
+        candidate authenticates (the caller raises a clear error). A cached
+        credential is only re-resolved on a real auth rejection (401/403), not on
+        other command errors.
         """
         if self._auth is not None:
             # Use the cached credential; transport errors propagate to the retry wrapper.
@@ -291,7 +333,7 @@ class KlipschAPI:
             if self._sig_accepted(status):
                 if status >= 400:
                     _LOGGER.warning("Signed setData %s → HTTP %d: %s", path, status, text[:200])
-                return text
+                return text, status
             _LOGGER.info("Cached Klipsch credential rejected (HTTP %s) — re-resolving MAC", status)
             self._auth = None
 
@@ -314,9 +356,10 @@ class KlipschAPI:
             if self._sig_accepted(status):
                 self._auth = auth
                 _LOGGER.info("Klipsch write-auth resolved: MAC %s accepted (HTTP %s)", mac, status)
+                self._resolve_warned = False
                 if status >= 400:
                     _LOGGER.warning("Signed setData %s → HTTP %d: %s", path, status, text[:200])
-                return text
+                return text, status
             statuses.append(status)
 
         # Give up permanently only if EVERY candidate was definitively rejected
@@ -332,11 +375,14 @@ class KlipschAPI:
                 candidates,
             )
         else:
-            _LOGGER.warning(
+            # Warn once; repeats (e.g. firmware without the HTTPS endpoint) go to debug.
+            _LOGGER.log(
+                logging.DEBUG if self._resolve_warned else logging.WARNING,
                 "Klipsch: could not resolve write-auth this attempt (device slow/unreachable; "
                 "statuses=%s) — will retry on the next command.",
                 statuses,
             )
+            self._resolve_warned = True
         return None
 
     async def resolve_write_auth(self) -> bool:
@@ -765,10 +811,12 @@ class KlipschAPI:
 
     async def media_control(self, control: str) -> None:
         """Send media control command (pause/next/previous)."""
+        # Not idempotent (a resent "next" skips twice) → never retried.
         await self.set_data(
             API_PATHS["player_control"],
             {"control": control},
             roles="activate",
+            retries=0,
         )
 
     async def get_device_info(self) -> dict | None:

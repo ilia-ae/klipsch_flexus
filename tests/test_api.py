@@ -242,6 +242,95 @@ async def test_set_data_falls_back_to_get(api: KlipschAPI) -> None:
     assert mock_session.get.call_count == 2
 
 
+def _mock_session(post, get) -> AsyncMock:
+    session = AsyncMock(spec=aiohttp.ClientSession)
+    session.post = MagicMock(side_effect=post) if isinstance(post, list) else MagicMock(return_value=post)
+    session.get = MagicMock(side_effect=get) if isinstance(get, list) else MagicMock(return_value=get)
+    session.closed = False
+    return session
+
+
+async def test_set_data_5xx_with_strict_get_keeps_post(api: KlipschAPI) -> None:
+    """2026 firmware: a stray POST 500 must not latch the legacy GET form.
+
+    The GET answers 405 "Strict HTTP required!", so POST stays the method and
+    the caller gets an error instead of a silent success.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
+    api._session = _mock_session(
+        [_mock_response(status=500, text="busy"), _mock_response(text="OK")],
+        _mock_response(status=405, text="Strict HTTP required!"),
+    )
+    api._own_session = False
+
+    with pytest.raises(HomeAssistantError, match=r"HTTP 500.*busy"):
+        await api.set_data("player:volume", {"type": "i32_", "i32_": 25})
+    assert api._set_post_unsupported is False
+
+    # The next write uses POST again and succeeds.
+    assert await api.set_data("player:volume", {"type": "i32_", "i32_": 26}) == "OK"
+    assert api._session.post.call_count == 2
+    assert api._session.get.call_count == 1
+
+
+async def test_set_data_legacy_get_error_raises(api: KlipschAPI) -> None:
+    """A failing legacy GET is an error, not a success (its status is checked)."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    api._set_post_unsupported = True  # GET-only firmware already detected
+    api._session = _mock_session(_mock_response(), _mock_response(status=500, text="invalidPath"))
+    api._own_session = False
+
+    with pytest.raises(HomeAssistantError, match=r"HTTP 500.*invalidPath"):
+        await api.set_data("settings:/cinema/ledMode", {"type": "cinemaLEDMode", "cinemaLEDMode": "dim"})
+    api._session.post.assert_not_called()
+    assert api._set_post_unsupported is True  # a 500 is a command error, not a method change
+
+    # A 405 "Strict HTTP required!" means the firmware now wants POST → switch back.
+    api._session.get = MagicMock(return_value=_mock_response(status=405, text="Strict HTTP required!"))
+    with pytest.raises(HomeAssistantError, match="HTTP 405"):
+        await api.set_volume(20)
+    assert api._set_post_unsupported is False
+
+
+async def test_set_data_signed_5xx_raises_but_keeps_credential(api: KlipschAPI) -> None:
+    """A cached-credential write answered with 500 raises to the caller; the
+    credential stays cached (only 401/403 mean a wrong MAC)."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.klipsch_flexus.auth import KlipschAuth
+
+    api._auth = KlipschAuth("AA:BB:CC:DD:EE:FF", "192.168.1.100")
+    api._auth_required_paths.add("dirac:/activeFilter")
+    api._session = _mock_session(_mock_response(status=500, text="bad filter"), _mock_response())
+    api._own_session = False
+
+    with pytest.raises(HomeAssistantError, match=r"dirac:/activeFilter rejected \(HTTP 500\)"):
+        await api.set_dirac(99)
+    assert api.signing_mac == "AA:BB:CC:DD:EE:FF"
+    assert api._session.post.call_count == 1  # HTTP errors are not retried
+
+
+async def test_media_control_is_not_retried(api: KlipschAPI) -> None:
+    """'next' is not idempotent: a timeout must not resend it (double skip)."""
+    api._session = _mock_session([TimeoutError(), _mock_response()], _mock_response())
+    api._own_session = False
+
+    with pytest.raises(TimeoutError):
+        await api.media_control("next")
+    assert api._session.post.call_count == 1
+
+
+async def test_value_write_still_retried(api: KlipschAPI) -> None:
+    """Idempotent value writes keep the transient-error retry."""
+    api._session = _mock_session([TimeoutError(), _mock_response(text="OK")], _mock_response())
+    api._own_session = False
+
+    await api.set_volume(20)
+    assert api._session.post.call_count == 2
+
+
 async def test_set_data_signs_on_401(api: KlipschAPI) -> None:
     """2026 firmware: a gated write (401) is retried HMAC-signed over HTTPS."""
     mock_session = AsyncMock(spec=aiohttp.ClientSession)
@@ -332,10 +421,10 @@ async def test_set_data_activate_role_and_500_resolves_mac(api: KlipschAPI) -> N
     api.get_device_info = AsyncMock(return_value=None)
     api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])
 
-    result = await api.set_data(
-        "powermanager:targetRequest", {"target": "on", "reason": "userActivity"}, roles="activate"
-    )
-    assert result == "node error"  # 500 returned to caller
+    from homeassistant.exceptions import HomeAssistantError
+
+    with pytest.raises(HomeAssistantError, match=r"HTTP 500.*node error"):
+        await api.set_data("powermanager:targetRequest", {"target": "on", "reason": "userActivity"}, roles="activate")
     assert api._auth is not None  # but the MAC was resolved (500 ≠ 401)
     # the signed body carried role="activate" (3rd POST = winning candidate)
     signed = mock_session.post.call_args_list[2]
