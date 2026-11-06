@@ -24,7 +24,9 @@ from .const import (
     DIRAC_OFF,
     NIGHT_MODE_FROM_API,
     NIGHT_MODE_TO_API,
+    OPTIMISTIC_SETTLE,
     OPTIMISTIC_TTL,
+    POLL_MAX_TRANSPORT_ERRORS,
     VOLUME_MAX_DEFAULT,
     VOLUME_MAX_PROBE_TRIES,
 )
@@ -32,6 +34,9 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# The device did not answer at all (vs. answering with an error / bad payload).
+_TRANSPORT_ERRORS = (TimeoutError, aiohttp.ClientConnectionError, OSError)
 
 
 class KlipschAPI:
@@ -47,8 +52,10 @@ class KlipschAPI:
         self._base = f"http://{host}:{port}"
         self._session = session
         self._own_session = session is None
+        self._closed = False  # set by close(); no new session afterwards
         self._lock = asyncio.Lock()
         self._last_status: dict = {}
+        self._cache_seeded = False  # a full read has run (standby polls are cache-only)
         self._set_post_unsupported = False  # pre-2026 firmware: setData via GET only
         # 2026 firmware: writes (except volume/mute) need an HMAC signature.
         # Built lazily from the device MAC on the first gated (401) write.
@@ -56,6 +63,9 @@ class KlipschAPI:
         self._auth_failed = False  # no candidate MAC authenticated → stop retrying
         self._auth_required_paths: set[str] = set()  # paths known to need signing
         self._mac_seeds: list[str] = []  # candidate MAC sources (registry/ARP/option)
+        self._resolve_warned = False  # "could not resolve write-auth" logged at WARNING once
+        # path -> HTTP status of the last real write (None = no answer); diagnostics
+        self._last_write_status: dict[str, int | None] = {}
         self.last_response_time: float | None = None  # ms
         self.total_requests: int = 0
         self.failed_requests: int = 0
@@ -67,12 +77,17 @@ class KlipschAPI:
         self._volume_max_tries = 0  # probes made; capped by VOLUME_MAX_PROBE_TRIES
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
+        if self._closed:
+            # Unloaded: a poll still running must not open a new session that
+            # nothing would ever close.
+            raise RuntimeError("Klipsch API client is closed")
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
             self._own_session = True
         return self._session
 
     async def close(self) -> None:
+        self._closed = True
         if self._own_session and self._session and not self._session.closed:
             await self._session.close()
 
@@ -99,11 +114,11 @@ class KlipschAPI:
                 await asyncio.sleep(delay)
 
     async def get_data(
-        self, path: str, timeout: float = API_TIMEOUT_READ, roles: str = "value"
+        self, path: str, timeout: float = API_TIMEOUT_READ, roles: str = "value", retries: int = API_RETRIES
     ) -> list[dict[str, Any]]:
         """GET /api/getData — serialized via lock."""
         async with self._lock:
-            return await self._request_with_retry(lambda: self._do_get_data(path, timeout, roles))
+            return await self._request_with_retry(lambda: self._do_get_data(path, timeout, roles), retries)
 
     async def _do_get_data(self, path: str, timeout: float, roles: str = "value") -> list[dict[str, Any]]:
         session = await self._ensure_session()
@@ -126,15 +141,41 @@ class KlipschAPI:
         value: dict,
         roles: str = "value",
         timeout: float = API_TIMEOUT_WRITE,
+        retries: int = API_RETRIES,
     ) -> str:
         """POST /api/setData — serialized via lock.
 
         Firmware released in 2026 requires POST with a JSON body; older
         firmware only understands GET with query params, so a rejected POST
         falls back to GET and the working method is remembered.
+
+        ``retries=0`` is for non-idempotent commands (``activate`` media
+        controls): a write the device executed but answered too late must not
+        be sent again (one tap on "next" would skip twice).
         """
         async with self._lock:
-            return await self._request_with_retry(lambda: self._do_set_data(path, value, roles, timeout))
+            return await self._request_with_retry(lambda: self._do_set_data(path, value, roles, timeout), retries)
+
+    @staticmethod
+    def _rejected_error(path: str, status: int, text: str) -> HomeAssistantError:
+        """Error for a write the device answered with HTTP >= 400."""
+        return HomeAssistantError(f"Klipsch Flexus: {path} rejected (HTTP {status}): {text[:200]}")
+
+    async def _signed_write(
+        self, session: aiohttp.ClientSession, path: str, value: dict, roles: str, timeout: float
+    ) -> str:
+        """Signed write on behalf of a caller: raise unless the device accepted it."""
+        signed = await self._do_signed_set_data(session, path, value, roles, timeout)
+        if signed is None:
+            self._last_write_status[path] = None
+            raise self._write_unavailable_error()
+        text, status = signed
+        self._last_write_status[path] = status
+        if status >= 400:
+            # Valid signature (the credential stays cached) but the command itself
+            # failed, e.g. a node this model lacks — don't report it as applied.
+            raise self._rejected_error(path, status, text)
+        return text
 
     async def _do_set_data(self, path: str, value: dict, roles: str, timeout: float) -> str:
         session = await self._ensure_session()
@@ -143,36 +184,47 @@ class KlipschAPI:
         # 2026 firmware: this path was already seen to require signing → sign
         # directly, skipping the doomed unsigned POST (the device is slow).
         if path in self._auth_required_paths:
-            signed = await self._do_signed_set_data(session, path, value, roles, timeout)
-            if signed is not None:
-                return signed
-            raise self._write_unavailable_error()
+            return await self._signed_write(session, path, value, roles, timeout)
 
+        post_error: tuple[int, str] | None = None
         if not self._set_post_unsupported:
             payload = {"path": path, "roles": roles, "value": value}
             async with session.post(f"{self._base}/api/setData", json=payload, timeout=client_timeout) as resp:
                 status = resp.status
                 text = await resp.text()
             if status < 400:
+                self._last_write_status[path] = status
                 return text
             if status in (401, 403):
                 # Write is gated behind an HMAC signature (authMode=setData).
                 self._auth_required_paths.add(path)
-                signed = await self._do_signed_set_data(session, path, value, roles, timeout)
-                if signed is not None:
-                    return signed
-                raise self._write_unavailable_error()
-            # Any other 4xx/5xx → assume pre-2026 (GET-only) firmware.
-            self._set_post_unsupported = True
-            _LOGGER.info(
-                "setData POST rejected with HTTP %d — falling back to legacy GET",
-                status,
-            )
+                return await self._signed_write(session, path, value, roles, timeout)
+            # Any other 4xx/5xx may mean pre-2026 (GET-only) firmware — or just a
+            # failed command. Try the legacy GET once, but only remember the switch
+            # if GET works: 2026 firmware answers GET setData with 405 "Strict HTTP
+            # required!", so latching on a stray 5xx would break every later write.
+            post_error = (status, text)
 
         val_str = json.dumps(value, separators=(",", ":"))
         url = f"{self._base}/api/setData?path={quote(path, safe=':/')}&roles={roles}&value={quote(val_str)}"
         async with session.get(url, timeout=client_timeout) as resp:
-            return await resp.text()
+            get_status = resp.status
+            get_text = await resp.text()
+        if get_status >= 400:
+            if post_error is not None:
+                # GET doesn't work either → POST stays the method; report its error.
+                self._last_write_status[path] = post_error[0]
+                raise self._rejected_error(path, *post_error)
+            self._last_write_status[path] = get_status
+            if get_status == 405:
+                # The firmware now insists on POST ("Strict HTTP required!").
+                self._set_post_unsupported = False
+            raise self._rejected_error(path, get_status, get_text)
+        self._last_write_status[path] = get_status
+        if post_error is not None:
+            self._set_post_unsupported = True
+            _LOGGER.info("setData POST rejected with HTTP %d — falling back to legacy GET", post_error[0])
+        return get_text
 
     @property
     def host(self) -> str:
@@ -182,12 +234,15 @@ class KlipschAPI:
         """Provide candidate MAC sources for write-auth (registry / ARP / option).
 
         The coordinator passes whatever MACs Home Assistant knows for the device.
-        New seeds reset any cached/failed auth so resolution re-runs against them.
+        New seeds reset a failed resolution so it re-runs against them; a resolved
+        credential is only dropped if its MAC is no longer among the candidates
+        (a flapping seed source must not force a fresh round of signed probes).
         """
         cleaned = [s for s in seeds if s]
         if set(cleaned) != set(self._mac_seeds):
             self._mac_seeds = cleaned
-            self._auth = None
+            if self._auth is not None and self._auth.mac not in expand_mac_candidates(cleaned):
+                self._auth = None
             self._auth_failed = False
 
     def _auth_error(self) -> HomeAssistantError:
@@ -267,14 +322,16 @@ class KlipschAPI:
 
     async def _do_signed_set_data(
         self, session: aiohttp.ClientSession, path: str, value: dict, roles: str, timeout: float
-    ) -> str | None:
+    ) -> tuple[str, int] | None:
         """Sign and send a gated setData, resolving the device MAC by oracle.
 
         Tries each candidate MAC; the first whose signature the device accepts
         (anything but 401/403) is cached for all future writes. Returns the device
-        response text, or ``None`` if no candidate authenticates (the caller raises
-        a clear error). A cached credential is only re-resolved on a real auth
-        rejection (401/403), not on other command errors.
+        response ``(text, status)`` — the status may still be >= 400 (valid
+        signature, failed command), which callers check — or ``None`` if no
+        candidate authenticates (the caller raises a clear error). A cached
+        credential is only re-resolved on a real auth rejection (401/403), not on
+        other command errors.
         """
         if self._auth is not None:
             # Use the cached credential; transport errors propagate to the retry wrapper.
@@ -291,7 +348,7 @@ class KlipschAPI:
             if self._sig_accepted(status):
                 if status >= 400:
                     _LOGGER.warning("Signed setData %s → HTTP %d: %s", path, status, text[:200])
-                return text
+                return text, status
             _LOGGER.info("Cached Klipsch credential rejected (HTTP %s) — re-resolving MAC", status)
             self._auth = None
 
@@ -314,9 +371,10 @@ class KlipschAPI:
             if self._sig_accepted(status):
                 self._auth = auth
                 _LOGGER.info("Klipsch write-auth resolved: MAC %s accepted (HTTP %s)", mac, status)
+                self._resolve_warned = False
                 if status >= 400:
                     _LOGGER.warning("Signed setData %s → HTTP %d: %s", path, status, text[:200])
-                return text
+                return text, status
             statuses.append(status)
 
         # Give up permanently only if EVERY candidate was definitively rejected
@@ -332,11 +390,14 @@ class KlipschAPI:
                 candidates,
             )
         else:
-            _LOGGER.warning(
+            # Warn once; repeats (e.g. firmware without the HTTPS endpoint) go to debug.
+            _LOGGER.log(
+                logging.DEBUG if self._resolve_warned else logging.WARNING,
                 "Klipsch: could not resolve write-auth this attempt (device slow/unreachable; "
                 "statuses=%s) — will retry on the next command.",
                 statuses,
             )
+            self._resolve_warned = True
         return None
 
     async def resolve_write_auth(self) -> bool:
@@ -346,22 +407,26 @@ class KlipschAPI:
         signed, trying candidates until the device accepts one — so the first real
         command succeeds immediately instead of probing then. No-op: the value
         written equals the value just read. Returns ``True`` if resolved.
+
+        The read and the write-back happen under one lock acquisition, so a
+        user's bass change can't land in between and be overwritten with the
+        old value.
         """
         if self._auth is not None:
             return True
         if self._auth_failed:
             return False
         path = API_PATHS["bass"]
-        try:
-            current = await self.get_data(path)
-        except Exception:  # noqa: BLE001
-            return False
-        value = current[0] if current else None
-        if value is None:
-            return False
         async with self._lock:
-            session = await self._ensure_session()
             try:
+                current = await self._do_get_data(path, API_TIMEOUT_READ)
+            except Exception:  # noqa: BLE001
+                return False
+            value = current[0] if current else None
+            if value is None:
+                return False
+            try:
+                session = await self._ensure_session()
                 await self._do_signed_set_data(session, path, value, "value", API_TIMEOUT_WRITE)
             except (TimeoutError, aiohttp.ClientError, OSError):
                 return False
@@ -414,50 +479,52 @@ class KlipschAPI:
             return "unknown"
 
     async def probe_command_health(self) -> dict:
-        """Deep diagnostic: report which write commands the firmware accepts.
+        """Deep diagnostic: report the state of every write command.
 
-        For every command path it reads the current value and writes the same
-        value straight back — an idempotent no-op — recording the HTTP status.
-        ``200`` means the command is alive; ``401`` means the firmware now
-        blocks it (auth required). Power is probed read-only since it has no
-        safe no-op. Nothing is changed on the device.
+        **Read-only.** It used to write each value straight back unsigned, which
+        on 2026 firmware labelled every signed-OK command as blocked (401) and
+        could revert a change the user made during the slow probe. Now, per
+        command, it checks the node is readable and reports what the *real*
+        writes this session saw (through the signed path where needed):
+        ``http_status`` / ``alive`` of the last write (``None`` = not written
+        yet, or no answer) and ``needs_auth`` (the device asked for a signature).
+        Nothing is written to the device.
         """
-        # (key, roles) — only value-roles paths have a safe idempotent write-back.
         probes = [
-            ("volume", "value"),
-            ("mute", "value"),
-            ("input", "value"),
-            ("mode", "value"),
-            ("night", "value"),
-            ("dialog", "value"),
-            ("bass", "value"),
-            ("mid", "value"),
-            ("treble", "value"),
-            ("eq_preset", "value"),
-            ("dirac", "value"),
-            ("sub_wired", "value"),
-            ("sub_wireless", "value"),
+            "volume",
+            "mute",
+            "input",
+            "mode",
+            "night",
+            "dialog",
+            "bass",
+            "mid",
+            "treble",
+            "eq_preset",
+            "dirac",
+            "sub_wired",
+            "sub_wireless",
         ]
 
-        report: dict = {"auth_mode": await self.get_auth_mode(), "commands": {}}
+        report: dict = {"auth_mode": await self.get_auth_mode(), "probe": "read-only", "commands": {}}
 
-        for key, roles in probes:
+        for key in probes:
             path = API_PATHS[key]
+            status = self._last_write_status.get(path)
+            entry: dict = {
+                "alive": None if status is None else status < 400,
+                "http_status": status,
+                "needs_auth": path in self._auth_required_paths,
+            }
             try:
                 current = await self.get_data(path)
-                value = current[0] if current else None
+                entry["readable"] = bool(current)
+                if not current:
+                    entry["detail"] = "no value returned"
             except Exception as err:
-                report["commands"][key] = {"alive": False, "detail": f"read failed: {type(err).__name__}"}
-                continue
-            if value is None:
-                report["commands"][key] = {"alive": False, "detail": "no value returned"}
-                continue
-            status = await self._probe_set_status(path, value, roles)
-            report["commands"][key] = {
-                "alive": status is not None and status < 400,
-                "http_status": status,
-                "needs_auth": status in (401, 403),
-            }
+                entry["readable"] = False
+                entry["detail"] = f"read failed: {type(err).__name__}"
+            report["commands"][key] = entry
 
         # Power: read-only probe (no safe idempotent write).
         try:
@@ -468,21 +535,6 @@ class KlipschAPI:
             report["commands"]["power"] = {"alive": None, "readable": False, "detail": type(err).__name__}
 
         return report
-
-    async def _probe_set_status(self, path: str, value: dict, roles: str) -> int | None:
-        """Write a value back and return the HTTP status (no retry, no raise)."""
-        async with self._lock:
-            try:
-                session = await self._ensure_session()
-                payload = {"path": path, "roles": roles, "value": value}
-                async with session.post(
-                    f"{self._base}/api/setData",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=API_TIMEOUT_WRITE),
-                ) as resp:
-                    return resp.status
-            except (TimeoutError, aiohttp.ClientError, OSError):
-                return None
 
     async def get_rows(self, path: str) -> dict:
         """GET /api/getRows — serialized via lock."""
@@ -497,13 +549,19 @@ class KlipschAPI:
 
     # --- Status polling with graceful degradation ---
 
-    async def get_status(self) -> dict:
+    async def get_status(self, seed_standby: bool = False) -> dict:
         """Poll device status. Individual failures fall back to last-known values.
 
         When the soundbar is in standby (networkStandby), only the power state
         is polled — the device is very slow to respond in this mode, so we skip
         all other parameters and keep cached values. This prevents response-time
-        spikes (up to 40 s) and sensor unavailability during standby.
+        spikes (up to 40 s) and sensor unavailability during standby. The one
+        exception, with ``seed_standby`` (the coordinator), is the first poll
+        after setup, which seeds the empty cache. A one-shot caller such as the
+        config flow leaves it off and gets the quick power-only answer.
+
+        If the device stops answering mid-poll (``POLL_MAX_TRANSPORT_ERRORS``
+        transport errors in a row), the poll is cut short and reports offline.
         """
         ALL_PARAMS = {
             "volume": (API_PATHS["volume"], lambda d: d[0].get("i32_", 0)),
@@ -568,49 +626,65 @@ class KlipschAPI:
             return {"online": False}
 
         # ── Step 2: standby → return cached data, skip heavy polling ──
-        if power == "networkStandby":
-            result: dict = {"online": True, "power": power, "volume_max": self.volume_max}
-            # Preserve all previously known values so sensors stay available
-            for key in (*ALL_PARAMS, *SETTINGS_PARAMS):
-                cached = self._last_status.get(key)
-                if cached is not None:
-                    result[key] = cached
-            result["poll_time_ms"] = round((time.monotonic() - poll_start) * 1000)
-            result["failed_params"] = 0
-            self._last_status = result
-            _LOGGER.debug("Device in standby — lightweight poll (%d ms)", result["poll_time_ms"])
-            return result
+        # Except on the first poll after setup: with nothing cached yet every
+        # entity would show a made-up default until the bar is turned on, so
+        # the cache is seeded once with a full read, then standby stays light.
+        keys = (*ALL_PARAMS, *SETTINGS_PARAMS)
+        standby = power == "networkStandby"
+        if standby and (self._cache_seeded or not seed_standby):
+            return self._standby_status(power, poll_start, keys)
 
-        # ── Step 3: device is ON → full poll ──
+        # ── Step 3: device is ON (or the one-off standby seed) → full poll ──
+        self._cache_seeded = True
         result = {"online": True, "power": power}
         fail_count = 0
+        transport_errors = 0  # consecutive; the device may have dropped mid-poll
 
-        for key, (path, parser) in ALL_PARAMS.items():
+        async def read(key: str, path: str, parser: Callable[[Any], Any]) -> bool:
+            """Read one parameter into ``result`` (last-known value on failure).
+
+            No retries per parameter: a device that stopped answering is caught
+            by the transport-error count instead of ~25 s of retries per key.
+            """
+            nonlocal transport_errors
             try:
-                data = await self.get_data(path)
-                result[key] = parser(data)
-            except Exception:
-                fail_count += 1
-                # Fall back to last-known value
+                result[key] = parser(await self.get_data(path, retries=0))
+            except Exception as err:
+                transport_errors = transport_errors + 1 if isinstance(err, _TRANSPORT_ERRORS) else 0
                 cached = self._last_status.get(key)
                 if cached is not None:
                     result[key] = cached
                     _LOGGER.debug("Using cached value for %s", key)
                 else:
                     _LOGGER.debug("No cached value for %s, skipping", key)
+                return False
+            transport_errors = 0
+            return True
+
+        def offline() -> dict:
+            # A standby seed that fails is not "offline": the bar answered the
+            # power probe, it is just slow in standby → plain standby result.
+            if standby:
+                return self._standby_status(power, poll_start, keys)
+            return {"online": False}
+
+        for key, (path, parser) in ALL_PARAMS.items():
+            if not await read(key, path, parser):
+                fail_count += 1
+            if transport_errors >= POLL_MAX_TRANSPORT_ERRORS:
+                _LOGGER.debug("Device stopped answering mid-poll (at %s) — reporting offline", key)
+                return offline()
 
         # If ALL parameters failed (besides power), device is truly offline
         if fail_count == len(ALL_PARAMS):
-            return {"online": False}
+            return offline()
 
         # Settings group — tolerated failures, cached fallback, not offline-counted
         for key, (path, parser) in SETTINGS_PARAMS.items():
-            try:
-                result[key] = parser(await self.get_data(path))
-            except Exception:
-                cached = self._last_status.get(key)
-                if cached is not None:
-                    result[key] = cached
+            await read(key, path, parser)
+            if transport_errors >= POLL_MAX_TRANSPORT_ERRORS:
+                _LOGGER.debug("Device stopped answering mid-poll (at %s) — reporting offline", key)
+                return offline()
 
         await self._probe_volume_max()
         result["volume_max"] = self.volume_max
@@ -618,10 +692,24 @@ class KlipschAPI:
         result["poll_time_ms"] = round((time.monotonic() - poll_start) * 1000)
         result["failed_params"] = fail_count
         # Don't let a poll that races the device applying a just-issued write
-        # briefly revert the optimistic value (the standby path already preserves
-        # cached values; this does the same, time-bounded, for the full poll).
-        self._apply_optimistic(result)
+        # revert the optimistic value (the standby path already preserves cached
+        # values; this does the same for the full poll — see _apply_optimistic).
+        self._apply_optimistic(result, poll_start)
         self._last_status = result
+        return result
+
+    def _standby_status(self, power: str, poll_start: float, keys: tuple[str, ...]) -> dict:
+        """Lightweight standby result: power + every previously known value."""
+        result: dict = {"online": True, "power": power, "volume_max": self.volume_max}
+        # Preserve all previously known values so sensors stay available
+        for key in keys:
+            cached = self._last_status.get(key)
+            if cached is not None:
+                result[key] = cached
+        result["poll_time_ms"] = round((time.monotonic() - poll_start) * 1000)
+        result["failed_params"] = 0
+        self._last_status = result
+        _LOGGER.debug("Device in standby — lightweight poll (%d ms)", result["poll_time_ms"])
         return result
 
     async def _probe_volume_max(self) -> None:
@@ -635,7 +723,7 @@ class KlipschAPI:
             return
         self._volume_max_tries += 1
         try:
-            edit = (await self.get_data(API_PATHS["volume"], roles="edit"))[0]
+            edit = (await self.get_data(API_PATHS["volume"], roles="edit", retries=0))[0]
             value = int(edit["max"])
         except Exception as err:  # noqa: BLE001 — metadata is best-effort
             _LOGGER.debug("Volume range not available (%s), using max %d", err, self.volume_max)
@@ -645,37 +733,43 @@ class KlipschAPI:
             self._volume_max_tries = VOLUME_MAX_PROBE_TRIES  # done
             _LOGGER.debug("Volume range: 0..%d", value)
 
-    def _apply_optimistic(self, result: dict) -> None:
+    def _apply_optimistic(self, result: dict, poll_start: float) -> None:
         """Override freshly-polled values with still-valid optimistic ones.
 
         ``note_cached`` records each optimistically-applied value in
-        ``_last_status`` and stamps an expiry in ``_optimistic``. Until that
-        expiry, the optimistic value (which the device *will* report, since the
-        write already succeeded) wins over a poll that read the pre-write value.
+        ``_last_status`` and its write time in ``_optimistic``. The optimistic
+        value (which the device *will* report, since the write already
+        succeeded) wins over a poll that may have read the pre-write value: one
+        that started before the write settled (``OPTIMISTIC_SETTLE``), however
+        long that poll took — a full poll is ~40 sequential reads, far longer
+        than the TTL — and any poll finishing within ``OPTIMISTIC_TTL`` of the
+        write. A poll started later reads the applied value, so for it the
+        entry expires (external changes aren't masked for long).
         """
         if not self._optimistic:
             return
         now = time.monotonic()
-        for key in [k for k, exp in self._optimistic.items() if exp <= now]:
-            del self._optimistic[key]
-        for key in self._optimistic:
-            if key in self._last_status:
-                result[key] = self._last_status[key]
+        for key, written in list(self._optimistic.items()):
+            if poll_start < written + OPTIMISTIC_SETTLE or now < written + OPTIMISTIC_TTL:
+                if key in self._last_status:
+                    result[key] = self._last_status[key]
+            else:
+                del self._optimistic[key]
 
     def note_cached(self, values: dict) -> None:
         """Record just-applied values in the status cache.
 
         The standby poll is cache-only (it doesn't re-read settings), so without
         this an optimistic UI update would be reverted to the stale cached value
-        on the next poll even though the write succeeded on the device. The expiry
-        stamps also shield the value from a racing *full* poll (see
+        on the next poll even though the write succeeded on the device. The write
+        time also shields the value from a racing *full* poll (see
         :meth:`_apply_optimistic`).
         """
         if isinstance(self._last_status, dict):
             self._last_status.update(values)
-        expiry = time.monotonic() + OPTIMISTIC_TTL
+        written = time.monotonic()
         for key in values:
-            self._optimistic[key] = expiry
+            self._optimistic[key] = written
 
     # --- Setters ---
 
@@ -765,10 +859,12 @@ class KlipschAPI:
 
     async def media_control(self, control: str) -> None:
         """Send media control command (pause/next/previous)."""
+        # Not idempotent (a resent "next" skips twice) → never retried.
         await self.set_data(
             API_PATHS["player_control"],
             {"control": control},
             roles="activate",
+            retries=0,
         )
 
     async def get_device_info(self) -> dict | None:
