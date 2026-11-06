@@ -174,7 +174,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
             return MediaPlayerState.OFF
         power = data.get("power", "unknown")
         if power == "networkStandby":
-            return MediaPlayerState.STANDBY
+            return MediaPlayerState.OFF
         player = self._player_data()
         player_state = player.get("state")
         if player_state == "playing":
