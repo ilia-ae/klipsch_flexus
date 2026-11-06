@@ -69,7 +69,7 @@ CONTROLS = [
     ("OTA updates", "ota_updates", "value", "toggle", None),
     # v2.5.9 — mediaPlayer/system (writable even in standby)
     ("Balance", "balance", "value", "toggle", None),
-    ("Idle timeout", "idle_timeout", "value", "toggle", None),
+    ("Idle timeout", "idle_timeout", "value", "toggle", [0, 300, 600, 900, 1800]),  # device enum
     ("Loudness", "loudness", "value", "toggle", None),
     ("Do Not Disturb", "do_not_disturb", "value", "toggle", None),
     ("Auto standby", "auto_standby", "value", "toggle", None),
