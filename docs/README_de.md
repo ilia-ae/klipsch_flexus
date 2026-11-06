@@ -98,7 +98,7 @@ Den Live-Status pro Befehl zeigt **Download diagnostics** (Abschnitt `command_he
 | Bass / Mid / Treble | Klangregelung |
 
 ### Audio-Einstellungen (Selects)
-- **EQ-Voreinstellung** — Flat, Bass, Rock, Vocal (+ Custom, angezeigt, solange in der Klipsch-App eine eigene Kurve eingestellt ist; in HA nicht auswählbar)
+- **EQ-Voreinstellung** — Flat, Bass, Rock, Vocal (+ Custom, gemeldet, sobald Bass / Mid / Treble geändert werden — in HA oder in der Klipsch-App — oder in der App eine eigene Kurve eingestellt ist; in HA nicht auswählbar)
 - **Nachtmodus** — reduziert den Dynamikbereich für leises Hören
 - **Dialogmodus** — verbessert die Sprachklarheit (3 Stufen)
 - **Dirac Live** — Raumkorrekturfilter (automatisch vom Gerät erkannt)
@@ -137,9 +137,9 @@ Vollständige UI-Übersetzung in **7 Sprachen**: Englisch, Russisch, Deutsch, Sp
 ### HACS (empfohlen)
 
 1. Öffnen Sie **HACS** > Integrationen > suchen Sie **Klipsch Flexus**
-2. Herunterladen — eine Erstinstallation braucht keinen Neustart
-3. Sofort hinzufügen über **Einstellungen** > Geräte & Dienste > **Integration hinzufügen** > Klipsch Flexus
-4. Nach dem nächsten Neustart von Home Assistant wird die Soundbar zusätzlich **automatisch erkannt** — prüfen Sie die Benachrichtigungen
+2. Herunterladen und Home Assistant neu starten
+3. Die Soundbar sollte **automatisch erkannt** werden — prüfen Sie die Benachrichtigungen
+4. Oder gehen Sie zu **Einstellungen** > Geräte & Dienste > **Integration hinzufügen** > Klipsch Flexus
 
 ### Manuell
 
@@ -191,11 +191,11 @@ Die Klipsch Flexus hat einen **Single-Thread HTTP-Server**, der jeweils eine Anf
 | Mechanismus | Beschreibung |
 |------------|-------------|
 | Anfrage-Serialisierung | Alle API-Aufrufe laufen über `asyncio.Lock` — keine parallelen Anfragen |
-| Wiederholung mit Verzögerung | Vorübergehende Fehler werden 2x mit 0,5 s Verzögerung wiederholt |
+| Wiederholung mit Verzögerung | Schreibvorgänge (außer Mediensteuerung) und die Energiezustandsabfrage werden 2x mit 0,5 s Verzögerung wiederholt; Lesevorgänge des Pollings nicht (zuletzt bekannter Wert), und zwei Timeouts in Folge beenden das Polling als offline |
 | Adaptive Timeouts | 8 s Lesen, 10 s Schreiben, 15 s Ein/Aus-Befehle |
 | Graceful Degradation | Fehlgeschlagene Lesevorgänge verwenden zuletzt bekannte Werte |
-| Optimistische Updates | UI aktualisiert sofort, dann durch verzögertes Polling bestätigt; im Standby angewendete Werte werden zwischengespeichert, sodass das Standby-Polling sie nie zurücksetzt |
-| **Standby-bewusstes Polling** | Energiezustand wird zuerst abgefragt; im Standby nur 1 Anfrage statt 20+, zwischengespeicherte Werte bleiben erhalten, Abfrageintervall auf 60 s reduziert. Einstellungen bleiben im Standby **verfügbar und steuerbar** — das Gerät übernimmt die Schreibvorgänge und die Integration merkt sie sich |
+| Optimistische Updates | UI aktualisiert sofort und behält den geschriebenen Wert bis zum nächsten regulären Polling, das ihn zurückliest (das Polling ~1 s nach einem Befehl holt dessen Nebenwirkungen, z. B. den Decoder nach einem Eingangswechsel); im Standby angewendete Werte werden zwischengespeichert, sodass das Standby-Polling sie nie zurücksetzt |
+| **Standby-bewusstes Polling** | Energiezustand wird zuerst abgefragt; das erste Polling nach dem Setup liest einmal alles, auch im Standby — danach im Standby nur 1 Anfrage statt ~40, zwischengespeicherte Werte bleiben erhalten, Abfrageintervall auf 60 s reduziert. Einstellungen bleiben im Standby **verfügbar und steuerbar** — das Gerät übernimmt die Schreibvorgänge und die Integration merkt sie sich |
 
 ## Entitäten
 

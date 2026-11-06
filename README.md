@@ -99,7 +99,7 @@ Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy
 | Bass / Mid / Treble | Tone EQ controls |
 
 ### Audio Settings (Selects)
-- **EQ Preset** — Flat, Bass, Rock, Vocal (+ Custom, shown while a custom curve is set in the Klipsch app; it can't be selected from HA)
+- **EQ Preset** — Flat, Bass, Rock, Vocal (+ Custom, reported once Bass / Mid / Treble are changed — from HA or the Klipsch app — or a custom curve is set in the app; it can't be selected from HA)
 - **Night Mode** — reduces dynamic range for quiet listening
 - **Dialog Mode** — boosts dialog clarity (3 levels)
 - **Dirac Live** — room correction filter (auto-discovered from device)
@@ -138,9 +138,9 @@ Full UI translation in **7 languages**: English, Russian, German, Spanish, Frenc
 ### HACS (recommended)
 
 1. Open **HACS** > Integrations > search **Klipsch Flexus**
-2. Download it — a first install needs no restart
-3. Add it right away via **Settings** > Devices & Services > **Add Integration** > Klipsch Flexus
-4. After the next Home Assistant restart the soundbar is also **automatically discovered** — check notifications
+2. Download it and restart Home Assistant
+3. The soundbar should be **automatically discovered** — check notifications
+4. Or go to **Settings** > Devices & Services > **Add Integration** > Klipsch Flexus
 
 ### Manual
 
@@ -192,11 +192,11 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Mechanism | Description |
 |-----------|-------------|
 | Request serialization | All API calls go through `asyncio.Lock` — no concurrent requests |
-| Retry with backoff | Transient errors retried 2x with 0.5 s delay |
+| Retry with backoff | Writes (except media controls) and the power probe retried 2x with 0.5 s delay; poll reads are not retried (cached fallback), and two consecutive timeouts end the poll as offline |
 | Adaptive timeouts | 8 s reads, 10 s writes, 15 s power commands |
 | Graceful degradation | Failed reads fall back to last-known cached values |
-| Optimistic updates | UI updates instantly, then verified via delayed poll; values applied in standby are cached so the standby poll never reverts them |
-| **Standby-aware polling** | Power state probed first; in standby only 1 request instead of 20+, cached values preserved, poll interval slows to 60 s. Settings stay **available and controllable** in standby — the device applies writes and the integration remembers them |
+| Optimistic updates | UI updates instantly and keeps the written value until the next regular poll reads it back (the poll ~1 s after a command picks up its side effects, e.g. the decoder after an input change); values applied in standby are cached so the standby poll never reverts them |
+| **Standby-aware polling** | Power state probed first; the first poll after setup reads everything once, even in standby — after that, standby polls make 1 request instead of ~40, cached values preserved, poll interval slows to 60 s. Settings stay **available and controllable** in standby — the device applies writes and the integration remembers them |
 
 ## Entities
 

@@ -33,7 +33,10 @@ class KlipschControllableEntity(KlipschEntity):
 
     Adds the online-gated availability shared by every control and the optimistic
     write helper: cache the just-applied value, mirror it into the coordinator
-    data, push this entity's state, then schedule a confirming refresh.
+    data, push this entity's state, then schedule a refresh for the command's
+    side effects. That poll keeps the written value itself (it may have read
+    the old one, see ``KlipschAPI._apply_optimistic``); the next regular poll
+    reads it back.
     """
 
     @property

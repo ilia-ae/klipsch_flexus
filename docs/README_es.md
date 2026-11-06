@@ -98,7 +98,7 @@ El firmware anterior (anterior a `1.1.3`) no se ve afectado y conserva el contro
 | Bass / Mid / Treble | Controles de ecualización |
 
 ### Ajustes de audio (Selects)
-- **Preajuste EQ** — Flat, Bass, Rock, Vocal (+ Custom, que aparece mientras hay una curva propia ajustada en la app Klipsch; no se puede seleccionar desde HA)
+- **Preajuste EQ** — Flat, Bass, Rock, Vocal (+ Custom, que aparece al cambiar Bass / Mid / Treble — desde HA o la app Klipsch — o al ajustar una curva propia en la app; no se puede seleccionar desde HA)
 - **Modo nocturno** — reduce el rango dinámico para escucha silenciosa
 - **Modo diálogo** — mejora la claridad del habla (3 niveles)
 - **Dirac Live** — filtro de corrección de sala (detectado automáticamente del dispositivo)
@@ -137,9 +137,9 @@ Traducción completa de la interfaz en **7 idiomas**: inglés, ruso, alemán, es
 ### HACS (recomendado)
 
 1. Abra **HACS** > Integraciones > busque **Klipsch Flexus**
-2. Descárguela — la primera instalación no necesita reinicio
-3. Agréguela de inmediato en **Ajustes** > Dispositivos y servicios > **Agregar integración** > Klipsch Flexus
-4. Tras el siguiente reinicio de Home Assistant la barra de sonido también se **descubre automáticamente** — revise las notificaciones
+2. Descárguela y reinicie Home Assistant
+3. La barra de sonido debería **descubrirse automáticamente** — revise las notificaciones
+4. O vaya a **Ajustes** > Dispositivos y servicios > **Agregar integración** > Klipsch Flexus
 
 ### Manual
 
@@ -191,11 +191,11 @@ El Klipsch Flexus tiene un **servidor HTTP de un solo hilo** que procesa una pet
 | Mecanismo | Descripción |
 |-----------|-------------|
 | Serialización de peticiones | Todas las llamadas API pasan por `asyncio.Lock` — sin concurrencia |
-| Reintento con espera | Errores temporales reintentados 2x con 0,5 s de espera |
+| Reintento con espera | Escrituras (salvo controles multimedia) y la consulta de energía reintentadas 2x con 0,5 s de espera; las lecturas del sondeo no se reintentan (valor en caché), y dos timeouts seguidos terminan el sondeo como offline |
 | Timeouts adaptativos | 8 s lectura, 10 s escritura, 15 s comandos de encendido |
 | Degradación elegante | Lecturas fallidas usan los últimos valores conocidos |
-| Actualizaciones optimistas | UI se actualiza al instante, luego se verifica por polling; los valores aplicados en standby se almacenan en caché para que el sondeo en standby nunca los revierta |
-| **Polling con detección de standby** | Primero se consulta el estado de energía; en standby solo 1 petición en vez de 20+, valores en caché preservados, intervalo reducido a 60 s. Los ajustes siguen **disponibles y controlables** en standby — el dispositivo aplica las escrituras y la integración las recuerda |
+| Actualizaciones optimistas | UI se actualiza al instante y mantiene el valor escrito hasta el siguiente sondeo regular, que lo vuelve a leer (el sondeo ~1 s tras un comando recoge sus efectos secundarios, p. ej. el decodificador tras cambiar de entrada); los valores aplicados en standby se almacenan en caché para que el sondeo en standby nunca los revierta |
+| **Polling con detección de standby** | Primero se consulta el estado de energía; el primer sondeo tras la configuración lee todo una vez, incluso en standby — después, en standby solo 1 petición en vez de ~40, valores en caché preservados, intervalo reducido a 60 s. Los ajustes siguen **disponibles y controlables** en standby — el dispositivo aplica las escrituras y la integración las recuerda |
 
 ## Entidades
 

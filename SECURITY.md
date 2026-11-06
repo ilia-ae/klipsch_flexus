@@ -147,7 +147,7 @@ The assessment validates the security limitations described in this document and
 ### Soundbar Firmware Limitations
 - Reads are unauthenticated. Older firmware also accepts every write without authentication; 2026 firmware (`1.1.3.x`) signs most writes (`HMAC_SHA256_AES256`), but the key is derived from the device's own MAC (disclosed unauthenticated) and a product-wide constant, so it is **not a real security boundary**
 - Any device on your local network can control the soundbar
-- The soundbar API uses **HTTP (not HTTPS)** - this is a firmware limitation
+- Reads and volume/mute use plain HTTP, and the certificate of the HTTPS write endpoint (2026 firmware) cannot be verified - this is a firmware limitation
 - This integration cannot add security features that the hardware doesn't support
 
 ### Mitigation
@@ -179,5 +179,5 @@ We appreciate the security research community and will credit researchers who re
 ---
 
 **Last Updated**: 2026-11-06  
-**Integration Version**: 2.5.18  
+**Integration Version**: 2.5.17  
 **Security Assessment**: [Klipsch Flexus CORE 300 Report](docs/SECURITY_ASSESSMENT_CORE_300.md)
