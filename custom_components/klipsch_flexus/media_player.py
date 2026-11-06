@@ -70,7 +70,6 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         host = entry.data.get("host", "")
         device_info: dict = {
             "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Klipsch Flexus CORE 300",
             "manufacturer": "Klipsch",
             # Model from discovery (Cast TXT 'md'), if the entry was discovered
             "model": entry.data.get(CONF_MODEL) or "Flexus CORE 300",
@@ -78,9 +77,13 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         }
         # Enrich from eureka_info (Google Cast API, port 8008)
         eureka = coordinator.device_info
+        if eureka and eureka.get("name"):
+            device_info["name"] = eureka["name"]
+        elif getattr(coordinator.registered_device(), "name", None) is None:
+            # Generic name for a new / unnamed device only: no eureka_info (setup
+            # in standby) must not overwrite the name the registry already has.
+            device_info["name"] = "Klipsch Flexus CORE 300"
         if eureka:
-            if eureka.get("name"):
-                device_info["name"] = eureka["name"]
             if eureka.get("cast_build_revision"):
                 device_info["sw_version"] = eureka["cast_build_revision"]
             # 2026 firmware reports the all-zero MAC here; registering it as a

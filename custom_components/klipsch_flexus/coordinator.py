@@ -203,6 +203,20 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Klipsch: eager write-auth resolution stopped; the first gated command resolves it")
 
     @callback
+    def registered_device(self) -> dr.DeviceEntry | None:
+        """The soundbar's device-registry entry, or None if not registered yet."""
+        if self.entry is None:
+            return None
+        reg = dr.async_get(self.hass)
+        # Looked up via the entry (works on every supported HA; async_get_device
+        # by identifiers is deprecated in newer releases).
+        identifier = (DOMAIN, self.entry.entry_id)
+        return next(
+            (d for d in dr.async_entries_for_config_entry(reg, self.entry.entry_id) if identifier in d.identifiers),
+            None,
+        )
+
+    @callback
     def _async_update_device_registry(self) -> None:
         """Push the eureka name / firmware version to the device entry.
 
@@ -212,18 +226,12 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         sw_version until a reload. A name the user set (``name_by_user``) still
         wins in the UI.
         """
-        if self.entry is None or not self.device_info:
+        if not self.device_info:
             return
-        reg = dr.async_get(self.hass)
-        # Looked up via the entry (works on every supported HA; async_get_device
-        # by identifiers is deprecated in newer releases).
-        identifier = (DOMAIN, self.entry.entry_id)
-        device = next(
-            (d for d in dr.async_entries_for_config_entry(reg, self.entry.entry_id) if identifier in d.identifiers),
-            None,
-        )
+        device = self.registered_device()
         if device is None:
             return  # not registered yet — the media player will use device_info
+        reg = dr.async_get(self.hass)
         changes: dict[str, str] = {}
         name = self.device_info.get("name")
         if name and name != device.name:

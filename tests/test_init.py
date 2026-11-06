@@ -96,6 +96,7 @@ async def test_setup_in_standby_then_device_registry_catches_up(hass) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
     reg = dr.async_get(hass)
     device = _device(hass, entry)
+    assert device.name == "Klipsch Flexus CORE 300"  # generic until eureka is read
     assert device.sw_version is None
     api.get_device_info.assert_not_called()
 
@@ -106,6 +107,22 @@ async def test_setup_in_standby_then_device_registry_catches_up(hass) -> None:
     device = reg.async_get(device.id)
     assert device.name == "Living Room"
     assert device.sw_version == "1.0"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_setup_in_standby_keeps_registered_device_name(hass) -> None:
+    """A restart / reload in standby (no eureka_info) keeps the real device name
+    instead of writing the generic one back over it."""
+    entry = await _setup(hass, _mock_api())
+    assert _device(hass, entry).name == "Living Room"
+
+    with patch("custom_components.klipsch_flexus.KlipschAPI", return_value=_mock_api(power="networkStandby")):
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert _device(hass, entry).name == "Living Room"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
