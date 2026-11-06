@@ -170,6 +170,41 @@ async def test_refresh_mid_poll_joins_and_polls_once_more(hass) -> None:
     assert polls == 3
 
 
+async def test_refresh_during_follow_up_poll_gets_another_poll(hass) -> None:
+    """A refresh joining during the follow-up poll (which started before its
+    command) gets one more poll rather than the follow-up's stale result."""
+    api = _make_api("networkStandby")
+    gates = {1: asyncio.Event(), 2: asyncio.Event()}
+    polls = 0
+
+    async def slow_status(**_):
+        nonlocal polls
+        polls += 1
+        n = polls
+        if n in gates:
+            await gates[n].wait()
+        return {"online": True, "power": "networkStandby", "poll": n}
+
+    api.get_status = slow_status
+    coordinator = _make_coordinator(hass, api)
+
+    first = asyncio.ensure_future(coordinator._async_update_data())
+    await asyncio.sleep(0)
+    early = asyncio.ensure_future(coordinator._async_update_data())  # joins poll 1
+    await asyncio.sleep(0)
+    gates[1].set()
+    while polls < 2:
+        await asyncio.sleep(0)
+    late = asyncio.ensure_future(coordinator._async_update_data())  # joins poll 2
+    await asyncio.sleep(0)
+    gates[2].set()
+    results = await asyncio.gather(first, early, late)
+
+    assert polls == 3  # the follow-up started before the late request
+    assert all(r["poll"] == 3 for r in results)
+    assert coordinator._poll_again is False
+
+
 async def test_poll_error_propagates_to_joiners(hass) -> None:
     """A failing poll raises UpdateFailed for the caller and for joined refreshes."""
     api = _make_api("online")

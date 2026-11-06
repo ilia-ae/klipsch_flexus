@@ -223,7 +223,8 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         mid-poll. Two interleaved polls would double the load on the
         single-threaded device, and the older one could publish pre-command
         values. So a refresh arriving mid-poll joins the running poll, which
-        then runs exactly once more to pick up the command's effect.
+        then runs once more to pick up the command's effect (and again if
+        another refresh arrives during that follow-up).
         """
         if self._poll_task is not None and not self._poll_task.done():
             self._poll_again = True
@@ -238,9 +239,9 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._poll_task = None
 
     async def _async_poll_with_follow_up(self) -> dict[str, Any]:
-        """Run one poll, plus one more if a refresh was requested meanwhile."""
+        """Run one poll, then another as long as a refresh was requested meanwhile."""
         status = await self._async_poll()
-        if self._poll_again:
+        while self._poll_again:
             self._poll_again = False
             status = await self._async_poll()
         return status
