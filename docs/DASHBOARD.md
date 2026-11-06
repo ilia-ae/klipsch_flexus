@@ -19,8 +19,8 @@
 | Section | Description |
 |---------|-------------|
 | **Player** | Mushroom media player — power, play/pause, mute, volume slider, +/- buttons |
-| **Volume Presets** | 7 quick buttons: 5% / 10% / 15% / 20% / 35% / 50% / 75% (half-height, active = blue) |
-| **Input Source** | TV ARC / HDMI / SPDIF / BT / Cast / AirPlay — each with unique color |
+| **Volume Presets** | 7 quick buttons: 5% / 10% / 15% / 20% / 35% / 50% / 75% (half-height, active = blue; the highlight compares on the device's 0..50 volume steps, so a preset that lands between steps still lights up) |
+| **Input Source** | TV ARC / HDMI / SPDIF / BT / Cast — each with unique color |
 | **Sound Mode** | Movie / Music / Game / Sport / Night / Direct / 5.1 / Stereo — each with unique color |
 | **Night Mode** | Off (yellow) / Night On (indigo) — with icons |
 | **Dialog Enhance** | Off (gray) / Low / Mid / High (teal gradient) — with voice icons |
@@ -32,11 +32,11 @@
 | **Dirac Filter** | Dropdown selector for room correction filters |
 | **Tone** | Bass (red) / Mid (orange) / Treble (blue) — gradient fill bars, tap for slider |
 | **Surround** | Front/Back Height (green), Side L/R (purple), Back L/R (teal) — directional icons |
-| **Subwoofer** | Sub 1 & 2 (deep orange) — gradient fill bars |
+| **Subwoofer** | Sub 1 & 2 (deep orange) — gradient fill bars over the -12..+6 dB subwoofer range |
 
 ## Color Scheme
 ```
-Sources:   TV ARC=#4CAF50  HDMI=#2196F3  SPDIF=#FF9800  BT=#1E88E5  Cast=#4285F4  AirPlay=#646464
+Sources:   TV ARC=#4CAF50  HDMI=#2196F3  SPDIF=#FF9800  BT=#1E88E5  Cast=#4285F4
 Modes:     Movie=#B71C1C   Music=#9C27B0  Game=#4CAF50   Sport=#FF9800
            Night=#3F51B5   Direct=#795548  5.1=#009688    Stereo=#2196F3
 Night:     Off=#FFC107     On=#3F51B5
@@ -53,6 +53,8 @@ Sub:       #FF5722
 - Channel/tone bars: `height: 40px` (same as buttons)
 
 ## Dashboard YAML
+
+The entity ids below use the default `klipsch_flexus_core_300` prefix; replace it with your own device's entity-id prefix (see Settings > Devices > Klipsch Flexus).
 
 ```yaml
 title: Soundbar
@@ -108,8 +110,8 @@ sections:
         - font-size: 11px
         - font-weight: bold
       card_mod:
-        style: 'ha-card { background: {% if (state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0)
-          | round(2) == 0.05 %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
+        style: 'ha-card { background: {% if ((state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0) * 50)
+          | round(0) == (0.05 * 50) | round(0) %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
     - type: custom:button-card
       entity: media_player.klipsch_flexus_core_300
       name: 10%
@@ -130,8 +132,8 @@ sections:
         - font-size: 11px
         - font-weight: bold
       card_mod:
-        style: 'ha-card { background: {% if (state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0)
-          | round(2) == 0.1 %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
+        style: 'ha-card { background: {% if ((state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0) * 50)
+          | round(0) == (0.1 * 50) | round(0) %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
     - type: custom:button-card
       entity: media_player.klipsch_flexus_core_300
       name: 15%
@@ -152,8 +154,8 @@ sections:
         - font-size: 11px
         - font-weight: bold
       card_mod:
-        style: 'ha-card { background: {% if (state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0)
-          | round(2) == 0.15 %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
+        style: 'ha-card { background: {% if ((state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0) * 50)
+          | round(0) == (0.15 * 50) | round(0) %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
     - type: custom:button-card
       entity: media_player.klipsch_flexus_core_300
       name: 20%
@@ -174,8 +176,8 @@ sections:
         - font-size: 11px
         - font-weight: bold
       card_mod:
-        style: 'ha-card { background: {% if (state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0)
-          | round(2) == 0.2 %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
+        style: 'ha-card { background: {% if ((state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0) * 50)
+          | round(0) == (0.2 * 50) | round(0) %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
     - type: custom:button-card
       entity: media_player.klipsch_flexus_core_300
       name: 35%
@@ -196,8 +198,8 @@ sections:
         - font-size: 11px
         - font-weight: bold
       card_mod:
-        style: 'ha-card { background: {% if (state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0)
-          | round(2) == 0.35 %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
+        style: 'ha-card { background: {% if ((state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0) * 50)
+          | round(0) == (0.35 * 50) | round(0) %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
     - type: custom:button-card
       entity: media_player.klipsch_flexus_core_300
       name: 50%
@@ -218,8 +220,8 @@ sections:
         - font-size: 11px
         - font-weight: bold
       card_mod:
-        style: 'ha-card { background: {% if (state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0)
-          | round(2) == 0.5 %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
+        style: 'ha-card { background: {% if ((state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0) * 50)
+          | round(0) == (0.5 * 50) | round(0) %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
     - type: custom:button-card
       entity: media_player.klipsch_flexus_core_300
       name: 75%
@@ -240,8 +242,8 @@ sections:
         - font-size: 11px
         - font-weight: bold
       card_mod:
-        style: 'ha-card { background: {% if (state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0)
-          | round(2) == 0.75 %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
+        style: 'ha-card { background: {% if ((state_attr(''media_player.klipsch_flexus_core_300'', ''volume_level'') or 0) * 50)
+          | round(0) == (0.75 * 50) | round(0) %}rgba(33,150,243,0.2){% else %}rgba(var(--rgb-primary-text-color), 0.04){% endif %}; }'
     grid_options:
       columns: full
   - type: heading
@@ -396,36 +398,6 @@ sections:
         ''source'') == ''Google Cast'' %}1px solid rgba(33, 150, 243, 0.4){% else %}1px solid transparent{% endif %}; } ha-card
         ha-icon { color: {% if state_attr(''media_player.klipsch_flexus_core_300'', ''source'') == ''Google Cast'' %}rgb(33,
         150, 243){% else %}var(--secondary-text-color){% endif %}; }'
-    grid_options:
-      columns: 2
-  - type: custom:button-card
-    entity: media_player.klipsch_flexus_core_300
-    name: AirPlay
-    icon: mdi:apple
-    show_state: false
-    tap_action:
-      action: call-service
-      service: media_player.select_source
-      service_data:
-        entity_id: media_player.klipsch_flexus_core_300
-        source: AirPlay
-    styles:
-      card:
-      - padding: 4px 2px
-      - border-radius: 10px
-      - height: 40px
-      icon:
-      - width: 20px
-      name:
-      - font-size: 10px
-      - margin-top: 1px
-      - font-weight: '500'
-    card_mod:
-      style: 'ha-card { background: {% if state_attr(''media_player.klipsch_flexus_core_300'', ''source'') == ''AirPlay''
-        %}rgba(100, 100, 100, 0.15){% else %}rgba(var(--rgb-primary-text-color), 0.03){% endif %}; border: {% if state_attr(''media_player.klipsch_flexus_core_300'',
-        ''source'') == ''AirPlay'' %}1px solid rgba(100, 100, 100, 0.4){% else %}1px solid transparent{% endif %}; } ha-card
-        ha-icon { color: {% if state_attr(''media_player.klipsch_flexus_core_300'', ''source'') == ''AirPlay'' %}rgb(100,
-        100, 100){% else %}var(--secondary-text-color){% endif %}; }'
     grid_options:
       columns: 2
   - type: heading
@@ -1386,8 +1358,8 @@ sections:
       - font-weight: bold
     card_mod:
       style: "ha-card {\n                background: linear-gradient(\n                    90deg,\n                    rgba(255,\
-        \ 87, 34, 0.15) {% set v = (states('number.klipsch_flexus_core_300_channel_subwoofer_wireless_1') | float(0) + 6)\
-        \ / 12 * 100 %}{{ v }}%,\n                    rgba(var(--rgb-primary-text-color), 0.03) {{ v }}%\n               \
+        \ 87, 34, 0.15) {% set v = (states('number.klipsch_flexus_core_300_channel_subwoofer_wireless_1') | float(0) + 12)\
+        \ / 18 * 100 %}{{ v }}%,\n                    rgba(var(--rgb-primary-text-color), 0.03) {{ v }}%\n               \
         \ );\n                border-left: 3px solid rgb(255, 87, 34);\n            }"
     grid_options:
       columns: full
@@ -1422,8 +1394,8 @@ sections:
       - font-weight: bold
     card_mod:
       style: "ha-card {\n                background: linear-gradient(\n                    90deg,\n                    rgba(255,\
-        \ 87, 34, 0.15) {% set v = (states('number.klipsch_flexus_core_300_channel_subwoofer_wireless_2') | float(0) + 6)\
-        \ / 12 * 100 %}{{ v }}%,\n                    rgba(var(--rgb-primary-text-color), 0.03) {{ v }}%\n               \
+        \ 87, 34, 0.15) {% set v = (states('number.klipsch_flexus_core_300_channel_subwoofer_wireless_2') | float(0) + 12)\
+        \ / 18 * 100 %}{{ v }}%,\n                    rgba(var(--rgb-primary-text-color), 0.03) {{ v }}%\n               \
         \ );\n                border-left: 3px solid rgb(255, 87, 34);\n            }"
     grid_options:
       columns: full

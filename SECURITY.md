@@ -42,8 +42,8 @@ We will acknowledge your report, assess the vulnerability, and work with you to 
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| 2.5.x   | :white_check_mark: |
+| < 2.5   | :x:                |
 
 Security updates will be provided for the latest stable version only. Please ensure you're running the most recent version from HACS or GitHub releases.
 
@@ -54,7 +54,7 @@ Security updates will be provided for the latest stable version only. Please ens
 This integration communicates with your Klipsch Flexus CORE 300 soundbar over your **local network** using HTTP:
 
 - **No Cloud Connection**: All communication is local (device → soundbar)
-- **HTTP Protocol**: Communication uses unencrypted HTTP (not HTTPS) as the soundbar firmware doesn't support TLS
+- **HTTP Protocol**: Reads and volume/mute use unencrypted HTTP. On 2026 firmware the HMAC-signed writes go to the soundbar's HTTPS endpoint, but its certificate is not verified (a LAN device with no public CA), so treat that as unauthenticated transport too
 - **Local Network Only**: The soundbar API should NOT be exposed to the internet
 
 #### Best Practices
@@ -78,8 +78,9 @@ This integration communicates with your Klipsch Flexus CORE 300 soundbar over yo
 
 #### Authentication
 - This integration uses Home Assistant's built-in authentication system
-- No additional credentials are stored for the soundbar (it has no authentication)
-- Configuration data is stored in Home Assistant's encrypted storage
+- No user credentials are stored for the soundbar. On 2026 firmware the write-signing key is derived at runtime from the device MAC (optionally overridden with the **Device MAC** option); see the [Security Assessment](docs/SECURITY_ASSESSMENT_CORE_300.md), Section 12
+- Configuration (host, options such as the Device MAC) is stored in Home Assistant's config entry storage (`.storage`), which is plain JSON, not encrypted
+- Downloaded diagnostics redact the host, MAC addresses and the Wi-Fi BSSID
 
 #### Data Privacy
 - **No telemetry**: This integration does not send any data outside your local network
@@ -97,7 +98,7 @@ The integration requires:
 This integration has **zero external Python dependencies** (see `manifest.json`):
 - Uses only Python standard library and Home Assistant built-in libraries
 - Reduces attack surface from third-party packages
-- Uses `aiohttp` provided by Home Assistant core
+- Uses `aiohttp` and `cryptography` (for 2026-firmware write signing), both provided by Home Assistant core
 
 ### Code Security
 
@@ -144,7 +145,7 @@ The assessment validates the security limitations described in this document and
 ## Known Limitations
 
 ### Soundbar Firmware Limitations
-- The Klipsch Flexus CORE 300 firmware **does not provide authentication** for its HTTP API
+- Reads are unauthenticated. Older firmware also accepts every write without authentication; 2026 firmware (`1.1.3.x`) signs most writes (`HMAC_SHA256_AES256`), but the key is derived from the device's own MAC (disclosed unauthenticated) and a product-wide constant, so it is **not a real security boundary**
 - Any device on your local network can control the soundbar
 - The soundbar API uses **HTTP (not HTTPS)** - this is a firmware limitation
 - This integration cannot add security features that the hardware doesn't support
@@ -177,6 +178,6 @@ We appreciate the security research community and will credit researchers who re
 
 ---
 
-**Last Updated**: February 17, 2026  
-**Integration Version**: 1.4.0  
+**Last Updated**: 2026-11-06  
+**Integration Version**: 2.5.18  
 **Security Assessment**: [Klipsch Flexus CORE 300 Report](docs/SECURITY_ASSESSMENT_CORE_300.md)

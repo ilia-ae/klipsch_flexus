@@ -20,7 +20,7 @@
 
 Home Assistant custom integration for **Klipsch Flexus** soundbars — control via **native local HTTP API**, no cloud, no delays.
 
-> ✅ **Up to date as of v2.5.15 (2026-06-14)** — **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
+> ✅ **41 entities**, all write commands verified live against 2026 firmware (HMAC-signed), controllable in standby. The badges above reflect the live release and last push.
 
 ## 📸 Dashboard
 
@@ -65,13 +65,13 @@ A 2026 soundbar firmware update (**Device Version `1.1.3.x`**, e.g. `1.1.3.0x7cd
 | Input, Sound mode, Night / Dialog, Bass / Mid / Treble, EQ Preset, Dirac, Subwoofer & Surround levels, Power | ✅ Works (HMAC-signed, v2.5.0+) |
 | LED, Lip-sync, Balance, Loudness, DND, Auto-standby + 4 more toggles | ✅ Works (signed; added v2.5.8–2.5.9) — also in standby |
 
-You can see the live per-command status on your own device via **Download diagnostics** (the `command_health` section, added in v2.4.2).
+You can see the live per-command status on your own device via **Download diagnostics** (the `command_health` section, added in v2.4.2). It is read-only: per command it shows whether the setting is readable and how the device answered the writes made since the integration last loaded (`http_status`, `needs_auth` when the device asked for a signature).
 
 ### Status of the fix
 
 ✅ **Solved in v2.5.0 — full control restored, no user action required.** The `HMAC_SHA256_AES256` request signing is now implemented. The per-device credential is derived automatically from the soundbar's MAC address, so there is **nothing to configure** — just update the integration. Since **v2.5.9** the MAC is read deterministically from the device itself (`settings:/system/primaryMacAddress`), so resolution works on the first try for every unit (with the previous registry/ARP discovery kept as a fallback). Signed writes go to the device's HTTPS endpoint; volume/mute continue to work unsigned.
 
-> Requires the `cryptography` package (declared in the manifest; bundled with Home Assistant, so it is already present).
+> Requires the `cryptography` package (bundled with Home Assistant, so it is already present; not listed as a manifest requirement).
 
 📖 **How we reverse-engineered it** — the full investigation story (blutter, Frida, WireGuard-MITM, the security-theatre teardown): [the field report](docs/REPORT_en.md) (also in [Russian](docs/REPORT.md)).
 
@@ -81,13 +81,13 @@ Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy
 
 ### Media Player
 - **Volume** — set level, step up/down, mute/unmute
-- **Power** — turn on / standby
-- **Input source** — TV ARC, HDMI, SPDIF, Bluetooth, Google Cast
+- **Power** — turn on / off (network standby)
+- **Input source** — TV ARC, HDMI, SPDIF, Bluetooth, Google Cast. While a streaming app (Spotify Connect, TIDAL Connect, QPlay), USB or Dirac calibration is active, the source shows it
 - **Sound mode** — Movie, Music, Game, Sport, Night, Direct, Surround, Stereo
 - **Playback** — play/pause, next/previous track
 - **Media info** — title, artist, album, artwork, source app
 
-### Channel Levels (11 sliders, -6 to +6 dB)
+### Channel Levels (11 sliders: 9 at -6 to +6 dB, 2 subwoofers at -12 to +6 dB)
 
 | Channel | Description |
 |---------|-------------|
@@ -95,20 +95,20 @@ Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy
 | Back Height | Dolby Atmos rear height speaker |
 | Side Left / Right | Surround side speakers |
 | Back Left / Right | Surround rear speakers |
-| Subwoofer Wireless 1 / 2 | Wireless subwoofer levels |
+| Subwoofer Wireless 1 / 2 | Subwoofer levels (-12 to +6 dB) |
 | Bass / Mid / Treble | Tone EQ controls |
 
 ### Audio Settings (Selects)
-- **EQ Preset** — Flat, Bass, Rock, Vocal
+- **EQ Preset** — Flat, Bass, Rock, Vocal (+ Custom, shown while a custom curve is set in the Klipsch app; it can't be selected from HA)
 - **Night Mode** — reduces dynamic range for quiet listening
 - **Dialog Mode** — boosts dialog clarity (3 levels)
 - **Dirac Live** — room correction filter (auto-discovered from device)
 - **LED Brightness** — front LED: Off / Dim / Bright
+- **Idle Timeout** — idle time before auto-standby: Off / 5 / 10 / 15 / 30 min
 
 ### Settings Numbers
-- **Lip-sync Delay** — manual A/V sync (0–300 ms)
-- **Balance** — left/right balance (−10…+10)
-- **Idle Timeout** — auto-standby idle time (0–3600 s)
+- **Lip-sync Delay** — manual A/V sync (0–500 ms)
+- **Balance** — left/right balance (−10…+10 dB)
 
 ### Toggles (Switches)
 - **Auto Lip-sync** — automatic A/V delay
@@ -138,15 +138,19 @@ Full UI translation in **7 languages**: English, Russian, German, Spanish, Frenc
 ### HACS (recommended)
 
 1. Open **HACS** > Integrations > search **Klipsch Flexus**
-2. Install and restart Home Assistant
-3. The soundbar should be **automatically discovered** — check notifications
-4. Or go to **Settings** > Devices & Services > **Add Integration** > Klipsch Flexus
+2. Download it — a first install needs no restart
+3. Add it right away via **Settings** > Devices & Services > **Add Integration** > Klipsch Flexus
+4. After the next Home Assistant restart the soundbar is also **automatically discovered** — check notifications
 
 ### Manual
 
 1. Copy `custom_components/klipsch_flexus/` to your HA `config/custom_components/` directory
 2. Restart Home Assistant
 3. Add the integration via Settings > Devices & Services
+
+### Updating
+
+After updating the integration (HACS or manual), **restart Home Assistant**: HA loads the integration's Python code at startup, so the new version only runs after a restart. Changing **Options** or **Reconfigure**-ing the host applies immediately, without a restart (the entry reloads).
 
 ## Auto-Discovery
 
@@ -168,6 +172,7 @@ If auto-discovery doesn't work (e.g. network isolation), you can always add the 
 |-----------|---------|-------------|
 | Host | — | IP address of the soundbar (required) |
 | Poll interval | 15 s (60 s in standby) | Configurable via Options (5–120 s); automatically reduced in standby |
+| Device MAC | auto-detected | Options only (optional). Overrides the MAC used to sign 2026-firmware writes; only needed if commands other than volume/mute fail (see the **Signing MAC** diagnostic sensor) |
 
 **Tip:** Assign a static IP / DHCP reservation to the soundbar for reliable operation.
 
@@ -202,18 +207,18 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Entity | Type | Category |
 |--------|------|----------|
 | Klipsch Flexus CORE 300 | Media Player | — |
-| Night Mode / Dialog Mode / EQ Preset / Dirac Filter / LED Brightness | Select (x5) | Config |
+| Night Mode / Dialog Mode / EQ Preset / Dirac Filter / LED Brightness / Idle Timeout | Select (x6) | Config |
 | Back Height / Left / Right, Front Height, Side Left / Right | Number (x6) | Config |
 | Subwoofer Wireless 1 / 2 | Number (x2) | Config |
 | Bass / Mid / Treble | Number (x3) | Config |
-| Lip-sync Delay, Balance, Idle Timeout | Number (x3) | Config |
+| Lip-sync Delay, Balance | Number (x2) | Config |
 | Auto Lip-sync, EQ Bypass, Auto Power, UI Sounds, Extra Sound Modes, BLE Remote Auto-pair, Firmware Auto-update | Switch (x7) | Config |
 | Loudness, Do Not Disturb, Auto Standby | Switch (x3) | Config |
 | Response Time, Device Status, Active Input, Active Sound Mode | Sensor (x4) | Diagnostic |
 | Signing MAC, Network Link | Sensor (x2) | Diagnostic |
 | Operating Mode, Speaker Test, Sub Wired/Wireless Delay, Surround Delay | Sensor (x5, read-only) | Diagnostic |
 
-**Total: 41 entities** (1 media player + 5 selects + 14 numbers + 10 switches + 11 sensors)
+**Total: 41 entities** (1 media player + 6 selects + 13 numbers + 10 switches + 11 sensors)
 
 ## Troubleshooting
 
@@ -222,13 +227,14 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Cannot connect | Check that the soundbar is on the same network. Try: `http://<IP>/api/getData?path=player:volume&roles=value` |
 | Entities unavailable | The Klipsch app may be polling simultaneously — close it and retry |
 | Slow updates | Increase poll interval in Options (Settings > Devices > Klipsch Flexus > Configure) |
+| Commands other than volume/mute fail | Check the **Signing MAC** diagnostic sensor. If it shows no resolved MAC (or the wrong one), enter the soundbar's MAC as **Device MAC** in Options |
 | Integration not loading | Check Home Assistant logs for import errors. Ensure you're on HA 2024.11+ |
 
 ## Known Limitations
 
 - One soundbar per integration entry (add multiple as separate entries)
 - No multi-room / wireless surround group management (use Klipsch Connect Plus app)
-- AirPlay and Cast protocols are not used — only the native HTTP API
+- Control uses only the native HTTP API, not the Cast or AirPlay protocols. Google Cast is a selectable input (start playback from a Cast app); AirPlay is not in the device's input list, so it is not offered as a source (streaming to the bar from an Apple device is unaffected)
 - Initial setup must be completed **fully** in the official Klipsch Connect Plus app — go through the whole onboarding at least once (this is what provisions the 2026 write-auth credential)
 
 ## Security

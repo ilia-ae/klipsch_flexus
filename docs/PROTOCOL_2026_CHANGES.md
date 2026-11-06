@@ -66,8 +66,10 @@ changes landing), so the signature is valid and lives inside the encrypted chann
 | Set mode / dialog / night / EQ / Dirac / channel levels / tone | ✅ **solved** — `auth.py` `build_set_data` signs the write (HMAC_SHA256_AES256), confirmed live (HTTP 200) |
 | Event-driven (instant) updates | ❌ not implemented (queue register is TLS-only) |
 
-`probe_command_health()` already surfaces this: gated commands report
-`needs_auth: true` / `http_status: 401`.
+`probe_command_health()` surfaces this read-only (it writes nothing): per
+command it reports whether the node is readable and how the device answered the
+real writes since the integration loaded; a gated command shows
+`needs_auth: true` once the device has asked for a signature.
 
 ## The write-auth scheme (reverse-engineered from the app)
 
