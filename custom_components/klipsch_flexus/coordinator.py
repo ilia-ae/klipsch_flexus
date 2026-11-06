@@ -196,7 +196,13 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self.entry is None or not self.device_info:
             return
         reg = dr.async_get(self.hass)
-        device = reg.async_get_device(identifiers={(DOMAIN, self.entry.entry_id)})
+        # Looked up via the entry (works on every supported HA; async_get_device
+        # by identifiers is deprecated in newer releases).
+        identifier = (DOMAIN, self.entry.entry_id)
+        device = next(
+            (d for d in dr.async_entries_for_config_entry(reg, self.entry.entry_id) if identifier in d.identifiers),
+            None,
+        )
         if device is None:
             return  # not registered yet — the media player will use device_info
         changes: dict[str, str] = {}
