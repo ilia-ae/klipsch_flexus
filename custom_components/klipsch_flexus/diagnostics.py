@@ -35,6 +35,10 @@ TO_REDACT = {
     "manual_option",
     "device_registry",
     "arp_table",
+    # player:player/data — unique device id ("ksb5000-<uuid>") and the stream
+    # URL of Cast / Spotify / radio sources
+    "systemMemberId",
+    "uri",
 }
 
 

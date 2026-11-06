@@ -17,6 +17,21 @@ from .conftest import MOCK_HOST, MOCK_STATUS
 PRIMARY_MAC = "AA:BB:CC:DD:EE:FF"
 WIFI_MAC = "AA:BB:CC:DD:EE:FE"
 BSSID = "11:22:33:44:55:66"
+MEMBER_ID = "ksb5000-00000000-0000-0000-0000-000000000000"
+STREAM_URI = "https://stream.example.invalid/radio.mp3?token=secret"
+# Shape of a live player:player/data reply (placeholder values)
+PLAYER = {
+    "playId": {"timestamp": 1, "systemMemberId": MEMBER_ID},
+    "state": "playing",
+    "trackRoles": {
+        "title": "Radio",
+        "mediaData": {
+            "resources": [{"codec": "mp3", "uri": STREAM_URI}],
+            "metaData": {"serviceID": "cast", "live": True},
+        },
+    },
+    "mediaRoles": {"title": "Radio", "mediaData": {"resources": [{"uri": STREAM_URI}]}},
+}
 
 
 async def test_diagnostics(hass) -> None:
@@ -77,7 +92,7 @@ async def test_diagnostics_redacts_macs_and_credentials(hass) -> None:
 
     coordinator = MagicMock()
     coordinator.api = api
-    coordinator.data = MOCK_STATUS.copy()
+    coordinator.data = {**MOCK_STATUS, "player": PLAYER}
     coordinator.dirac_filters = []
     coordinator.device_info = {"mac_address": WIFI_MAC, "hotspot_bssid": BSSID, "ethernet_connected": False}
     coordinator._seed_sources = {"device_primary_mac": PRIMARY_MAC, "arp_table": WIFI_MAC}
@@ -91,8 +106,9 @@ async def test_diagnostics_redacts_macs_and_credentials(hass) -> None:
     result = await async_get_config_entry_diagnostics(hass, entry)
     dumped = json.dumps(result)
 
-    for secret in (MOCK_HOST, PRIMARY_MAC, WIFI_MAC, BSSID, "HMAC_SHA256_AES256 "):
+    for secret in (MOCK_HOST, PRIMARY_MAC, WIFI_MAC, BSSID, "HMAC_SHA256_AES256 ", MEMBER_ID, STREAM_URI):
         assert secret not in dumped
+    assert result["device_status"]["player"]["state"] == "playing"  # the rest stays
     assert "sample_authorization" not in result["write_auth"]
     assert result["write_auth"]["resolved"] is True
     assert result["write_auth"]["signing_mac_matches_primary_mac"] is True
