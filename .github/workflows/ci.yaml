@@ -20,11 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/ruff-action@v4
+      - uses: astral-sh/ruff-action@v4.1.0
         with:
           version: "0.17.2"
           args: "check custom_components/klipsch_flexus tools tests"
-      - uses: astral-sh/ruff-action@v4
+      - uses: astral-sh/ruff-action@v4.1.0
         with:
           version: "0.17.2"
           args: "format --check custom_components/klipsch_flexus tools tests"
