@@ -236,6 +236,15 @@ Política de seguridad y buenas prácticas en [SECURITY.md](../SECURITY.md).
 
 **Aviso de seguridad de red:** la barra de sonido se comunica por HTTP plano y su API local está prácticamente sin autenticación en la LAN. El firmware antiguo no requería autenticación alguna; el firmware de 2026 (`1.1.3.x`) firma la mayoría de las escrituras (`HMAC_SHA256_AES256`), pero **no es una barrera de seguridad real** — la credencial se deriva de la propia MAC del dispositivo (que divulga sin autenticación) más una constante fija en toda la gama, así que cualquier host de la red puede falsificarla. Las lecturas siempre están abiertas. **Mantén la barra de sonido en un segmento de red de confianza / aislado.** Análisis completo en el [informe de evaluación de seguridad](SECURITY_ASSESSMENT_CORE_300.md) (sección 12).
 
+## Colaboradores
+
+Gracias a todos los que informan de problemas y envían correcciones:
+
+- **Kevin Jilissen** ([@Kevinjil](https://github.com/Kevinjil)) — descubrió que el volumen de la barra va de 0 a 50, no de 0 a 100, y corrigió la conversión ([#22](https://github.com/ilia-ae/klipsch_flexus/issues/22), [#23](https://github.com/ilia-ae/klipsch_flexus/pull/23))
+- **G Johansson** ([@gjohansson-ST](https://github.com/gjohansson-ST)) — sustituyó el estado `STANDBY` eliminado del reproductor para que la integración siga funcionando en Home Assistant 2026.12+ ([#25](https://github.com/ilia-ae/klipsch_flexus/pull/25))
+
+Los issues y pull requests son bienvenidos — consulta la [lista completa de colaboradores](https://github.com/ilia-ae/klipsch_flexus/graphs/contributors).
+
 ## Licencia
 
 MIT — ver [LICENSE](../LICENSE).

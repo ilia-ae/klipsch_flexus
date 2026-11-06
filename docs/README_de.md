@@ -236,6 +236,15 @@ Sicherheitsrichtlinie und Best Practices in [SECURITY.md](../SECURITY.md).
 
 **Hinweis zur Netzwerksicherheit:** Die Soundbar kommuniziert über einfaches HTTP, und ihre lokale API ist im LAN praktisch nicht authentifiziert. Ältere Firmware verlangte überhaupt keine Authentifizierung; die 2026-Firmware (`1.1.3.x`) signiert die meisten Schreibvorgänge (`HMAC_SHA256_AES256`), aber das ist **keine echte Sicherheitsgrenze** — die Anmeldedaten werden aus der MAC des Geräts selbst (die es unauthentifiziert preisgibt) plus einer geräteübergreifend fest einprogrammierten Konstante abgeleitet, sodass jeder Host im Netzwerk sie fälschen kann. Lesezugriffe bleiben offen. **Betreiben Sie die Soundbar in einem vertrauenswürdigen / isolierten Netzwerksegment.** Vollständige Analyse im [Sicherheitsbewertungsbericht](SECURITY_ASSESSMENT_CORE_300.md) (Abschnitt 12).
 
+## Mitwirkende
+
+Danke an alle, die Probleme melden und Korrekturen beisteuern:
+
+- **Kevin Jilissen** ([@Kevinjil](https://github.com/Kevinjil)) — hat entdeckt, dass die Lautstärke der Soundbar von 0 bis 50 statt bis 100 reicht, und die Umrechnung korrigiert ([#22](https://github.com/ilia-ae/klipsch_flexus/issues/22), [#23](https://github.com/ilia-ae/klipsch_flexus/pull/23))
+- **G Johansson** ([@gjohansson-ST](https://github.com/gjohansson-ST)) — hat den entfernten Media-Player-Zustand `STANDBY` ersetzt, damit die Integration ab Home Assistant 2026.12 weiter funktioniert ([#25](https://github.com/ilia-ae/klipsch_flexus/pull/25))
+
+Issues und Pull Requests sind willkommen — siehe die [vollständige Liste der Mitwirkenden](https://github.com/ilia-ae/klipsch_flexus/graphs/contributors).
+
 ## Lizenz
 
 MIT — siehe [LICENSE](../LICENSE).
