@@ -13,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import KlipschAPI
+from .config_flow import _mac_id
 from .const import (
     API_PATHS,
     COMMAND_REFRESH_DELAY,
@@ -116,6 +117,24 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             sources["arp_table"] = arp
         self._seed_sources = sources
         return seeds
+
+    @callback
+    def async_migrate_unique_id(self) -> None:
+        """Re-key an older entry (Cast UUID, host or eureka MAC) by the primary MAC.
+
+        The config flows now key the soundbar by its primary MAC; without this,
+        discovery of an older entry at a new IP would match nothing and offer
+        a duplicate. Uses the MAC the first poll read (nothing to do if it
+        couldn't); left alone if another entry already holds that id.
+        """
+        new_id = _mac_id(self._seed_sources.get("device_primary_mac"))
+        if self.entry is None or new_id is None or self.entry.unique_id == new_id:
+            return
+        entries = self.hass.config_entries.async_entries(DOMAIN, include_ignore=True)
+        if any(e.unique_id == new_id for e in entries):
+            return
+        _LOGGER.debug("Klipsch: unique_id %s → %s (primary MAC)", self.entry.unique_id, new_id)
+        self.hass.config_entries.async_update_entry(self.entry, unique_id=new_id)
 
     async def _refresh_network_info(self) -> None:
         """Build the network/interface diagnostic snapshot (for sensors + diag)."""

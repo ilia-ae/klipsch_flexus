@@ -41,8 +41,8 @@ def _no_arp(monkeypatch):
     monkeypatch.setattr("custom_components.klipsch_flexus.coordinator._arp_lookup", lambda ip: None)
 
 
-async def _setup(hass, api: KlipschAPI) -> MockConfigEntry:
-    entry = MockConfigEntry(domain=DOMAIN, unique_id="aabbccddeeff", data={CONF_HOST: MOCK_HOST})
+async def _setup(hass, api: KlipschAPI, unique_id: str = "aabbccddeeff") -> MockConfigEntry:
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=unique_id, data={CONF_HOST: MOCK_HOST})
     entry.add_to_hass(hass)
     with patch("custom_components.klipsch_flexus.KlipschAPI", return_value=api):
         assert await hass.config_entries.async_setup(entry.entry_id)
@@ -106,6 +106,44 @@ async def test_setup_in_standby_then_device_registry_catches_up(hass) -> None:
     device = reg.async_get(device.id)
     assert device.name == "Living Room"
     assert device.sw_version == "1.0"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+def _api_with_primary_mac() -> KlipschAPI:
+    api = _mock_api()
+
+    async def get_data(path, *args, **kwargs):
+        if path == "settings:/system/primaryMacAddress":
+            return [{"type": "string_", "string_": "34:3D:7F:00:2F:3D"}]
+        return [{"type": "string_", "string_": "eth0"}]
+
+    api.get_data = get_data
+    return api
+
+
+async def test_setup_rekeys_older_entry_by_primary_mac(hass) -> None:
+    """An entry keyed by the Cast UUID (older zeroconf flow) moves to the primary
+    MAC the config flows use now, without a reload."""
+    entry = await _setup(hass, _api_with_primary_mac(), unique_id="3fb1d5cda039be9c934c877174add9bf")
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    await hass.async_block_till_done()
+
+    assert entry.unique_id == "343d7f002f3d"
+    assert entry.state is ConfigEntryState.LOADED
+    assert hass.data[DOMAIN][entry.entry_id] is coordinator  # not reloaded
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_setup_keeps_unique_id_held_by_another_entry(hass) -> None:
+    """No re-keying onto an id another entry (e.g. an ignored discovery) holds."""
+    MockConfigEntry(domain=DOMAIN, unique_id="343d7f002f3d", source="ignore", data={}).add_to_hass(hass)
+    entry = await _setup(hass, _api_with_primary_mac(), unique_id="3fb1d5cda039be9c934c877174add9bf")
+
+    assert entry.unique_id == "3fb1d5cda039be9c934c877174add9bf"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

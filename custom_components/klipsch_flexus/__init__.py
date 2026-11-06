@@ -21,6 +21,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = KlipschCoordinator(hass, api, host, scan_interval, entry=entry)
 
     await coordinator.async_config_entry_first_refresh()
+    # Before the update listener is added: re-keying must not trigger a reload.
+    coordinator.async_migrate_unique_id()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 

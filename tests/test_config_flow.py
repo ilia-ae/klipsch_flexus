@@ -201,6 +201,35 @@ async def test_zeroconf_matches_user_entry_and_updates_host(hass: HomeAssistant)
     assert entry.data[CONF_HOST] == MOCK_HOST
 
 
+async def test_zeroconf_follows_cast_uuid_entry_to_new_ip(hass: HomeAssistant) -> None:
+    """An entry discovered before the MAC unique_id is keyed by the Cast UUID:
+    discovery at a new IP updates its host instead of offering a duplicate."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id="3fb1d5cda039be9c934c877174add9bf", data={CONF_HOST: "192.168.1.50"}
+    )
+    entry.add_to_hass(hass)
+    with _patch_api():
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=MOCK_ZEROCONF_DISCOVERY
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_HOST] == MOCK_HOST
+
+
+async def test_zeroconf_respects_ignored_cast_uuid(hass: HomeAssistant) -> None:
+    """A discovery the user ignored before the MAC unique_id stays ignored."""
+    MockConfigEntry(
+        domain=DOMAIN, unique_id="3fb1d5cda039be9c934c877174add9bf", source=config_entries.SOURCE_IGNORE, data={}
+    ).add_to_hass(hass)
+    with _patch_api():
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_ZEROCONF}, data=MOCK_ZEROCONF_DISCOVERY
+        )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
 async def test_zeroconf_aborts_when_host_already_configured(hass: HomeAssistant) -> None:
     """An entry with the same IP but another unique_id (old host-keyed entry) is
     the same soundbar: abort without contacting the device."""
@@ -254,6 +283,7 @@ async def test_user_flow_already_configured_aborts(hass: HomeAssistant) -> None:
         api = mock_cls.return_value
         api.get_status = AsyncMock(return_value=MOCK_STATUS)
         api.get_device_info = AsyncMock(return_value={"mac_address": "AA:BB:CC:DD:EE:FF"})
+        api.get_data = AsyncMock(side_effect=ConnectionError)  # no primary MAC → eureka MAC
         api.close = AsyncMock()
 
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
@@ -263,24 +293,37 @@ async def test_user_flow_already_configured_aborts(hass: HomeAssistant) -> None:
     assert result["reason"] == "already_configured"
 
 
-async def test_user_flow_ignores_zero_mac(hass: HomeAssistant) -> None:
-    """The all-zero MAC 2026 firmware reports must not become the unique_id (else
-    every device would collide on '000000000000'); fall back to the host instead."""
+async def _user_flow_zero_eureka_mac(hass: HomeAssistant, primary_mac):
+    """Run the user flow against a device whose eureka_info reports the zero MAC."""
     with (
-        patch("custom_components.klipsch_flexus.config_flow.KlipschAPI") as mock_cls,
+        _patch_api(primary_mac) as mock_cls,
         patch("custom_components.klipsch_flexus.async_setup_entry", return_value=True),
     ):
         api = mock_cls.return_value
         api.get_status = AsyncMock(return_value=MOCK_STATUS)
         api.get_device_info = AsyncMock(return_value={"mac_address": "00:00:00:00:00:00", "name": "My Bar"})
-        api.close = AsyncMock()
 
         result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_HOST: MOCK_HOST})
+        return await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_HOST: MOCK_HOST})
+
+
+async def test_user_flow_ignores_zero_mac(hass: HomeAssistant) -> None:
+    """The all-zero MAC 2026 firmware reports must not become the unique_id (else
+    every device would collide on '000000000000'); without a readable primary
+    MAC the host is the fallback."""
+    result = await _user_flow_zero_eureka_mac(hass, primary_mac=None)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["result"].unique_id == MOCK_HOST  # host fallback, not 000000000000
     assert result["title"] == "My Bar"
+
+
+async def test_user_flow_zero_eureka_mac_uses_primary_mac(hass: HomeAssistant) -> None:
+    """On 2026 firmware (zero eureka MAC) the readable primary MAC is the unique_id."""
+    result = await _user_flow_zero_eureka_mac(hass, primary_mac=MOCK_PRIMARY_MAC)
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["result"].unique_id == MOCK_MAC_ID
 
 
 async def test_reconfigure_updates_host(hass: HomeAssistant) -> None:
@@ -296,6 +339,7 @@ async def test_reconfigure_updates_host(hass: HomeAssistant) -> None:
         api = mock_cls.return_value
         api.get_status = AsyncMock(return_value=MOCK_STATUS)
         api.get_device_info = AsyncMock(return_value={"mac_address": "AA:BB:CC:DD:EE:FF"})
+        api.get_data = AsyncMock(side_effect=ConnectionError)  # no primary MAC → eureka MAC
         api.close = AsyncMock()
 
         result = await hass.config_entries.flow.async_init(
@@ -318,6 +362,7 @@ async def test_reconfigure_rejects_different_device(hass: HomeAssistant) -> None
         api = mock_cls.return_value
         api.get_status = AsyncMock(return_value=MOCK_STATUS)
         api.get_device_info = AsyncMock(return_value={"mac_address": "11:22:33:44:55:66"})  # other unit
+        api.get_data = AsyncMock(side_effect=ConnectionError)  # no primary MAC → eureka MAC
         api.close = AsyncMock()
 
         result = await hass.config_entries.flow.async_init(

@@ -103,13 +103,21 @@ class KlipschFlexusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # entries are keyed by host or Cast UUID) → same soundbar, nothing to add.
         self._async_abort_entries_match({CONF_HOST: host})
 
+        # Entries discovered before the MAC unique_id (and ignored discoveries)
+        # are keyed by the Cast UUID: still follow their IP changes. Setup moves
+        # them to the MAC (KlipschCoordinator.async_migrate_unique_id).
+        cast_id = properties.get("id")
+        if cast_id:
+            await self.async_set_unique_id(cast_id)
+            self._abort_if_unique_id_configured(updates={CONF_HOST: host})
+
         # Unique ID: the device MAC, as in the user flow; Cast UUID / host fallback
         api = KlipschAPI(host)
         try:
             device_id = await _read_primary_mac_id(api)
         finally:
             await api.close()
-        await self.async_set_unique_id(device_id or properties.get("id", host))
+        await self.async_set_unique_id(device_id or cast_id or host)
         self._abort_if_unique_id_configured(updates={CONF_HOST: host})
 
         self._discovered_host = host
