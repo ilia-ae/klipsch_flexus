@@ -81,7 +81,7 @@ async def test_get_status_graceful_degradation(api: KlipschAPI) -> None:
     """Test graceful degradation when some params fail."""
     call_count = 0
 
-    async def mock_get_data(path, timeout=8):
+    async def mock_get_data(path, timeout=8, **_):
         nonlocal call_count
         call_count += 1
         if "volume" in path:
@@ -90,8 +90,9 @@ async def test_get_status_graceful_degradation(api: KlipschAPI) -> None:
             return [{"bool_": False}]
         if "powerTarget" in path or "powermanager" in path:
             return [{"powerTarget": {"target": "on"}}]
-        # Fail for everything else
-        raise TimeoutError()
+        # Fail for everything else — with a device answer (bad payload), not a
+        # transport error (consecutive ones abort the poll; tested below)
+        raise ValueError("unexpected payload")
 
     api.get_data = mock_get_data
     result = await api.get_status()
@@ -99,6 +100,48 @@ async def test_get_status_graceful_degradation(api: KlipschAPI) -> None:
     # Should still be online since not ALL params failed
     assert result["online"] is True
     assert result["volume"] == 50
+
+
+async def test_get_status_aborts_when_device_drops_mid_poll(api: KlipschAPI) -> None:
+    """The device answering power, then timing out twice in a row → offline at
+    once (not ~25 s of retries for every remaining key)."""
+    calls: list[tuple[str, dict]] = []
+
+    async def mock_get_data(path, timeout=8, **kwargs):
+        calls.append((path, kwargs))
+        if "powermanager" in path:
+            return [{"powerTarget": {"target": "online"}}]
+        raise TimeoutError()
+
+    api.get_data = mock_get_data
+    result = await api.get_status()
+
+    assert result == {"online": False}
+    assert len(calls) == 3  # power + 2 parameters, then the poll stops
+    assert calls[0][1].get("retries") is None  # the power probe keeps its retries
+    assert calls[1][1]["retries"] == 0  # per-parameter reads are not retried
+
+
+async def test_get_status_isolated_timeouts_stay_online(api: KlipschAPI) -> None:
+    """Single (non-consecutive) timeouts fall back to cached values and keep going."""
+    seen = 0
+
+    async def mock_get_data(path, timeout=8, **_):
+        nonlocal seen
+        if "powermanager" in path:
+            return [{"powerTarget": {"target": "online"}}]
+        seen += 1
+        if seen % 2:
+            raise TimeoutError()
+        return [{"i32_": 1, "bool_": True}]
+
+    api.get_data = mock_get_data
+    api._last_status = {"volume": 30}
+    result = await api.get_status()
+
+    assert result["online"] is True
+    assert result["volume"] == 30  # first read timed out → cached value kept
+    assert result["failed_params"] == 10
 
 
 async def test_get_status_all_fail(api: KlipschAPI) -> None:
@@ -120,8 +163,9 @@ async def test_get_status_standby_lightweight_poll(api: KlipschAPI) -> None:
         "input": "hdmiarc",
         "mode": "movie",
     }
+    api._cache_seeded = True
 
-    async def mock_get_data(path, timeout=8):
+    async def mock_get_data(path, timeout=8, **_):
         nonlocal call_count
         call_count += 1
         call_paths.append(path)
@@ -151,30 +195,63 @@ async def test_get_status_standby_lightweight_poll(api: KlipschAPI) -> None:
     assert result["poll_time_ms"] < 1000
 
 
-async def test_get_status_standby_no_cache(api: KlipschAPI) -> None:
-    """Test standby with empty cache (first boot in standby)."""
-    api._last_status = {}
+async def test_get_status_standby_first_poll_seeds_cache(api: KlipschAPI) -> None:
+    """First poll after setup in standby (empty cache): one full read seeds the
+    cache, then polling goes back to the lightweight power-only probe."""
+    paths: list[str] = []
 
-    async def mock_get_data(path, timeout=8):
+    async def mock_get_data(path, timeout=8, **_):
+        paths.append(path)
         if "powermanager" in path:
             return [{"powerTarget": {"target": "networkStandby"}}]
-        raise AssertionError(f"Unexpected poll: {path}")
+        if path == "cinema:/external/physicalAudioInput":
+            raise ValueError("no answer for this key")
+        return [{"i32_": 21, "bool_": True, "cinemaLEDMode": "bright"}]
 
     api.get_data = mock_get_data
     result = await api.get_status()
 
     assert result["online"] is True
     assert result["power"] == "networkStandby"
-    # No cached values — keys should be absent
+    assert result["volume"] == 21
+    assert result["eq_bypass"] is True  # settings group seeded too
+    assert result["led_mode"] == "bright"
+    assert "input" not in result  # never read → stays absent (unknown), no default
+
+    paths.clear()
+    second = await api.get_status()
+    assert paths == ["powermanager:target"]  # back to the lightweight poll
+    assert second["volume"] == 21  # seeded value carried by the cache
+
+
+async def test_get_status_standby_seed_failure_is_not_offline(api: KlipschAPI) -> None:
+    """A standby seed read that times out still reports online/standby (the bar
+    answered the power probe) and is not retried on every standby poll."""
+    paths: list[str] = []
+
+    async def mock_get_data(path, timeout=8, **_):
+        paths.append(path)
+        if "powermanager" in path:
+            return [{"powerTarget": {"target": "networkStandby"}}]
+        raise TimeoutError()
+
+    api.get_data = mock_get_data
+    result = await api.get_status()
+
+    assert result["online"] is True
+    assert result["power"] == "networkStandby"
     assert "volume" not in result
-    assert "input" not in result
+
+    paths.clear()
+    await api.get_status()
+    assert paths == ["powermanager:target"]
 
 
 async def test_get_status_power_fail_means_offline(api: KlipschAPI) -> None:
     """Test that power query failure immediately returns offline."""
     call_count = 0
 
-    async def mock_get_data(path, timeout=8):
+    async def mock_get_data(path, timeout=8, **_):
         nonlocal call_count
         call_count += 1
         raise TimeoutError()
@@ -477,7 +554,7 @@ async def test_set_data_timeouts_do_not_latch_auth_failed(api: KlipschAPI) -> No
 async def test_probe_command_health(api: KlipschAPI) -> None:
     """Test deep diagnostic: alive vs auth-blocked commands (2026 firmware)."""
 
-    async def mock_get_data(path, timeout=8):
+    async def mock_get_data(path, timeout=8, **_):
         if "authMode" in path:
             return [{"type": "webserverAuthMode", "webserverAuthMode": "setData"}]
         if "powermanager" in path:
@@ -543,7 +620,7 @@ async def test_new_setters_payload_shapes(api: KlipschAPI) -> None:
 async def test_get_status_includes_settings_group(api: KlipschAPI) -> None:
     """When the device is on, the settings group (switches/LED/info) is polled."""
 
-    def value_for(path: str):
+    def value_for(path: str, **_):
         if path.endswith("powermanager:target") or "powermanager" in path:
             return [{"powerTarget": {"target": "online"}}]
         if path.endswith("ledMode"):
@@ -572,6 +649,7 @@ async def test_note_cached_survives_standby_poll(api: KlipschAPI) -> None:
     """A value applied while the bar is in standby must not be reverted by the
     cache-only standby poll (regression: optimistic write getting clobbered)."""
     api._last_status = {"mode": "movie", "led_mode": "dim"}
+    api._cache_seeded = True  # seen ON before → no seeding read
     # Device reports standby → get_status takes the cache-only branch
     api.get_data = AsyncMock(return_value=[{"powerTarget": {"target": "networkStandby"}}])
 
@@ -588,7 +666,7 @@ async def test_note_cached_survives_standby_poll(api: KlipschAPI) -> None:
 def _on_value_for(volume: int = 40):
     """get_data stub for an ON device: power 'on', a given volume, neutral rest."""
 
-    def value_for(path: str, timeout: float = 8):
+    def value_for(path: str, timeout: float = 8, **_):
         if "powermanager" in path:
             return [{"powerTarget": {"target": "online"}}]
         if path.endswith("player:volume"):
@@ -618,10 +696,69 @@ async def test_optimistic_value_expires(api: KlipschAPI) -> None:
     api.get_data = AsyncMock(side_effect=_on_value_for(volume=40))
 
     api.note_cached({"volume": 50})
-    api._optimistic["volume"] = 0.0  # force the stamp into the past (expired)
+    api._optimistic["volume"] -= 60  # written a minute ago (settled and expired)
     status = await api.get_status()
 
     assert status["volume"] == 40  # device value, optimistic override dropped
+    assert "volume" not in api._optimistic
+
+
+class _Clock:
+    """Controllable stand-in for ``time.monotonic`` in the api module."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+async def test_optimistic_value_survives_slow_poll_started_before_write(api: KlipschAPI, monkeypatch) -> None:
+    """A full poll that read the key *before* the write, and finishes long after
+    the TTL (real polls take 20-40 s), must not publish the stale value."""
+    from custom_components.klipsch_flexus import api as api_mod
+
+    clock = _Clock()
+    monkeypatch.setattr(api_mod, "time", clock)
+    base = _on_value_for(volume=40)
+
+    def slow_device(path: str, **kwargs):
+        if path == "player:volume" and kwargs.get("roles", "value") == "value":
+            out = base(path)  # the poll reads volume=40 ...
+            clock.now += 1
+            api.note_cached({"volume": 50})  # ... then the user's write lands
+            return out
+        clock.now += 1  # every further read takes a second
+        return base(path)
+
+    api.get_data = AsyncMock(side_effect=slow_device)
+    status = await api.get_status()
+
+    assert clock.now - api._optimistic["volume"] > 30  # far past the 5 s TTL
+    assert status["volume"] == 50  # still the written value, not the stale read
+
+    # A poll that starts after the write settled has the last word (device = 40,
+    # e.g. changed on the remote), and the entry expires.
+    api.get_data = AsyncMock(side_effect=lambda path, **kw: base(path))
+    assert (await api.get_status())["volume"] == 40
+    assert "volume" not in api._optimistic
+
+
+async def test_optimistic_value_kept_for_poll_started_just_after_write(api: KlipschAPI, monkeypatch) -> None:
+    """The confirming refresh ~1 s after a write may still read the old value."""
+    from custom_components.klipsch_flexus import api as api_mod
+
+    clock = _Clock()
+    monkeypatch.setattr(api_mod, "time", clock)
+    api.note_cached({"volume": 50})
+    clock.now += 1.0  # COMMAND_REFRESH_DELAY
+
+    def slow(path: str, **kwargs):
+        clock.now += 1  # the poll then runs ~40 s
+        return _on_value_for(volume=40)(path)
+
+    api.get_data = AsyncMock(side_effect=slow)
+    assert (await api.get_status())["volume"] == 50
 
 
 async def test_cached_credential_re_resolves_on_401(api: KlipschAPI) -> None:
@@ -689,7 +826,7 @@ def _on_with_edit(edit):
     base = _on_value_for(volume=20)
     calls = []
 
-    def value_for(path: str, timeout: float = 8, roles: str = "value"):
+    def value_for(path: str, timeout: float = 8, roles: str = "value", **_):
         if roles == "edit":
             calls.append(path)
             if isinstance(edit, Exception):

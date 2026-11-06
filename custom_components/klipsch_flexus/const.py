@@ -34,6 +34,17 @@ OPTIMISTIC_TTL = 5.0
 VOLUME_MAX_DEFAULT = 50
 VOLUME_MAX_PROBE_TRIES = 3  # stop probing if the firmware never reports it
 
+# A poll that started less than this after a write may have read the pre-write
+# value (COMMAND_REFRESH_DELAY plus the device's settle time), so the optimistic
+# value wins over it however long the poll takes (see KlipschAPI.note_cached).
+OPTIMISTIC_SETTLE = 2.0
+# Consecutive transport errors (timeouts / refused connections) that abort a full
+# poll and report the device offline instead of waiting out every remaining read.
+POLL_MAX_TRANSPORT_ERRORS = 2
+# Eager write-auth probes that end without an answer before giving up on eager
+# resolution (e.g. firmware without the HTTPS endpoint); a 401 still resolves lazily.
+EAGER_AUTH_MAX_ATTEMPTS = 3
+
 # API paths
 API_PATHS = {
     "volume": "player:volume",
