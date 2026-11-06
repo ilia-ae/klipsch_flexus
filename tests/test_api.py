@@ -594,6 +594,152 @@ async def test_close_session(api: KlipschAPI) -> None:
     mock_session.close.assert_called_once()
 
 
+async def test_no_new_session_after_close(api: KlipschAPI) -> None:
+    """A poll still running after unload must not open a fresh (leaked) session."""
+    await api.close()
+
+    with pytest.raises(RuntimeError, match="closed"):
+        await api._ensure_session()
+    assert api._session is None
+    assert await api.get_status() == {"online": False}  # fails fast, no new session
+    assert api._session is None
+
+
+# --- Eager write-auth probe (resolve_write_auth) --------------------------------
+
+
+async def test_resolve_write_auth_already_resolved(api: KlipschAPI) -> None:
+    from custom_components.klipsch_flexus.auth import KlipschAuth
+
+    api._auth = KlipschAuth("AA:BB:CC:DD:EE:FF", "192.168.1.100")
+    api._do_get_data = AsyncMock()
+
+    assert await api.resolve_write_auth() is True
+    api._do_get_data.assert_not_called()  # short-circuits, no device traffic
+
+
+async def test_resolve_write_auth_after_permanent_failure(api: KlipschAPI) -> None:
+    api._auth_failed = True
+    api._do_get_data = AsyncMock()
+
+    assert await api.resolve_write_auth() is False
+    api._do_get_data.assert_not_called()
+
+
+async def test_resolve_write_auth_read_failure(api: KlipschAPI) -> None:
+    api._do_get_data = AsyncMock(side_effect=TimeoutError())
+    api._session = _mock_session(_mock_response(), _mock_response())
+    api._own_session = False
+
+    assert await api.resolve_write_auth() is False
+    api._session.post.assert_not_called()
+
+
+async def test_resolve_write_auth_no_value(api: KlipschAPI) -> None:
+    api._do_get_data = AsyncMock(return_value=[])
+    api._session = _mock_session(_mock_response(), _mock_response())
+    api._own_session = False
+
+    assert await api.resolve_write_auth() is False
+    api._session.post.assert_not_called()
+
+
+async def test_resolve_write_auth_signed_success(api: KlipschAPI) -> None:
+    """The bass value just read is written back signed; the accepting MAC is cached."""
+    api._do_get_data = AsyncMock(return_value=[{"type": "i32_", "i32_": 2}])
+    api._session = _mock_session([_mock_response(status=401), _mock_response(text="OK")], _mock_response())
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])
+
+    assert await api.resolve_write_auth() is True
+    assert api.signing_mac == "AA:BB:CC:DD:EE:FD"  # first candidate 401, sibling accepted
+    posted = api._session.post.call_args_list[-1]
+    assert posted.args[0] == "https://192.168.1.100/api/setData"
+    assert json.loads(posted.kwargs["data"])["path"] == "cinema:cinemaBass"
+
+
+async def test_resolve_write_auth_signed_failure(api: KlipschAPI) -> None:
+    """Every candidate rejected (401) → not resolved, and the failure is latched."""
+    api._do_get_data = AsyncMock(return_value=[{"type": "i32_", "i32_": 2}])
+    api._session = _mock_session(_mock_response(status=401), _mock_response())
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FE"])
+
+    assert await api.resolve_write_auth() is False
+    assert api._auth is None
+    assert api._auth_failed is True
+
+
+async def test_resolve_write_auth_holds_lock_across_read_and_write_back(api: KlipschAPI) -> None:
+    """A user write issued mid-probe runs after the write-back, never before it
+    (otherwise the probe would restore the old bass value over the user's)."""
+    import asyncio
+
+    reading = asyncio.Event()
+    release = asyncio.Event()
+    order: list[str] = []
+
+    async def slow_read(path, timeout, roles="value"):
+        reading.set()
+        await release.wait()
+        return [{"type": "i32_", "i32_": 2}]
+
+    def post(url, **kwargs):
+        order.append("probe" if url.startswith("https://") else "user")
+        return _mock_response(text="OK")
+
+    api._do_get_data = slow_read
+    api._session = _mock_session(_mock_response(), _mock_response())
+    api._session.post = MagicMock(side_effect=post)
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FF"])
+
+    probe = asyncio.ensure_future(api.resolve_write_auth())
+    await reading.wait()
+    user = asyncio.ensure_future(api.set_volume(30))
+    await asyncio.sleep(0)
+    release.set()
+    await asyncio.gather(probe, user)
+
+    assert order == ["probe", "user"]
+
+
+async def test_unresolved_write_auth_warns_once(api: KlipschAPI, caplog) -> None:
+    """Repeated transient resolution failures log one WARNING, then debug only."""
+    import logging
+
+    api._do_get_data = AsyncMock(return_value=[{"type": "i32_", "i32_": 2}])
+    api._session = _mock_session(_mock_response(), _mock_response())
+    api._session.post = MagicMock(side_effect=TimeoutError())
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FF"])
+
+    with caplog.at_level(logging.DEBUG, logger="custom_components.klipsch_flexus.api"):
+        for _ in range(3):
+            assert await api.resolve_write_auth() is False
+    msgs = [r for r in caplog.records if "could not resolve write-auth" in r.getMessage()]
+    assert [r.levelno for r in msgs] == [logging.WARNING, logging.DEBUG, logging.DEBUG]
+
+
+def test_set_mac_seeds_keeps_credential_still_among_candidates(api: KlipschAPI) -> None:
+    """A seed source flapping (e.g. an ARP entry ageing out) keeps a resolved MAC
+    that is still a candidate; a MAC no longer among them is dropped."""
+    from custom_components.klipsch_flexus.auth import KlipschAuth
+
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FF", "AA:BB:CC:DD:EE:FE"])
+    api._auth = KlipschAuth("AA:BB:CC:DD:EE:FF", "192.168.1.100")
+
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FF"])
+    assert api.signing_mac == "AA:BB:CC:DD:EE:FF"
+
+    api.set_mac_seeds(["11:22:33:44:55:66"])
+    assert api._auth is None
+
+
 async def test_new_setters_payload_shapes(api: KlipschAPI) -> None:
     """Switch / LED / delay setters build the correct setData payloads."""
     calls: list[tuple] = []

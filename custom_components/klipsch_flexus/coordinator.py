@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import Any
@@ -17,6 +18,7 @@ from .const import (
     COMMAND_REFRESH_DELAY,
     CONF_DEVICE_MAC,
     DOMAIN,
+    EAGER_AUTH_MAX_ATTEMPTS,
     SCAN_INTERVAL_SECONDS,
     SCAN_INTERVAL_STANDBY,
 )
@@ -65,6 +67,11 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._net_interfaces: dict | None = None  # cached interface names
         self._seed_sources: dict = {}  # where each candidate MAC came from
         self._refresh_handles: set = set()  # pending delayed-refresh timers
+        self._auth_mode: str | None = None  # settings:/webserver/authMode, read once
+        self._eager_auth_attempts = 0  # fruitless eager write-auth probes
+        self._device_info_stale = False  # re-read eureka_info after standby → on
+        self._poll_task: asyncio.Future[dict[str, Any]] | None = None  # running poll
+        self._poll_again = False  # a refresh was requested while polling
 
     async def _gather_mac_seeds(self) -> list[str]:
         """Collect candidate MACs for the 2026 write-auth credential.
@@ -138,23 +145,101 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         Runs every poll until resolved — **including in standby** — so a turn_on
         from standby still has candidates and resolves the credential lazily on
-        the power command.
+        the power command. Once the credential is resolved — eagerly, or lazily
+        by a command — there is nothing left to seed.
         """
-        if not self._write_auth_ready:
-            self.api.set_mac_seeds(await self._gather_mac_seeds())
-
-    async def _eager_resolve_write_auth(self) -> None:
-        """Resolve the credential up front via an idempotent probe (device on)."""
         if self._write_auth_ready:
             return
+        if self.api.signing_mac is not None:
+            self._write_auth_ready = True
+            return
+        self.api.set_mac_seeds(await self._gather_mac_seeds())
+
+    async def _eager_resolve_write_auth(self) -> None:
+        """Resolve the credential up front via an idempotent probe (device on).
+
+        Skipped when the firmware doesn't gate writes (authMode ``none``, read
+        once), and given up after ``EAGER_AUTH_MAX_ATTEMPTS`` fruitless tries —
+        e.g. firmware without the HTTPS endpoint — so polls don't keep probing.
+        A gated (401) command still resolves the credential lazily.
+        """
+        if self._write_auth_ready or self._eager_auth_attempts >= EAGER_AUTH_MAX_ATTEMPTS:
+            return
+        if self._auth_mode is None:
+            try:
+                self._auth_mode = await self.api.get_auth_mode()
+            except Exception:  # noqa: BLE001
+                self._auth_mode = "unknown"
+        if self._auth_mode == "none":
+            return  # writes are open; nothing to sign
         try:
             if await self.api.resolve_write_auth():
                 self._write_auth_ready = True
                 _LOGGER.info("Klipsch write commands enabled (signing credential resolved)")
+                return
         except Exception:  # noqa: BLE001
             _LOGGER.debug("Klipsch: write-auth resolution attempt failed", exc_info=True)
+        self._eager_auth_attempts += 1
+        if self._eager_auth_attempts >= EAGER_AUTH_MAX_ATTEMPTS:
+            _LOGGER.debug("Klipsch: eager write-auth resolution stopped; the first gated command resolves it")
+
+    @callback
+    def _async_update_device_registry(self) -> None:
+        """Push the eureka name / firmware version to the device entry.
+
+        The media player reads eureka_info only when it is created, so a setup
+        in standby (no eureka yet) or a later firmware update would otherwise
+        leave the device with the generic name and a missing or stale
+        sw_version until a reload. A name the user set (``name_by_user``) still
+        wins in the UI.
+        """
+        if self.entry is None or not self.device_info:
+            return
+        reg = dr.async_get(self.hass)
+        device = reg.async_get_device(identifiers={(DOMAIN, self.entry.entry_id)})
+        if device is None:
+            return  # not registered yet — the media player will use device_info
+        changes: dict[str, str] = {}
+        name = self.device_info.get("name")
+        if name and name != device.name:
+            changes["name"] = name
+        sw_version = self.device_info.get("cast_build_revision")
+        if sw_version and sw_version != device.sw_version:
+            changes["sw_version"] = sw_version
+        if changes:
+            reg.async_update_device(device.id, **changes)
 
     async def _async_update_data(self) -> dict[str, Any]:
+        """Poll the device — one poll at a time.
+
+        A full poll (~40 sequential reads) outlasts the scan interval, and a
+        command's refresh (or a re-armed timer) can start another refresh
+        mid-poll. Two interleaved polls would double the load on the
+        single-threaded device, and the older one could publish pre-command
+        values. So a refresh arriving mid-poll joins the running poll, which
+        then runs exactly once more to pick up the command's effect.
+        """
+        if self._poll_task is not None and not self._poll_task.done():
+            self._poll_again = True
+            return await asyncio.shield(self._poll_task)
+        self._poll_again = False
+        task = asyncio.ensure_future(self._async_poll_with_follow_up())
+        self._poll_task = task
+        try:
+            return await task
+        finally:
+            if self._poll_task is task:
+                self._poll_task = None
+
+    async def _async_poll_with_follow_up(self) -> dict[str, Any]:
+        """Run one poll, plus one more if a refresh was requested meanwhile."""
+        status = await self._async_poll()
+        if self._poll_again:
+            self._poll_again = False
+            status = await self._async_poll()
+        return status
+
+    async def _async_poll(self) -> dict[str, Any]:
         try:
             status = await self.api.get_status()
         except Exception as err:
@@ -179,14 +264,23 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # In standby skip heavy fetches (player data, eureka_info, dirac)
         if is_standby:
+            # Re-read eureka_info once the bar is back on, so sw_version follows
+            # firmware updates (installed while in standby).
+            self._device_info_stale = self.device_info is not None
             return status
 
-        # Fetch device info once (eureka_info from Google Cast API)
-        if self.device_info is None:
+        # Fetch device info (eureka_info from Google Cast API) once, and again
+        # after each standby → on transition
+        if self.device_info is None or self._device_info_stale:
+            self._device_info_stale = False
             try:
-                self.device_info = await self.api.get_device_info()
+                info = await self.api.get_device_info()
             except Exception:
+                info = None
                 _LOGGER.debug("Failed to fetch device info from port 8008")
+            if info is not None:
+                self.device_info = info
+                self._async_update_device_registry()
 
         # Resolve the 2026 write-auth credential up front (idempotent probe, device on)
         await self._eager_resolve_write_auth()
@@ -222,7 +316,13 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         def _fire() -> None:
             self._refresh_handles.discard(handle)
-            self.hass.async_create_task(self.async_request_refresh())
+            if self.entry is not None:
+                # Tied to the entry, so unload cancels a refresh still running.
+                self.entry.async_create_background_task(
+                    self.hass, self.async_request_refresh(), name=f"{self.name} delayed refresh"
+                )
+            else:
+                self.hass.async_create_task(self.async_request_refresh())
 
         handle = self.hass.loop.call_later(delay, _fire)
         self._refresh_handles.add(handle)

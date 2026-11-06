@@ -52,6 +52,7 @@ class KlipschAPI:
         self._base = f"http://{host}:{port}"
         self._session = session
         self._own_session = session is None
+        self._closed = False  # set by close(); no new session afterwards
         self._lock = asyncio.Lock()
         self._last_status: dict = {}
         self._cache_seeded = False  # a full read has run (standby polls are cache-only)
@@ -76,12 +77,17 @@ class KlipschAPI:
         self._volume_max_tries = 0  # probes made; capped by VOLUME_MAX_PROBE_TRIES
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
+        if self._closed:
+            # Unloaded: a poll still running must not open a new session that
+            # nothing would ever close.
+            raise RuntimeError("Klipsch API client is closed")
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
             self._own_session = True
         return self._session
 
     async def close(self) -> None:
+        self._closed = True
         if self._own_session and self._session and not self._session.closed:
             await self._session.close()
 
@@ -228,12 +234,15 @@ class KlipschAPI:
         """Provide candidate MAC sources for write-auth (registry / ARP / option).
 
         The coordinator passes whatever MACs Home Assistant knows for the device.
-        New seeds reset any cached/failed auth so resolution re-runs against them.
+        New seeds reset a failed resolution so it re-runs against them; a resolved
+        credential is only dropped if its MAC is no longer among the candidates
+        (a flapping seed source must not force a fresh round of signed probes).
         """
         cleaned = [s for s in seeds if s]
         if set(cleaned) != set(self._mac_seeds):
             self._mac_seeds = cleaned
-            self._auth = None
+            if self._auth is not None and self._auth.mac not in expand_mac_candidates(cleaned):
+                self._auth = None
             self._auth_failed = False
 
     def _auth_error(self) -> HomeAssistantError:
@@ -398,22 +407,26 @@ class KlipschAPI:
         signed, trying candidates until the device accepts one — so the first real
         command succeeds immediately instead of probing then. No-op: the value
         written equals the value just read. Returns ``True`` if resolved.
+
+        The read and the write-back happen under one lock acquisition, so a
+        user's bass change can't land in between and be overwritten with the
+        old value.
         """
         if self._auth is not None:
             return True
         if self._auth_failed:
             return False
         path = API_PATHS["bass"]
-        try:
-            current = await self.get_data(path)
-        except Exception:  # noqa: BLE001
-            return False
-        value = current[0] if current else None
-        if value is None:
-            return False
         async with self._lock:
-            session = await self._ensure_session()
             try:
+                current = await self._do_get_data(path, API_TIMEOUT_READ)
+            except Exception:  # noqa: BLE001
+                return False
+            value = current[0] if current else None
+            if value is None:
+                return False
+            try:
+                session = await self._ensure_session()
                 await self._do_signed_set_data(session, path, value, "value", API_TIMEOUT_WRITE)
             except (TimeoutError, aiohttp.ClientError, OSError):
                 return False

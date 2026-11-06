@@ -41,5 +41,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         coordinator: KlipschCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         coordinator.cancel_pending_refreshes()
+        # Stop scheduled / debounced refreshes before the session goes away
+        # (HA does this itself only after async_unload_entry returns).
+        shutdown = getattr(coordinator, "async_shutdown", None)
+        if shutdown is not None:
+            await shutdown()
         await coordinator.api.close()
     return unload_ok
