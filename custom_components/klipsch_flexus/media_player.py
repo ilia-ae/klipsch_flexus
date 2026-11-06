@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .auth import ZERO_MAC, mac_to_colon
-from .const import DIRAC_OFF, DOMAIN, SOUND_MODES, SOURCES, SOURCES_REVERSE
+from .const import DIRAC_OFF, DOMAIN, SOUND_MODES, SOURCES, SOURCES_REVERSE, VOLUME_MAX_DEFAULT
 from .coordinator import KlipschCoordinator
 from .entity import KlipschEntity
 
@@ -188,7 +188,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        return data.get("volume", 0) / 50.0
+        return min(data.get("volume", 0) / self._volume_max(), 1.0)
 
     @property
     def is_volume_muted(self) -> bool | None:
@@ -306,8 +306,17 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
 
     # --- Commands with optimistic updates ---
 
+    def _volume_max(self) -> int:
+        """Device volume scale (0..max); 50 on Flexus soundbars, not 100."""
+        value = (self.coordinator.data or {}).get("volume_max")
+        return value if isinstance(value, int) and value > 0 else VOLUME_MAX_DEFAULT
+
+    def _volume_step(self) -> int:
+        """Volume up/down step: ~5% of the scale, at least 1 (2 of 50)."""
+        return max(1, self._volume_max() // 20)
+
     async def async_set_volume_level(self, volume: float) -> None:
-        level = round(volume * 50)
+        level = max(0, min(round(volume * self._volume_max()), self._volume_max()))
         await self.coordinator.api.set_volume(level)
         self._optimistic_update(volume=level)
         self.coordinator.async_request_delayed_refresh()
@@ -315,7 +324,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
     async def async_volume_up(self) -> None:
         data = self.coordinator.data or {}
         current = data.get("volume", 0)
-        new_level = min(current + 5, 50)
+        new_level = min(current + self._volume_step(), self._volume_max())
         await self.coordinator.api.set_volume(new_level)
         self._optimistic_update(volume=new_level)
         self.coordinator.async_request_delayed_refresh()
@@ -323,7 +332,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
     async def async_volume_down(self) -> None:
         data = self.coordinator.data or {}
         current = data.get("volume", 0)
-        new_level = max(current - 5, 0)
+        new_level = max(current - self._volume_step(), 0)
         await self.coordinator.api.set_volume(new_level)
         self._optimistic_update(volume=new_level)
         self.coordinator.async_request_delayed_refresh()

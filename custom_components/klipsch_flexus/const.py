@@ -28,6 +28,12 @@ COMMAND_REFRESH_DELAY = 1.0
 # polled device value takes over again (so external changes aren't masked for long).
 OPTIMISTIC_TTL = 5.0
 
+# Master volume scale. Flexus soundbars expose ``player:volume`` as 0..50 (not a
+# percentage); the real maximum is read from the node's ``edit`` metadata on the
+# first full poll and this is only the fallback (issue #22).
+VOLUME_MAX_DEFAULT = 50
+VOLUME_MAX_PROBE_TRIES = 3  # stop probing if the firmware never reports it
+
 # API paths
 API_PATHS = {
     "volume": "player:volume",

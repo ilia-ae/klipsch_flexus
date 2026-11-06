@@ -590,3 +590,59 @@ async def test_night_mode_conversion_roundtrips() -> None:
         assert NIGHT_MODE_FROM_API[NIGHT_MODE_TO_API[ui]] == ui
     # An unknown device value falls back to "off" (the get_status parser default).
     assert NIGHT_MODE_FROM_API.get("somethingElse", "off") == "off"
+
+
+# --- Volume range probe (issue #22) -------------------------------------------
+
+
+def _on_with_edit(edit):
+    """get_data stub: ON device whose player:volume ``edit`` role returns ``edit``."""
+    base = _on_value_for(volume=20)
+    calls = []
+
+    def value_for(path: str, timeout: float = 8, roles: str = "value"):
+        if roles == "edit":
+            calls.append(path)
+            if isinstance(edit, Exception):
+                raise edit
+            return edit
+        return base(path, timeout)
+
+    return value_for, calls
+
+
+async def test_volume_max_read_from_device(api: KlipschAPI) -> None:
+    stub, calls = _on_with_edit([{"type": "slider", "min": "0", "max": "50", "step": "1"}])
+    api.get_data = AsyncMock(side_effect=stub)
+    status = await api.get_status()
+    assert status["volume_max"] == 50
+    await api.get_status()
+    assert calls == ["player:volume"]  # probed once, then cached
+
+
+async def test_volume_max_custom_value(api: KlipschAPI) -> None:
+    stub, _ = _on_with_edit([{"type": "slider", "min": "0", "max": "80", "step": "1"}])
+    api.get_data = AsyncMock(side_effect=stub)
+    assert (await api.get_status())["volume_max"] == 80
+
+
+async def test_volume_max_falls_back_and_gives_up(api: KlipschAPI) -> None:
+    stub, calls = _on_with_edit(TimeoutError())
+    api.get_data = AsyncMock(side_effect=stub)
+    for _ in range(5):
+        status = await api.get_status()
+        assert status["online"] is True
+        assert status["volume_max"] == 50  # default kept
+    assert len(calls) == 3  # bounded number of probes
+
+
+async def test_volume_max_rejects_garbage(api: KlipschAPI) -> None:
+    stub, _ = _on_with_edit([{"type": "slider", "max": "0"}])
+    api.get_data = AsyncMock(side_effect=stub)
+    assert (await api.get_status())["volume_max"] == 50
+
+
+async def test_volume_max_carried_through_standby(api: KlipschAPI) -> None:
+    api.volume_max = 60
+    api.get_data = AsyncMock(return_value=[{"powerTarget": {"target": "networkStandby"}}])
+    assert (await api.get_status())["volume_max"] == 60

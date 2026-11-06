@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+from homeassistant.components.media_player import MediaPlayerState
 
 from custom_components.klipsch_flexus import media_player as mp_mod
 from custom_components.klipsch_flexus.media_player import KlipschMediaPlayer, _http_image_url
@@ -133,3 +135,67 @@ def test_device_info_skips_zero_mac():
 def test_device_info_registers_real_mac():
     player = _make_player_with_eureka({"mac_address": "34:3D:7F:00:2F:3E", "name": "Klipsch"})
     assert player._attr_device_info["connections"] == {("mac", "34:3d:7f:00:2f:3e")}
+
+
+# --- Volume scale (issue #22: device volume is 0..50, not a percentage) --------
+
+
+def _volume_player(monkeypatch, volume: int, volume_max: int | None = 50):
+    player, coordinator, _clock = _make_player(monkeypatch)
+    coordinator.data = {"online": True, "power": "on", "volume": volume}
+    if volume_max is not None:
+        coordinator.data["volume_max"] = volume_max
+    coordinator.api.set_volume = AsyncMock()
+    return player, coordinator
+
+
+def test_volume_level_uses_device_scale(monkeypatch):
+    player, _ = _volume_player(monkeypatch, volume=25)
+    assert player.volume_level == 0.5
+    player, _ = _volume_player(monkeypatch, volume=50)
+    assert player.volume_level == 1.0
+
+
+def test_volume_level_falls_back_to_50_without_range(monkeypatch):
+    player, _ = _volume_player(monkeypatch, volume=10, volume_max=None)
+    assert player.volume_level == 0.2
+
+
+def test_volume_level_follows_reported_max(monkeypatch):
+    player, _ = _volume_player(monkeypatch, volume=30, volume_max=60)
+    assert player.volume_level == 0.5
+
+
+def test_volume_level_clamped_to_one(monkeypatch):
+    player, _ = _volume_player(monkeypatch, volume=70)
+    assert player.volume_level == 1.0
+
+
+async def test_set_volume_level_maps_to_device_scale(monkeypatch):
+    player, coordinator = _volume_player(monkeypatch, volume=0)
+    await player.async_set_volume_level(0.5)
+    coordinator.api.set_volume.assert_awaited_once_with(25)
+    coordinator.api.set_volume.reset_mock()
+    await player.async_set_volume_level(1.0)
+    coordinator.api.set_volume.assert_awaited_once_with(50)
+
+
+async def test_volume_up_down_step_and_clamp(monkeypatch):
+    player, coordinator = _volume_player(monkeypatch, volume=49)
+    await player.async_volume_up()
+    coordinator.api.set_volume.assert_awaited_once_with(50)  # step 2, clamped at max
+
+    player, coordinator = _volume_player(monkeypatch, volume=20)
+    await player.async_volume_down()
+    coordinator.api.set_volume.assert_awaited_once_with(18)
+
+    player, coordinator = _volume_player(monkeypatch, volume=1)
+    await player.async_volume_down()
+    coordinator.api.set_volume.assert_awaited_once_with(0)
+
+
+def test_network_standby_reports_off(monkeypatch):
+    """STANDBY is removed from HA core; network standby must read as OFF (#25)."""
+    player, coordinator, _clock = _make_player(monkeypatch)
+    coordinator.data = {"online": True, "power": "networkStandby"}
+    assert player.state == MediaPlayerState.OFF

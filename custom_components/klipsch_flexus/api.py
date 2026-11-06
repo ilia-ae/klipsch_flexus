@@ -25,6 +25,8 @@ from .const import (
     NIGHT_MODE_FROM_API,
     NIGHT_MODE_TO_API,
     OPTIMISTIC_TTL,
+    VOLUME_MAX_DEFAULT,
+    VOLUME_MAX_PROBE_TRIES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,6 +62,9 @@ class KlipschAPI:
         # key -> monotonic expiry; values applied optimistically are shielded from
         # a racing full poll until they expire (see note_cached / _apply_optimistic).
         self._optimistic: dict[str, float] = {}
+        # Upper bound of player:volume, from the node's ``edit`` metadata.
+        self.volume_max: int = VOLUME_MAX_DEFAULT
+        self._volume_max_tries = 0  # probes made; capped by VOLUME_MAX_PROBE_TRIES
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -93,14 +98,16 @@ class KlipschAPI:
                 )
                 await asyncio.sleep(delay)
 
-    async def get_data(self, path: str, timeout: float = API_TIMEOUT_READ) -> list[dict[str, Any]]:
+    async def get_data(
+        self, path: str, timeout: float = API_TIMEOUT_READ, roles: str = "value"
+    ) -> list[dict[str, Any]]:
         """GET /api/getData — serialized via lock."""
         async with self._lock:
-            return await self._request_with_retry(lambda: self._do_get_data(path, timeout))
+            return await self._request_with_retry(lambda: self._do_get_data(path, timeout, roles))
 
-    async def _do_get_data(self, path: str, timeout: float) -> list[dict[str, Any]]:
+    async def _do_get_data(self, path: str, timeout: float, roles: str = "value") -> list[dict[str, Any]]:
         session = await self._ensure_session()
-        url = f"{self._base}/api/getData?path={quote(path, safe=':/')}&roles=value"
+        url = f"{self._base}/api/getData?path={quote(path, safe=':/')}&roles={roles}"
         t0 = time.monotonic()
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
@@ -562,7 +569,7 @@ class KlipschAPI:
 
         # ── Step 2: standby → return cached data, skip heavy polling ──
         if power == "networkStandby":
-            result: dict = {"online": True, "power": power}
+            result: dict = {"online": True, "power": power, "volume_max": self.volume_max}
             # Preserve all previously known values so sensors stay available
             for key in (*ALL_PARAMS, *SETTINGS_PARAMS):
                 cached = self._last_status.get(key)
@@ -605,6 +612,9 @@ class KlipschAPI:
                 if cached is not None:
                     result[key] = cached
 
+        await self._probe_volume_max()
+        result["volume_max"] = self.volume_max
+
         result["poll_time_ms"] = round((time.monotonic() - poll_start) * 1000)
         result["failed_params"] = fail_count
         # Don't let a poll that races the device applying a just-issued write
@@ -613,6 +623,27 @@ class KlipschAPI:
         self._apply_optimistic(result)
         self._last_status = result
         return result
+
+    async def _probe_volume_max(self) -> None:
+        """Read the volume slider's maximum from the node's ``edit`` metadata.
+
+        ``player:volume`` reports e.g. ``[{"type": "slider", "min": "0",
+        "max": "50", "step": "1"}]`` for ``roles=edit``. Done once (a few tries at
+        most) on a full poll; anything unexpected keeps :data:`VOLUME_MAX_DEFAULT`.
+        """
+        if self._volume_max_tries >= VOLUME_MAX_PROBE_TRIES:
+            return
+        self._volume_max_tries += 1
+        try:
+            edit = (await self.get_data(API_PATHS["volume"], roles="edit"))[0]
+            value = int(edit["max"])
+        except Exception as err:  # noqa: BLE001 — metadata is best-effort
+            _LOGGER.debug("Volume range not available (%s), using max %d", err, self.volume_max)
+            return
+        if 0 < value <= 1000:
+            self.volume_max = value
+            self._volume_max_tries = VOLUME_MAX_PROBE_TRIES  # done
+            _LOGGER.debug("Volume range: 0..%d", value)
 
     def _apply_optimistic(self, result: dict) -> None:
         """Override freshly-polled values with still-valid optimistic ones.
