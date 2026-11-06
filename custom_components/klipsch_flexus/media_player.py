@@ -79,7 +79,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         eureka = coordinator.device_info
         if eureka and eureka.get("name"):
             device_info["name"] = eureka["name"]
-        elif getattr(coordinator.registered_device(), "name", None) is None:
+        elif coordinator.registered_name is None:
             # Generic name for a new / unnamed device only: no eureka_info (setup
             # in standby) must not overwrite the name the registry already has.
             device_info["name"] = "Klipsch Flexus CORE 300"

@@ -73,6 +73,9 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._device_info_stale = False  # re-read eureka_info after standby → on
         self._poll_task: asyncio.Future[dict[str, Any]] | None = None  # running poll
         self._poll_again = False  # a refresh was requested while polling
+        # Device name from before this setup (the platforms register concurrently,
+        # so the media player can't tell a new device from an existing one later).
+        self.registered_name: str | None = getattr(self.registered_device(), "name", None)
 
     async def _gather_mac_seeds(self) -> list[str]:
         """Collect candidate MACs for the 2026 write-auth credential.
