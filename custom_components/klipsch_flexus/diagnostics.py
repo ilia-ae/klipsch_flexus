@@ -10,10 +10,32 @@ from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN
+from .const import CONF_DEVICE_MAC, DOMAIN
 from .coordinator import KlipschCoordinator
 
-TO_REDACT = {CONF_HOST}
+# Applied to the WHOLE output (diagnostics files get pasted into public issues).
+# The write credential is base64(MAC + a public constant), so every device MAC is
+# effectively the password; the hotspot BSSID geolocates the user's access point.
+# Interface *names* (wired_interface / wireless_interface = "eth0" / "wlan0")
+# are not identifiers and stay visible.
+TO_REDACT = {
+    CONF_HOST,
+    CONF_DEVICE_MAC,
+    # write_auth (api.signing_info)
+    "signing_mac",
+    "candidate_seeds",
+    "sample_authorization",
+    # network
+    "eureka_mac",
+    "mac_address",
+    "hotspot_bssid",
+    "registry_macs",
+    # MAC sources (coordinator._seed_sources)
+    "device_primary_mac",
+    "manual_option",
+    "device_registry",
+    "arp_table",
+}
 
 
 async def _network_info(hass: HomeAssistant, entry: ConfigEntry, coordinator: KlipschCoordinator) -> dict[str, Any]:
@@ -54,9 +76,10 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     coordinator: KlipschCoordinator = hass.data[DOMAIN][entry.entry_id]
     api = coordinator.api
 
-    # Deep probe: which write commands the firmware still accepts. Idempotent —
-    # reads each value and writes it straight back. On 2026+ firmware with
-    # authMode=setData, most commands report needs_auth=True.
+    # Command health: read-only (no write-backs, so it can't revert a user
+    # change or mislabel signed-OK commands) — readability plus the outcome of
+    # the real writes this session. On 2026+ firmware with authMode=setData,
+    # gated commands report needs_auth=True.
     try:
         command_health = await api.probe_command_health()
     except Exception as err:  # diagnostics must never raise
@@ -67,20 +90,30 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     except Exception as err:  # noqa: BLE001
         network = {"error": type(err).__name__}
 
-    return {
-        "entry": {
-            "data": async_redact_data(dict(entry.data), TO_REDACT),
-            "options": dict(entry.options),
+    write_auth = api.signing_info()  # no sample Authorization header (replayable)
+    # MACs are redacted below; keep the one fact write-auth debugging needs.
+    signing_mac = write_auth.get("signing_mac")
+    primary_mac = coordinator._seed_sources.get("device_primary_mac")
+    write_auth["signing_mac_matches_primary_mac"] = signing_mac is not None and signing_mac == primary_mac
+
+    return async_redact_data(
+        {
+            "entry": {
+                "data": dict(entry.data),
+                "options": dict(entry.options),
+            },
+            "device_status": coordinator.data or {},
+            "dirac_filters": coordinator.dirac_filters,
+            # 2026 write-auth: resolved?, candidates tried, gated paths (MACs redacted)
+            "write_auth": write_auth,
+            "network": network,
+            "mac_sources": coordinator._seed_sources,
+            "command_health": command_health,
+            "api_stats": {
+                "last_response_time_ms": api.last_response_time,
+                "total_requests": api.total_requests,
+                "failed_requests": api.failed_requests,
+            },
         },
-        "device_status": coordinator.data or {},
-        "dirac_filters": coordinator.dirac_filters,
-        # 2026 write-auth: resolved signing MAC, candidates tried, sample signature
-        "write_auth": api.signing_info(include_sample=True),
-        "network": network,
-        "command_health": command_health,
-        "api_stats": {
-            "last_response_time_ms": api.last_response_time,
-            "total_requests": api.total_requests,
-            "failed_requests": api.failed_requests,
-        },
-    }
+        TO_REDACT,
+    )

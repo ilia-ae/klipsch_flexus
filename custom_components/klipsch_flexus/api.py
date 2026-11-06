@@ -479,50 +479,52 @@ class KlipschAPI:
             return "unknown"
 
     async def probe_command_health(self) -> dict:
-        """Deep diagnostic: report which write commands the firmware accepts.
+        """Deep diagnostic: report the state of every write command.
 
-        For every command path it reads the current value and writes the same
-        value straight back — an idempotent no-op — recording the HTTP status.
-        ``200`` means the command is alive; ``401`` means the firmware now
-        blocks it (auth required). Power is probed read-only since it has no
-        safe no-op. Nothing is changed on the device.
+        **Read-only.** It used to write each value straight back unsigned, which
+        on 2026 firmware labelled every signed-OK command as blocked (401) and
+        could revert a change the user made during the slow probe. Now, per
+        command, it checks the node is readable and reports what the *real*
+        writes this session saw (through the signed path where needed):
+        ``http_status`` / ``alive`` of the last write (``None`` = not written
+        yet, or no answer) and ``needs_auth`` (the device asked for a signature).
+        Nothing is written to the device.
         """
-        # (key, roles) — only value-roles paths have a safe idempotent write-back.
         probes = [
-            ("volume", "value"),
-            ("mute", "value"),
-            ("input", "value"),
-            ("mode", "value"),
-            ("night", "value"),
-            ("dialog", "value"),
-            ("bass", "value"),
-            ("mid", "value"),
-            ("treble", "value"),
-            ("eq_preset", "value"),
-            ("dirac", "value"),
-            ("sub_wired", "value"),
-            ("sub_wireless", "value"),
+            "volume",
+            "mute",
+            "input",
+            "mode",
+            "night",
+            "dialog",
+            "bass",
+            "mid",
+            "treble",
+            "eq_preset",
+            "dirac",
+            "sub_wired",
+            "sub_wireless",
         ]
 
-        report: dict = {"auth_mode": await self.get_auth_mode(), "commands": {}}
+        report: dict = {"auth_mode": await self.get_auth_mode(), "probe": "read-only", "commands": {}}
 
-        for key, roles in probes:
+        for key in probes:
             path = API_PATHS[key]
+            status = self._last_write_status.get(path)
+            entry: dict = {
+                "alive": None if status is None else status < 400,
+                "http_status": status,
+                "needs_auth": path in self._auth_required_paths,
+            }
             try:
                 current = await self.get_data(path)
-                value = current[0] if current else None
+                entry["readable"] = bool(current)
+                if not current:
+                    entry["detail"] = "no value returned"
             except Exception as err:
-                report["commands"][key] = {"alive": False, "detail": f"read failed: {type(err).__name__}"}
-                continue
-            if value is None:
-                report["commands"][key] = {"alive": False, "detail": "no value returned"}
-                continue
-            status = await self._probe_set_status(path, value, roles)
-            report["commands"][key] = {
-                "alive": status is not None and status < 400,
-                "http_status": status,
-                "needs_auth": status in (401, 403),
-            }
+                entry["readable"] = False
+                entry["detail"] = f"read failed: {type(err).__name__}"
+            report["commands"][key] = entry
 
         # Power: read-only probe (no safe idempotent write).
         try:
@@ -533,21 +535,6 @@ class KlipschAPI:
             report["commands"]["power"] = {"alive": None, "readable": False, "detail": type(err).__name__}
 
         return report
-
-    async def _probe_set_status(self, path: str, value: dict, roles: str) -> int | None:
-        """Write a value back and return the HTTP status (no retry, no raise)."""
-        async with self._lock:
-            try:
-                session = await self._ensure_session()
-                payload = {"path": path, "roles": roles, "value": value}
-                async with session.post(
-                    f"{self._base}/api/setData",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=API_TIMEOUT_WRITE),
-                ) as resp:
-                    return resp.status
-            except (TimeoutError, aiohttp.ClientError, OSError):
-                return None
 
     async def get_rows(self, path: str) -> dict:
         """GET /api/getRows — serialized via lock."""

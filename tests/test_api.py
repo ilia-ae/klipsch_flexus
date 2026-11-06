@@ -552,32 +552,53 @@ async def test_set_data_timeouts_do_not_latch_auth_failed(api: KlipschAPI) -> No
 
 
 async def test_probe_command_health(api: KlipschAPI) -> None:
-    """Test deep diagnostic: alive vs auth-blocked commands (2026 firmware)."""
+    """Deep diagnostic (2026 firmware): read-only, and it reports the outcome of
+    the real writes — signed-OK commands are alive, not 'needs auth → dead'."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    api._session = _mock_session(
+        [
+            _mock_response(),  # volume: open, unsigned 200
+            _mock_response(status=401),  # input: gated ...
+            _mock_response(),  # ... signed 200 (credential resolved)
+            _mock_response(status=401),  # dirac: gated ...
+            _mock_response(status=500, text="bad filter"),  # ... signed, command failed
+        ],
+        _mock_response(),
+    )
+    api._own_session = False
+    api.get_device_info = AsyncMock(return_value=None)
+    api.set_mac_seeds(["AA:BB:CC:DD:EE:FF"])
+    await api.set_volume(20)
+    await api.set_input("hdmi1")
+    with pytest.raises(HomeAssistantError):
+        await api.set_dirac(99)
 
     async def mock_get_data(path, timeout=8, **_):
         if "authMode" in path:
             return [{"type": "webserverAuthMode", "webserverAuthMode": "setData"}]
         if "powermanager" in path:
             return [{"powerTarget": {"target": "online"}}]
+        if "mediaPlayer/mute" in path:
+            raise TimeoutError()
         return [{"type": "i32_", "i32_": 0}]
 
-    async def mock_probe_set_status(path, value, roles):
-        # Firmware keeps volume/mute open, blocks everything else with 401.
-        if path in ("player:volume", "settings:/mediaPlayer/mute"):
-            return 200
-        return 401
-
     api.get_data = mock_get_data
-    api._probe_set_status = mock_probe_set_status
+    api._session.post.reset_mock()
 
     report = await api.probe_command_health()
 
+    api._session.post.assert_not_called()  # nothing is written by the probe
+    cmds = report["commands"]
     assert report["auth_mode"] == "setData"
-    assert report["commands"]["volume"]["alive"] is True
-    assert report["commands"]["mute"]["alive"] is True
-    assert report["commands"]["bass"]["alive"] is False
-    assert report["commands"]["bass"]["needs_auth"] is True
-    assert report["commands"]["dirac"]["http_status"] == 401
+    assert cmds["volume"] == {"alive": True, "http_status": 200, "needs_auth": False, "readable": True}
+    assert cmds["input"] == {"alive": True, "http_status": 200, "needs_auth": True, "readable": True}
+    assert cmds["dirac"]["alive"] is False
+    assert cmds["dirac"]["http_status"] == 500
+    assert cmds["bass"]["alive"] is None  # not written this session
+    assert cmds["bass"]["readable"] is True
+    assert cmds["mute"]["readable"] is False
+    assert cmds["mute"]["detail"] == "read failed: TimeoutError"
     # Power is probed read-only (no safe no-op write)
     assert report["commands"]["power"]["readable"] is True
     assert report["commands"]["power"]["current_target"] == "online"
