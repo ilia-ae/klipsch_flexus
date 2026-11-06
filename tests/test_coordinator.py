@@ -51,6 +51,7 @@ async def test_adaptive_interval_slows_in_standby(hass) -> None:
     status = await coordinator._async_update_data()
 
     assert status["power"] == "networkStandby"
+    api.get_status.assert_awaited_once_with(seed_standby=True)  # first poll may seed the cache
     assert coordinator.update_interval == timedelta(seconds=SCAN_INTERVAL_STANDBY)
     api.set_mac_seeds.assert_called_once()  # seeds still refreshed so turn_on works
     api.get_device_info.assert_not_called()  # heavy fetch skipped in standby
@@ -140,7 +141,7 @@ async def test_refresh_mid_poll_joins_and_polls_once_more(hass) -> None:
     max_running = 0
     polls = 0
 
-    async def slow_status():
+    async def slow_status(**_):
         nonlocal running, max_running, polls
         polls += 1
         running += 1
@@ -174,7 +175,7 @@ async def test_poll_error_propagates_to_joiners(hass) -> None:
     api = _make_api("online")
     release = asyncio.Event()
 
-    async def failing_status():
+    async def failing_status(**_):
         await release.wait()
         raise TimeoutError
 

@@ -247,7 +247,8 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_poll(self) -> dict[str, Any]:
         try:
-            status = await self.api.get_status()
+            # seed_standby: a first poll in standby reads everything once
+            status = await self.api.get_status(seed_standby=True)
         except Exception as err:
             raise UpdateFailed(f"Error communicating with Klipsch: {err}") from err
 

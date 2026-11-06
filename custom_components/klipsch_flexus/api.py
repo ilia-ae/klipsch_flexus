@@ -549,14 +549,16 @@ class KlipschAPI:
 
     # --- Status polling with graceful degradation ---
 
-    async def get_status(self) -> dict:
+    async def get_status(self, seed_standby: bool = False) -> dict:
         """Poll device status. Individual failures fall back to last-known values.
 
         When the soundbar is in standby (networkStandby), only the power state
         is polled — the device is very slow to respond in this mode, so we skip
         all other parameters and keep cached values. This prevents response-time
         spikes (up to 40 s) and sensor unavailability during standby. The one
-        exception is the first poll after setup, which seeds the empty cache.
+        exception, with ``seed_standby`` (the coordinator), is the first poll
+        after setup, which seeds the empty cache. A one-shot caller such as the
+        config flow leaves it off and gets the quick power-only answer.
 
         If the device stops answering mid-poll (``POLL_MAX_TRANSPORT_ERRORS``
         transport errors in a row), the poll is cut short and reports offline.
@@ -629,7 +631,7 @@ class KlipschAPI:
         # the cache is seeded once with a full read, then standby stays light.
         keys = (*ALL_PARAMS, *SETTINGS_PARAMS)
         standby = power == "networkStandby"
-        if standby and self._cache_seeded:
+        if standby and (self._cache_seeded or not seed_standby):
             return self._standby_status(power, poll_start, keys)
 
         # ── Step 3: device is ON (or the one-off standby seed) → full poll ──

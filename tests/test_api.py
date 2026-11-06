@@ -163,7 +163,6 @@ async def test_get_status_standby_lightweight_poll(api: KlipschAPI) -> None:
         "input": "hdmiarc",
         "mode": "movie",
     }
-    api._cache_seeded = True
 
     async def mock_get_data(path, timeout=8, **_):
         nonlocal call_count
@@ -209,7 +208,7 @@ async def test_get_status_standby_first_poll_seeds_cache(api: KlipschAPI) -> Non
         return [{"i32_": 21, "bool_": True, "cinemaLEDMode": "bright"}]
 
     api.get_data = mock_get_data
-    result = await api.get_status()
+    result = await api.get_status(seed_standby=True)
 
     assert result["online"] is True
     assert result["power"] == "networkStandby"
@@ -219,9 +218,26 @@ async def test_get_status_standby_first_poll_seeds_cache(api: KlipschAPI) -> Non
     assert "input" not in result  # never read → stays absent (unknown), no default
 
     paths.clear()
-    second = await api.get_status()
+    second = await api.get_status(seed_standby=True)
     assert paths == ["powermanager:target"]  # back to the lightweight poll
     assert second["volume"] == 21  # seeded value carried by the cache
+
+
+async def test_get_status_standby_no_seed_for_one_shot_callers(api: KlipschAPI) -> None:
+    """Without ``seed_standby`` (config flow) a standby poll stays power-only,
+    even with an empty cache — keys are simply absent."""
+
+    async def mock_get_data(path, timeout=8, **_):
+        if "powermanager" in path:
+            return [{"powerTarget": {"target": "networkStandby"}}]
+        raise AssertionError(f"Unexpected poll: {path}")
+
+    api.get_data = mock_get_data
+    result = await api.get_status()
+
+    assert result["online"] is True
+    assert result["power"] == "networkStandby"
+    assert "volume" not in result
 
 
 async def test_get_status_standby_seed_failure_is_not_offline(api: KlipschAPI) -> None:
@@ -236,14 +252,14 @@ async def test_get_status_standby_seed_failure_is_not_offline(api: KlipschAPI) -
         raise TimeoutError()
 
     api.get_data = mock_get_data
-    result = await api.get_status()
+    result = await api.get_status(seed_standby=True)
 
     assert result["online"] is True
     assert result["power"] == "networkStandby"
     assert "volume" not in result
 
     paths.clear()
-    await api.get_status()
+    await api.get_status(seed_standby=True)
     assert paths == ["powermanager:target"]
 
 
@@ -816,7 +832,6 @@ async def test_note_cached_survives_standby_poll(api: KlipschAPI) -> None:
     """A value applied while the bar is in standby must not be reverted by the
     cache-only standby poll (regression: optimistic write getting clobbered)."""
     api._last_status = {"mode": "movie", "led_mode": "dim"}
-    api._cache_seeded = True  # seen ON before → no seeding read
     # Device reports standby → get_status takes the cache-only branch
     api.get_data = AsyncMock(return_value=[{"powerTarget": {"target": "networkStandby"}}])
 
