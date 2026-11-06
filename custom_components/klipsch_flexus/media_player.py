@@ -11,11 +11,21 @@ from homeassistant.components.media_player import (
     MediaType,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_MODEL
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .auth import ZERO_MAC, mac_to_colon
-from .const import DIRAC_OFF, DOMAIN, SOUND_MODES, SOURCES, SOURCES_REVERSE, VOLUME_MAX_DEFAULT
+from .const import (
+    DIRAC_OFF,
+    DOMAIN,
+    SELECTABLE_SOURCES,
+    SOUND_MODES,
+    SOURCES,
+    SOURCES_REVERSE,
+    VOLUME_MAX_DEFAULT,
+)
 from .coordinator import KlipschCoordinator
 from .entity import KlipschEntity
 
@@ -62,7 +72,8 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "Klipsch Flexus CORE 300",
             "manufacturer": "Klipsch",
-            "model": "Flexus CORE 300",
+            # Model from discovery (Cast TXT 'md'), if the entry was discovered
+            "model": entry.data.get(CONF_MODEL) or "Flexus CORE 300",
             "configuration_url": f"http://{host}",
         }
         # Enrich from eureka_info (Google Cast API, port 8008)
@@ -79,7 +90,7 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
             if colon and colon != ZERO_MAC:
                 device_info["connections"] = {("mac", colon.lower())}
         self._attr_device_info = device_info
-        self._attr_source_list = list(SOURCES.values())
+        self._attr_source_list = [SOURCES[key] for key in SELECTABLE_SOURCES]
         self._attr_sound_mode_list = SOUND_MODES
         # Media position tracking (API has no position, only duration)
         self._position: int = 0  # seconds
@@ -188,19 +199,24 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        return min(data.get("volume", 0) / self._volume_max(), 1.0)
+        volume = data.get("volume")
+        if volume is None:
+            return None  # not read yet (e.g. HA started while the bar was in standby)
+        return min(volume / self._volume_max(), 1.0)
 
     @property
     def is_volume_muted(self) -> bool | None:
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        return data.get("muted", False)
+        return data.get("muted")
 
     @property
     def source(self) -> str | None:
         data = self.coordinator.data or {}
-        raw = data.get("input", "unknown")
+        raw = data.get("input")
+        if raw is None:
+            return None
         return SOURCES.get(raw, raw)
 
     @property
@@ -272,29 +288,30 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return {}
+        # Values not read yet (e.g. HA started while the bar was in standby) are None
         attrs = {
             # Audio processing
-            "decoder": data.get("decoder", "unknown"),
-            "eq_preset": data.get("eq_preset", "unknown"),
-            "night_mode": data.get("night_mode", "off"),
-            "dialog_mode": data.get("dialog_mode", "off"),
+            "decoder": data.get("decoder"),
+            "eq_preset": data.get("eq_preset"),
+            "night_mode": data.get("night_mode"),
+            "dialog_mode": data.get("dialog_mode"),
             # Surround channels
-            "back_height": data.get("back_height", 0),
-            "back_left": data.get("back_left", 0),
-            "back_right": data.get("back_right", 0),
-            "front_height": data.get("front_height", 0),
-            "side_left": data.get("side_left", 0),
-            "side_right": data.get("side_right", 0),
+            "back_height": data.get("back_height"),
+            "back_left": data.get("back_left"),
+            "back_right": data.get("back_right"),
+            "front_height": data.get("front_height"),
+            "side_left": data.get("side_left"),
+            "side_right": data.get("side_right"),
             # Subwoofers. The CORE 300's two subs are both wireless, so the
             # firmware's "wired"/"wireless" volume nodes are surfaced as Wireless
             # 1/2 (matching the number-entity translations) — intentional mapping,
             # not a copy/paste slip.
-            "sub_wireless_1": data.get("sub_wired", 0),
-            "sub_wireless_2": data.get("sub_wireless", 0),
+            "sub_wireless_1": data.get("sub_wired"),
+            "sub_wireless_2": data.get("sub_wireless"),
             # Tone
-            "bass": data.get("bass", 0),
-            "mid": data.get("mid", 0),
-            "treble": data.get("treble", 0),
+            "bass": data.get("bass"),
+            "mid": data.get("mid"),
+            "treble": data.get("treble"),
             # Dirac
             "dirac_filter": self._dirac_filter_name(),
         }
@@ -321,18 +338,21 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
         self._optimistic_update(volume=level)
         self.coordinator.async_request_delayed_refresh()
 
+    def _current_volume(self) -> int:
+        """Last read device volume — refuse to step from a made-up level."""
+        current = (self.coordinator.data or {}).get("volume")
+        if current is None:
+            raise HomeAssistantError("Klipsch Flexus volume is not known yet; set a level instead of stepping")
+        return current
+
     async def async_volume_up(self) -> None:
-        data = self.coordinator.data or {}
-        current = data.get("volume", 0)
-        new_level = min(current + self._volume_step(), self._volume_max())
+        new_level = min(self._current_volume() + self._volume_step(), self._volume_max())
         await self.coordinator.api.set_volume(new_level)
         self._optimistic_update(volume=new_level)
         self.coordinator.async_request_delayed_refresh()
 
     async def async_volume_down(self) -> None:
-        data = self.coordinator.data or {}
-        current = data.get("volume", 0)
-        new_level = max(current - self._volume_step(), 0)
+        new_level = max(self._current_volume() - self._volume_step(), 0)
         await self.coordinator.api.set_volume(new_level)
         self._optimistic_update(volume=new_level)
         self.coordinator.async_request_delayed_refresh()

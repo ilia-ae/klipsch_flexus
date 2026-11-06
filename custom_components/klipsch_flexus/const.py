@@ -1,5 +1,7 @@
 """Constants for Klipsch Flexus integration."""
 
+from homeassistant.const import UnitOfTime
+
 DOMAIN = "klipsch_flexus"
 SCAN_INTERVAL_SECONDS = 15
 SCAN_INTERVAL_STANDBY = 60  # slower polling when soundbar is in standby
@@ -102,21 +104,25 @@ SWITCHES = [
 ]
 
 # Writable settings numbers — (key, icon, unit, min, max, step, value-type, mode).
+# Ranges and units follow each node's ``edit`` / ``valueUnit`` metadata on the device.
 # Speaker delays are auto-calibrated (device rejects writes) and are read-only below.
 CONFIG_NUMBERS = [
-    ("lipsync_delay", "mdi:av-timer", "ms", 0, 300, 5, "i32_", "box"),
-    ("balance", "mdi:scale-balance", None, -10, 10, 0.5, "double_", "slider"),
-    ("idle_timeout", "mdi:timer-sand", "s", 0, 3600, 30, "i32_", "box"),
+    ("lipsync_delay", "mdi:av-timer", UnitOfTime.MILLISECONDS, 0, 500, 1, "i32_", "box"),
+    ("balance", "mdi:scale-balance", "dB", -10, 10, 0.5, "double_", "slider"),
 ]
+
+# Idle timeout (settings:/system/maxIdleTime) is an enum on the device, not a free
+# number: option (translation key) → seconds, as listed by maxIdleTimeValues.
+IDLE_TIMEOUTS = {"off": 0, "5_min": 300, "10_min": 600, "15_min": 900, "30_min": 1800}
 
 # Read-only info sensors — (key, icon, unit). Settings that are not user-modifiable
 # or unsafe to control (operating/retail mode, speaker test, auto-calibrated delays).
 INFO_SENSORS = [
     ("operating_mode", "mdi:cog", None),
     ("speaker_test", "mdi:speaker-multiple", None),
-    ("sub_wired_delay", "mdi:timer-outline", "µs"),
-    ("sub_wireless_delay", "mdi:timer-outline", "µs"),
-    ("surround_delay", "mdi:timer-outline", "µs"),
+    ("sub_wired_delay", "mdi:timer-outline", UnitOfTime.MICROSECONDS),
+    ("sub_wireless_delay", "mdi:timer-outline", UnitOfTime.MICROSECONDS),
+    ("surround_delay", "mdi:timer-outline", UnitOfTime.MICROSECONDS),
 ]
 
 # LED brightness options (the field accepts free strings; these are the standard set)
@@ -124,6 +130,9 @@ LED_MODES = ["off", "dim", "bright"]
 
 # Channel levels — surround speakers, subwoofers, then tone controls
 # Display names are handled by translations (entity.number.<key>.name)
+CHANNEL_LEVEL_RANGE = (-6, 6)  # dB, step 1 — surround channels and tone
+# Per-key exceptions to CHANNEL_LEVEL_RANGE (device edit metadata: subwoofers -12..+6)
+CHANNEL_LEVEL_RANGES = {"sub_wired": (-12, 6), "sub_wireless": (-12, 6)}
 CHANNEL_LEVELS = [
     # Surround channels (Dolby Atmos)
     ("back_height", "mdi:speaker"),
@@ -141,15 +150,24 @@ CHANNEL_LEVELS = [
     ("treble", "mdi:music-clef-treble"),
 ]
 
-# Source list (input names → display names)
+# Input enum (cinema:/external/physicalAudioInput/inputs) → display names. Covers
+# every value the device can report, so the active input always has a name.
 SOURCES = {
     "hdmiarc": "TV ARC",
     "hdmi1": "HDMI",
     "spdif": "SPDIF",
     "bluetooth": "Bluetooth",
+    "usbdevice": "USB",
     "googlecast": "Google Cast",
-    "airplay": "AirPlay",
+    "spotify": "Spotify Connect",
+    "tidal": "TIDAL Connect",
+    "qplay": "QPlay",
+    "dirac": "Dirac",
 }
+# Inputs a user can switch to from HA (the media player's source list). Spotify /
+# TIDAL / QPlay are entered by their streaming apps and "dirac" by room calibration;
+# USB stays out until switching to it is confirmed on a device.
+SELECTABLE_SOURCES = ["hdmiarc", "hdmi1", "spdif", "bluetooth", "googlecast"]
 SOURCES_REVERSE = {v: k for k, v in SOURCES.items()}
 
 # Sound modes
@@ -166,6 +184,8 @@ DIALOG_MODES = ["off", "dialog_1", "dialog_2", "dialog_3"]
 
 # EQ Presets
 EQ_PRESETS = ["flat", "bass", "rock", "vocal"]
+# Reported (never written) once bass/mid/treble change or a curve is set in the app
+EQ_PRESET_CUSTOM = "custom"
 
 # Dirac filters (discovered dynamically, but defaults)
 DIRAC_OFF = -1

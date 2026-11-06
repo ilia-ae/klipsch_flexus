@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from homeassistant.components.media_player import MediaPlayerState
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.klipsch_flexus import media_player as mp_mod
 from custom_components.klipsch_flexus.media_player import KlipschMediaPlayer, _http_image_url
@@ -192,6 +194,58 @@ async def test_volume_up_down_step_and_clamp(monkeypatch):
     player, coordinator = _volume_player(monkeypatch, volume=1)
     await player.async_volume_down()
     coordinator.api.set_volume.assert_awaited_once_with(0)
+
+
+def test_unread_values_are_none(monkeypatch):
+    """Right after a restart in standby nothing but power is known: no invented
+    volume 0 / unmuted / 'unknown' source."""
+    player, coordinator, _clock = _make_player(monkeypatch)
+    coordinator.data = {"online": True, "power": "networkStandby", "volume_max": 50}
+    assert player.volume_level is None
+    assert player.is_volume_muted is None
+    assert player.source is None
+    assert player.extra_state_attributes["bass"] is None
+
+
+@pytest.mark.parametrize("step", ["async_volume_up", "async_volume_down"])
+async def test_volume_step_refuses_unknown_volume(monkeypatch, step):
+    """Stepping needs the real current level; never step from a made-up 0."""
+    player, coordinator, _clock = _make_player(monkeypatch)
+    coordinator.data = {"online": True, "power": "networkStandby"}
+    coordinator.api.set_volume = AsyncMock()
+    with pytest.raises(HomeAssistantError):
+        await getattr(player, step)()
+    coordinator.api.set_volume.assert_not_awaited()
+
+
+def test_source_list_and_names(monkeypatch):
+    player, coordinator, _clock = _make_player(monkeypatch)
+    # Only inputs a user can pick; no AirPlay (not a device input).
+    assert player.source_list == ["TV ARC", "HDMI", "SPDIF", "Bluetooth", "Google Cast"]
+    # Every device input still gets a display name when it is active.
+    coordinator.data = {"online": True, "input": "spotify"}
+    assert player.source == "Spotify Connect"
+    coordinator.data = {"online": True, "input": "usbdevice"}
+    assert player.source == "USB"
+
+
+async def test_select_source_writes_device_value(monkeypatch):
+    player, coordinator, _clock = _make_player(monkeypatch)
+    coordinator.data = {"online": True}
+    coordinator.api.set_input = AsyncMock()
+    await player.async_select_source("TV ARC")
+    coordinator.api.set_input.assert_awaited_once_with("hdmiarc")
+
+
+def test_device_info_model_from_discovery():
+    coordinator = MagicMock()
+    coordinator.device_info = None
+    entry = MagicMock()
+    entry.entry_id = "e1"
+    entry.data = {"host": "1.2.3.4", "model": "Flexus Core 200"}
+    assert KlipschMediaPlayer(coordinator, entry)._attr_device_info["model"] == "Flexus Core 200"
+    entry.data = {"host": "1.2.3.4"}
+    assert KlipschMediaPlayer(coordinator, entry)._attr_device_info["model"] == "Flexus CORE 300"
 
 
 def test_network_standby_reports_off(monkeypatch):

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Klipsch Flexus",
-        "description": "Enter the IP address of your Klipsch Flexus CORE 300 soundbar.\n\nThe soundbar must first be fully set up in the Klipsch Connect Plus app — complete the entire onboarding at least once. On 2026 firmware this provisions the credential the integration needs to send commands.",
+        "description": "Enter the IP address of your Klipsch Flexus soundbar.\n\nThe soundbar must first be fully set up in the Klipsch Connect Plus app — complete the entire onboarding at least once. On 2026 firmware this provisions the credential the integration needs to send commands.",
         "data": {
           "host": "IP Address"
         }
@@ -26,7 +26,9 @@
     "abort": {
       "already_configured": "This device is already configured.",
       "not_klipsch_device": "Not a Klipsch Flexus device.",
-      "wrong_device": "That IP belongs to a different soundbar than the one you're reconfiguring."
+      "wrong_device": "That IP belongs to a different soundbar than the one you're reconfiguring.",
+      "reconfigure_successful": "Reconfiguration was successful.",
+      "already_in_progress": "Configuration is already in progress."
     }
   },
   "options": {
@@ -70,7 +72,8 @@
           "flat": "Flat",
           "bass": "Bass",
           "rock": "Rock",
-          "vocal": "Vocal"
+          "vocal": "Vocal",
+          "custom": "Custom"
         }
       },
       "dirac": {
@@ -82,6 +85,16 @@
           "off": "Off",
           "dim": "Dim",
           "bright": "Bright"
+        }
+      },
+      "idle_timeout": {
+        "name": "6. Idle Timeout",
+        "state": {
+          "off": "Off",
+          "5_min": "5 minutes",
+          "10_min": "10 minutes",
+          "15_min": "15 minutes",
+          "30_min": "30 minutes"
         }
       }
     },
@@ -124,9 +137,6 @@
       },
       "balance": {
         "name": "Balance"
-      },
-      "idle_timeout": {
-        "name": "Idle Timeout"
       }
     },
     "sensor": {
@@ -148,8 +158,12 @@
           "hdmi1": "HDMI",
           "spdif": "SPDIF",
           "bluetooth": "Bluetooth",
+          "usbdevice": "USB",
           "googlecast": "Google Cast",
-          "airplay": "AirPlay"
+          "spotify": "Spotify Connect",
+          "tidal": "TIDAL Connect",
+          "qplay": "QPlay",
+          "dirac": "Dirac"
         }
       },
       "active_sound_mode": {
