@@ -15,3 +15,9 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    ignore:
+      # Pinned exactly by pytest-homeassistant-custom-component; bumping them
+      # on their own can never resolve.
+      - dependency-name: "pytest"
+      - dependency-name: "pytest-asyncio"
+      - dependency-name: "homeassistant"

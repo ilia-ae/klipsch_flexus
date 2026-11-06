@@ -1,0 +1,5 @@
+# Kept outside the repo root so Dependabot does not bump it.
+# Oldest supported Home Assistant (hacs.json "homeassistant": 2024.11.0), Python 3.12.
+pytest-homeassistant-custom-component==0.13.181
+josepy<2  # acme in HA 2024.11 breaks with josepy 2.x
+zeroconf  # not pulled in by this phcc; needed by the zeroconf component in tests
