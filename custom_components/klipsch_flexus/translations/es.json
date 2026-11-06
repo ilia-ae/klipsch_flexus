@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Klipsch Flexus",
-        "description": "Introduzca la dirección IP de su barra de sonido Klipsch Flexus CORE 300.\n\nLa barra de sonido debe configurarse primero por completo en la aplicación Klipsch Connect Plus — complete todo el proceso al menos una vez. En el firmware de 2026 esto genera la credencial que la integración necesita para enviar comandos.",
+        "description": "Introduzca la dirección IP de su barra de sonido Klipsch Flexus.\n\nLa barra de sonido debe configurarse primero por completo en la aplicación Klipsch Connect Plus — complete todo el proceso al menos una vez. En el firmware de 2026 esto genera la credencial que la integración necesita para enviar comandos.",
         "data": {
           "host": "Dirección IP"
         }
@@ -26,7 +26,9 @@
     "abort": {
       "already_configured": "Este dispositivo ya está configurado.",
       "not_klipsch_device": "No es un dispositivo Klipsch Flexus.",
-      "wrong_device": "Esa IP pertenece a una barra de sonido diferente de la que estás reconfigurando."
+      "wrong_device": "Esa IP pertenece a una barra de sonido diferente de la que estás reconfigurando.",
+      "reconfigure_successful": "La reconfiguración se realizó correctamente.",
+      "already_in_progress": "La configuración ya está en curso."
     }
   },
   "options": {
@@ -70,7 +72,8 @@
           "flat": "Plano",
           "bass": "Graves",
           "rock": "Rock",
-          "vocal": "Vocal"
+          "vocal": "Vocal",
+          "custom": "Personalizado"
         }
       },
       "dirac": {
@@ -82,6 +85,16 @@
           "off": "Apagado",
           "dim": "Tenue",
           "bright": "Brillante"
+        }
+      },
+      "idle_timeout": {
+        "name": "6. Tiempo de inactividad",
+        "state": {
+          "off": "Apagado",
+          "5_min": "5 minutos",
+          "10_min": "10 minutos",
+          "15_min": "15 minutos",
+          "30_min": "30 minutos"
         }
       }
     },
@@ -124,9 +137,6 @@
       },
       "balance": {
         "name": "Balance"
-      },
-      "idle_timeout": {
-        "name": "Tiempo de inactividad"
       }
     },
     "sensor": {
@@ -148,8 +158,12 @@
           "hdmi1": "HDMI",
           "spdif": "SPDIF",
           "bluetooth": "Bluetooth",
+          "usbdevice": "USB",
           "googlecast": "Google Cast",
-          "airplay": "AirPlay"
+          "spotify": "Spotify Connect",
+          "tidal": "TIDAL Connect",
+          "qplay": "QPlay",
+          "dirac": "Dirac"
         }
       },
       "active_sound_mode": {

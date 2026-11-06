@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Klipsch Flexus",
-        "description": "Введите IP-адрес саундбара Klipsch Flexus CORE 300.\n\nСначала полностью настройте саундбар в приложении Klipsch Connect Plus — пройдите весь процесс настройки хотя бы один раз. На прошивке 2026 года именно это создаёт учётные данные, которые нужны интеграции для отправки команд.",
+        "description": "Введите IP-адрес саундбара Klipsch Flexus.\n\nСначала полностью настройте саундбар в приложении Klipsch Connect Plus — пройдите весь процесс настройки хотя бы один раз. На прошивке 2026 года именно это создаёт учётные данные, которые нужны интеграции для отправки команд.",
         "data": {
           "host": "IP-адрес"
         }
@@ -26,7 +26,9 @@
     "abort": {
       "already_configured": "Это устройство уже настроено.",
       "not_klipsch_device": "Это не устройство Klipsch Flexus.",
-      "wrong_device": "Этот IP принадлежит другой звуковой панели, а не той, что вы перенастраиваете."
+      "wrong_device": "Этот IP принадлежит другой звуковой панели, а не той, что вы перенастраиваете.",
+      "reconfigure_successful": "Перенастройка выполнена успешно.",
+      "already_in_progress": "Настройка уже выполняется."
     }
   },
   "options": {
@@ -70,7 +72,8 @@
           "flat": "Плоский",
           "bass": "Бас",
           "rock": "Рок",
-          "vocal": "Вокал"
+          "vocal": "Вокал",
+          "custom": "Пользовательский"
         }
       },
       "dirac": {
@@ -82,6 +85,16 @@
           "off": "Выкл",
           "dim": "Тускло",
           "bright": "Ярко"
+        }
+      },
+      "idle_timeout": {
+        "name": "6. Таймаут простоя",
+        "state": {
+          "off": "Выкл",
+          "5_min": "5 минут",
+          "10_min": "10 минут",
+          "15_min": "15 минут",
+          "30_min": "30 минут"
         }
       }
     },
@@ -124,9 +137,6 @@
       },
       "balance": {
         "name": "Баланс Л/П"
-      },
-      "idle_timeout": {
-        "name": "Таймаут простоя"
       }
     },
     "sensor": {
@@ -148,8 +158,12 @@
           "hdmi1": "HDMI",
           "spdif": "SPDIF",
           "bluetooth": "Bluetooth",
+          "usbdevice": "USB",
           "googlecast": "Google Cast",
-          "airplay": "AirPlay"
+          "spotify": "Spotify Connect",
+          "tidal": "TIDAL Connect",
+          "qplay": "QPlay",
+          "dirac": "Dirac"
         }
       },
       "active_sound_mode": {

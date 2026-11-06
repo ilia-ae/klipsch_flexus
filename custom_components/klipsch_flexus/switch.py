@@ -34,7 +34,8 @@ class KlipschSwitch(KlipschControllableEntity, SwitchEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        return bool(data.get(self._key, False))
+        value = data.get(self._key)
+        return None if value is None else bool(value)  # None until the setting has been read
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._set(True)

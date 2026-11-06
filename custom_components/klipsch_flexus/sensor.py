@@ -89,11 +89,12 @@ class KlipschStatusSensor(KlipschEntity, SensorEntity):
             "failed_params": data.get("failed_params", 0),
             "poll_time_ms": data.get("poll_time_ms"),
         }
-        # Player info if available
+        # Player info if available (same payload paths the media player reads)
         player = data.get("player")
         if player and isinstance(player, dict):
-            attrs["media_title"] = player.get("title", "")
-            attrs["media_artist"] = player.get("artist", "")
+            track = player.get("trackRoles", {})
+            attrs["media_title"] = track.get("title", "")
+            attrs["media_artist"] = track.get("mediaData", {}).get("metaData", {}).get("artist", "")
         return attrs
 
 
@@ -122,7 +123,10 @@ class KlipschInputSensor(KlipschEntity, SensorEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        return data.get("input")
+        # ENUM sensors must report one of their options (HA raises otherwise), so
+        # an input outside the device enum (or the parser's "unknown") is None.
+        value = data.get("input")
+        return value if value in self.options else None
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -156,7 +160,8 @@ class KlipschSoundModeSensor(KlipschEntity, SensorEntity):
         data = self.coordinator.data or {}
         if not data.get("online"):
             return None
-        return data.get("mode")
+        value = data.get("mode")
+        return value if value in self.options else None  # ENUM: never an unlisted value
 
 
 class KlipschSigningMacSensor(KlipschEntity, SensorEntity):
