@@ -226,6 +226,7 @@ O Klipsch Flexus tem um **servidor HTTP single-thread** que processa uma requisi
 | Atualizações lentas | Aumente o intervalo de consulta em Opções |
 | Comandos além de volume/mudo falham | Verifique o sensor de diagnóstico **MAC de assinatura**. Se ele não mostrar um MAC resolvido (ou mostrar um errado), informe o MAC da soundbar como **MAC do dispositivo** em Opções |
 | Integração não carrega | Verifique os logs do HA por erros de importação. Requer HA 2024.11+ |
+| Logo invisível no tema escuro | Atualize para v2.5.19+ e reinicie o HA. O ícone para o tema escuro vem com a integração e requer HA 2026.3+; versões anteriores mostram o ícone preto do site de marcas do HA |
 
 ## Limitações conhecidas
 
