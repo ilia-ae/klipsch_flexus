@@ -71,6 +71,6 @@
     "molecule-images": ["make", "-s", "molecule-images"]
   },
   "not_required": {
-    "hacs": "The HACS action (ghcr.io/hacs/action) validates the repository as GitHub serves it - description, topics, issues, archived flag, releases and the files at a pushed ref, all fetched through the GitHub API - and never reads the local checkout. It cannot attest an unpushed commit, and its result depends on mutable repository settings rather than on the commit, so it is not evidence for a commit. Run 'make hacs REF=<pushed ref>' after pushing and before a release."
+    "hacs": "The HACS action (ghcr.io/hacs/action) validates the repository as GitHub serves it - description, topics, issues, archived flag, releases and the files at a pushed ref, all fetched through the GitHub API - and never reads the local checkout. It cannot attest an unpushed commit, and its result depends on mutable repository settings rather than on the commit, so it is not evidence for a commit. GitHub runs it on pushed commits (.github/workflows/validate.yaml, same image digest, no repository code); 'make hacs REF=<pushed ref>' runs it by hand."
   }
 }

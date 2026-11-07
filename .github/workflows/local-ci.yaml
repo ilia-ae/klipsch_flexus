@@ -10,9 +10,9 @@
 #   which only the owner can push; the verifier also requires that commit to
 #   be signed by an allowed signer.
 # - pull_request: the workflow file and verifier come from the PR merge commit,
-#   so for a fork PR this result is advisory only (read-only token, no
-#   secrets). The owner runs `make ci-pr PR=<n>`, which dispatches this
-#   workflow on main.
+#   so the PR controls this result: it is advisory only, named
+#   "Verify signed local CI (advisory)" (read-only token, no secrets). The
+#   owner runs `make ci-pr PR=<n>`, which dispatches this workflow on main.
 # - workflow_dispatch (main only): the verifier comes from github.workflow_sha
 #   on main, and the result is published as the commit status
 #   local-ci/verified on the target commit.
@@ -45,7 +45,10 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify signed local CI
+    # The PR run is labelled advisory: its workflow file and verifier come from
+    # the PR itself, so it must never be the required check. Require the commit
+    # status local-ci/verified (source: GitHub Actions) instead.
+    name: ${{ github.event_name == 'pull_request' && 'Verify signed local CI (advisory)' || 'Verify signed local CI' }}
     if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

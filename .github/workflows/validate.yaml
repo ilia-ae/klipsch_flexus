@@ -1,0 +1,41 @@
+# HACS validation of the repository as GitHub serves it. HACS asks every
+# repository in its default list to run it (hacs.xyz/docs/publish/include).
+# It runs no repository code and checks out nothing: the pinned HACS image
+# (the same digest as `make hacs`, Makefile HACS_IMAGE) reads the repository's
+# metadata, releases and files at the pushed commit through the GitHub API with
+# a read-only token. That is verification of pushed state, not CI, so it is not
+# part of the signed local CI policy (docs/TESTING.md, "HACS validation").
+# Keep the digest here and HACS_IMAGE in the Makefile in step.
+name: HACS validation
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Validate with the pinned HACS image
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_REF: ${{ github.sha }}
+          IMAGE: ghcr.io/hacs/action@sha256:187499a09c5d41f9f0d42ff80d203ed87b974c028290140913b61e005fb0aab2
+        run: |
+          echo "HACS validation of $REPOSITORY@$REPOSITORY_REF with $IMAGE"
+          docker run --rm -e INPUT_GITHUB_TOKEN -e REPOSITORY -e REPOSITORY_REF -e CATEGORY=integration "$IMAGE"

@@ -13,7 +13,8 @@ All CI runs on the owner's Mac. GitHub only verifies the result
   publish  attach the signed evidence as a git note in refs/notes/local-ci and
            push only that ref; --dispatch also asks GitHub to verify the commit
   pr       test a pull request head in a temporary worktree with this
-           (trusted) runner, then sign, publish and dispatch verification
+           (trusted) runner and the PR's own freshly built tooling, then sign,
+           publish and dispatch verification (not a sandbox: review first)
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ import hashlib
 import importlib.util
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -46,23 +48,60 @@ Rejected = V.Rejected
 
 STATE_DIR = ".local-ci"
 SIGN_TIMEOUT = 60
-# Untracked files here could change what the steps test, so they make the tree dirty.
-SOURCE_PATHS = (
-    "custom_components/",
-    "tests/",
-    "ansible/",
-    ".ci/",
-    "scripts/",
-    "tools/",
-    "mk/",
-    ".github/",
-    "Makefile",
-    "pyproject.toml",
-    "requirements_test.txt",
-    "hacs.json",
+# Ignored paths a clean checkout may hold: local tooling, caches and the state
+# of this runner. Any other ignored file (a GNUmakefile, pytest.ini, conftest.py
+# hidden by a global excludes file, ...) could change what a step does without
+# changing the commit, so it makes the tree dirty, like any untracked file.
+IGNORED_OK = (
+    ".venv",  # .venv, .venv-test, .venv-testmin (directories or symlinks)
+    ".local-ci/",
+    ".molecule/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".claude/",
+    ".reverse/",
+    ".coverage",
+    "ansible/collections",
 )
-# Shared with a pull request worktree so its steps find the same tooling.
-SHARED_UNTRACKED = (".venv", ".venv-test", ".venv-testmin", "ansible/collections")
+IGNORED_OK_NAMES = ("__pycache__", ".DS_Store")
+# The only variables a step inherits. Everything else (MAKEFLAGS carrying
+# `make ci UVX=true`, MOLECULE, MOLECULE_ARGS, IMAGES, PYTHON, ANSIBLE_*,
+# tokens, SSH_AUTH_SOCK) could change what a step does, or hand it credentials,
+# without changing its recorded command.
+STEP_ENV = (
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "TMPDIR",
+    "TERM",
+    "LANG",
+    "DOCKER_HOST",
+    "DOCKER_CONTEXT",
+    "DOCKER_CONFIG",
+    "DOCKER_CERT_PATH",
+    "DOCKER_TLS_VERIFY",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "__CF_USER_TEXT_ENCODING",
+)
+# A pull request whose changes all match these needs no CONFIRM: integration
+# code, test modules and documentation. Anything else (a conftest.py, any
+# makefile, pyproject.toml, requirements, .ci/, scripts/, ansible/, .github/,
+# lint configuration, a new top-level file) can change what the policy's steps
+# do, so the owner must review it and pass CONFIRM=1.
+PR_ROUTINE = (
+    r"custom_components/klipsch_flexus/(?:[a-z0-9_]+\.py|[a-z0-9_]+\.json|translations/[a-z_-]+\.json|brand/[a-z0-9_@]+\.png)",
+    r"tests/test_[a-z0-9_]+\.py",
+    r"(?:README|CHANGELOG)\.md|docs/[A-Za-z0-9_./-]+\.(?:md|png|svg)",
+)
 
 
 class Failure(Exception):
@@ -93,9 +132,15 @@ def resolve(root: Path, rev: str) -> str:
     return git_text(root, "rev-parse", "--verify", f"{rev}^{{commit}}")
 
 
+def _ignored_ok(path: str) -> bool:
+    if any(part in IGNORED_OK_NAMES for part in path.rstrip("/").split("/")):
+        return True
+    return any(path == p or path.startswith(p) for p in IGNORED_OK)
+
+
 def dirty_paths(root: Path) -> list[str]:
-    """Tracked changes anywhere, plus untracked files under the source paths."""
-    raw = git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all").stdout.decode()
+    """Tracked changes, untracked files and unexpected ignored files, anywhere."""
+    raw = git(root, "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--ignored=matching").stdout.decode()
     entries = raw.split("\0")
     dirty, index = [], 0
     while index < len(entries):
@@ -106,17 +151,26 @@ def dirty_paths(root: Path) -> list[str]:
         code, path = entry[:2], entry[3:]
         if code[0] in "RC":
             index += 1  # -z puts the rename source in the next entry
-        if code == "??" and not any(path == p or path.startswith(p) for p in SOURCE_PATHS):
+        if code == "!!" and _ignored_ok(path):
             continue
         dirty.append(f"{code} {path}")
     return dirty
+
+
+def step_env(sha: str) -> dict:
+    env = {name: value for name, value in os.environ.items() if name in STEP_ENV or name.startswith("LC_")}
+    env.update(LOCAL_CI="1", LOCAL_CI_SHA=sha)
+    return env
 
 
 def require_clean(root: Path) -> None:
     dirty = dirty_paths(root)
     if dirty:
         listing = "\n  ".join(dirty[:20])
-        raise Failure(f"refusing to run on a dirty tree; commit or stash first:\n  {listing}")
+        raise Failure(
+            "refusing to run on a dirty tree; commit, stash or delete these first "
+            f"(ignored files count too, except local tooling and caches):\n  {listing}"
+        )
 
 
 def allowed_signers_text(root: Path) -> str:
@@ -234,7 +288,7 @@ def run(root: Path, state_root: Path, *, external: bool = False) -> int:
     out = state_dir(state_root, sha)
     shutil.rmtree(out, ignore_errors=True)
     (out / "logs").mkdir(parents=True)
-    env = {**os.environ, "LOCAL_CI": "1", "LOCAL_CI_SHA": sha}
+    env = step_env(sha)
     steps = policy["steps"]
     results = []
     say(f"local CI for {sha} ({len(steps)} steps); logs in {out / 'logs'}")
@@ -411,6 +465,21 @@ def publish(root: Path, state_root: Path, sha: str, *, remote: str, dispatch: bo
     return 0
 
 
+def machinery_changes(paths: list[str]) -> list[str]:
+    """The changed paths that are not routine (PR_ROUTINE): they need CONFIRM."""
+    return [
+        path
+        for path in paths
+        if path.rsplit("/", 1)[-1] == "conftest.py" or not any(re.fullmatch(pattern, path) for pattern in PR_ROUTINE)
+    ]
+
+
+# Recreated in the pull request worktree from ITS requirement files, never
+# linked to the owner's: PR code must not write into the venvs that later
+# owner-signed runs use, and evidence must describe the PR's own pins.
+PR_TOOLING = ("venv-test", "venv-testmin", "venv", "collections")
+
+
 def pull_request(root: Path, number: int, *, remote: str, confirm: bool) -> int:
     """Test someone else's PR head with THIS runner; its steps still run the PR's code."""
     sha = (
@@ -430,21 +499,27 @@ def pull_request(root: Path, number: int, *, remote: str, confirm: bool) -> int:
     if resolve(root, "FETCH_HEAD") != sha:
         raise Failure(f"PR #{number} moved while fetching; retry")
     base = git_text(root, "merge-base", f"{remote}/main", sha)
-    touched = git_text(root, "diff", "--name-only", base, sha, "--", ".ci", "scripts", "Makefile", "mk", ".github")
-    if touched and not confirm:
+    changed = [line for line in git_text(root, "diff", "--name-only", "--no-renames", base, sha).splitlines() if line]
+    say(f"PR #{number} head {sha} changes {len(changed)} file(s):\n  " + "\n  ".join(changed))
+    machinery = machinery_changes(changed)
+    if machinery and not confirm:
         raise Failure(
-            f"PR #{number} changes CI machinery:\n  {touched.replace(chr(10), chr(10) + '  ')}\nreview it, then rerun with CONFIRM=1"
+            f"PR #{number} changes files that can alter what the CI steps do:\n  "
+            + "\n  ".join(machinery)
+            + "\nreview them, then rerun with CONFIRM=1"
         )
-    say(f"PR #{number} head {sha}: its tests run on this Mac; review the diff first")
+    say(
+        f"PR #{number}: its code (tests, integration, and with CONFIRM its Makefile and tooling) runs on this "
+        "Mac as you, with a scrubbed environment but your files and keys within reach; review the diff first"
+    )
     worktree = Path(tempfile.mkdtemp(prefix=f"klipsch-flexus-pr{number}-"))
     worktree.rmdir()
     git(root, "worktree", "add", "--detach", "--quiet", str(worktree), sha)
     try:
-        for name in SHARED_UNTRACKED:
-            source, target = root / name, worktree / name
-            if source.exists() and not target.exists():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.symlink_to(source)
+        command = ["make", *PR_TOOLING]
+        say(f"building the PR's own tooling: {' '.join(command)}")
+        if subprocess.run(command, cwd=worktree, env=step_env(sha), stdin=subprocess.DEVNULL, check=False).returncode:
+            raise Failure(f"{' '.join(command)} failed in {worktree}")
         code = run(worktree, root, external=True)
         if code != 0:
             return code
@@ -470,7 +545,9 @@ def main(argv: list[str] | None = None) -> int:
     pr = commands.add_parser("pr", help="run, sign, publish and dispatch verification for a pull request head")
     pr.add_argument("--number", type=int, required=True)
     pr.add_argument("--remote", default="origin")
-    pr.add_argument("--confirm", action="store_true", help="the PR changes CI machinery and you reviewed it")
+    pr.add_argument(
+        "--confirm", action="store_true", help="the PR changes files outside PR_ROUTINE and you reviewed them"
+    )
     args = parser.parse_args(argv)
 
     try:

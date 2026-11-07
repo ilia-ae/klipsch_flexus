@@ -251,7 +251,7 @@ Thank you to everyone who has reported issues and sent fixes:
 
 Issues and pull requests are welcome — see the [full contributor list](https://github.com/ilia-ae/klipsch_flexus/graphs/contributors).
 
-**Testing and CI**: all tests run locally (pytest on the current and the oldest supported Home Assistant, hassfest, ruff, Molecule); GitHub only verifies signed evidence of that run (the *Verify signed local CI* badge). See [docs/TESTING.md](docs/TESTING.md#local-ci-and-signed-evidence) and [CONTRIBUTING.md](CONTRIBUTING.md) — a pull request's check stays red until the maintainer has tested it locally.
+**Testing and CI**: all tests run locally (pytest on the current and the oldest supported Home Assistant, hassfest, ruff, Molecule); GitHub only verifies signed evidence of that run (the *Verify signed local CI* badge). See [docs/TESTING.md](docs/TESTING.md#local-ci-and-signed-evidence) and [CONTRIBUTING.md](CONTRIBUTING.md). For a pull request, only the `local-ci/verified` commit status counts (set after the maintainer has tested it locally); the PR's own *Verify signed local CI (advisory)* run is controlled by the PR and means nothing on its own.
 
 ## License
 

@@ -44,8 +44,10 @@ make molecule-list                                           # every scenario
 
 `make venv` creates `.venv` from `requirements-dev.txt` (pinned ansible-core, ansible-lint,
 molecule, molecule-plugins[docker], yamllint). `make collections` installs the pinned collections
-of `ansible/requirements.yml` into `ansible/collections`. Both directories are gitignored; in a git
-worktree run both targets there (or symlink them from the main checkout, never commit the links).
+of `ansible/requirements.yml` into `ansible/collections`. Both compare what is installed with the
+committed pins (`scripts/check_pins.py`), not file times, and reinstall only on a difference.
+Both directories are gitignored; in a git worktree run both targets there (or symlink them from
+the main checkout, never commit the links).
 
 `molecule-scenarios` runs one full `molecule test` per scenario (create, prepare, converge,
 idempotence, verify, destroy), one at a time because the Docker VM is shared, and prints a summary.
@@ -70,7 +72,7 @@ result: `scripts/molecule.sh` waits until `docker info` answers and reruns that 
 | Path | What it is |
 |---|---|
 | `ansible/roles/klipsch_flexus_install` | Installs `custom_components/klipsch_flexus` like HACS: a full replace of `/config/custom_components/klipsch_flexus` from a source tree on the controller (this checkout, or an older release from `git archive`), compared by content (files that Home Assistant compiles into `__pycache__` are ignored). Only when something changed it restarts Home Assistant through the image's s6 supervisor (`s6-svc -h`: SIGHUP is Home Assistant's "restart", exit code 100 keeps the container up) and waits until the new process answers. A second run reports `changed=0` and does not restart. |
-| `ansible/roles/flexus_stub` | A fake Klipsch Flexus (Python stdlib) supervised by s6 next to Home Assistant, on loopback `127.0.0.2` (ports 80 and 8008). It serves `getData` (value and edit roles), `getRows` (`dirac:filters`), `setData` (POST, `authMode` `none`; the legacy GET answers 405 like 2026 firmware) and `eureka_info` from the non-secret `files/fixture.json` (MAC `02:00:00:00:00:01`, a locally administered documentation address; `eureka_info` reports the all-zero MAC as 2026 firmware does). Every write is recorded in `/var/lib/flexus-stub/writes.jsonl`; a read of a path the fixture does not know answers 404 and is recorded in `unknown_paths.jsonl`. |
+| `ansible/roles/flexus_stub` | A fake Klipsch Flexus (Python stdlib) supervised by s6 next to Home Assistant, on loopback `127.0.0.2` (ports 80 and 8008). It serves `getData` (value and edit roles), `getRows` (`dirac:filters`), `setData` (POST, `authMode` `none`; the legacy GET answers 405 like 2026 firmware) and `eureka_info` from the non-secret `files/fixture.json` (MAC `02:00:00:00:00:01`, a locally administered documentation address; `eureka_info` reports the all-zero MAC as 2026 firmware does). Every write is recorded in `/var/lib/flexus-stub/writes.jsonl`; a read of a path the fixture does not know answers 404 and is recorded in `unknown_paths.jsonl`. Not emulated: the 2026 firmware's write authentication (see below). |
 | `ansible/molecule/resources` | Shared playbook tasks, variables and `ha_api.py`, a small REST/WebSocket client that runs inside the container with the image's Python: onboarding of a test owner (`/api/onboarding/users` -> auth code -> `/auth/token` -> long-lived token), REST and WebSocket calls, image hashes. |
 | `scripts/molecule.sh`, `mk/ansible.mk` | The runner behind the make targets (sequential runs, summary, cleanup, Docker-restart rerun). |
 
@@ -79,6 +81,15 @@ Docker runs the host's architecture natively, so every scenario runs natively on
 on an amd64 host alike. They are the `molecule` step of the local CI below.
 
 ### What each scenario proves
+
+**Not covered: the 2026 firmware's signed writes.** Real 2026 firmware reports `authMode`
+`setData` and answers 401 to every unsigned write except volume and mute; the integration then
+resolves the device MAC (`primaryMacAddress`, then the registry) and retries with an
+`HMAC_SHA256_AES256`-signed POST over HTTPS. The stub reports `authMode` `none`, has no HTTPS
+endpoint and accepts every unsigned write, so the integration never takes that path here, and the
+"writes reach the stub" checks below would still pass if signed writes were broken. That path is
+covered only by the pytest suite (`tests/test_auth.py` known answers, the 401/oracle/signed-retry
+tests in `tests/test_api.py`), against mocked HTTP.
 
 **`klipsch_flexus_install/fresh`** (Home Assistant 2026.10.4): a new HACS user.
 
@@ -139,14 +150,24 @@ the owner signed evidence of a passing local run for the exact commit.
 `make ci` runs `scripts/local_ci.py run` and then `scripts/local_ci.py sign`.
 Both scripts use only the Python standard library and run with `python3 -I`.
 
-1. **Refuse unclean input.** The run stops if a tracked file has changed anywhere,
-   or if an untracked file sits under `custom_components/`, `tests/`, `ansible/`,
-   `.ci/`, `scripts/`, `tools/`, `mk/` or `.github/` (or is `Makefile`,
-   `pyproject.toml`, `requirements_test.txt` or `hacs.json`). It also stops if
-   `HEAD` is not signed by an allowed signer for `code@ilia.ae` (`git commit -S`).
+1. **Refuse unclean input.** The run stops if a tracked file has changed, if any
+   untracked file exists anywhere, or if an ignored file exists other than local
+   tooling and caches (`.venv*`, `ansible/collections`, `.local-ci/`,
+   `.molecule/`, `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`, `.DS_Store`,
+   `.coverage`, `.claude/`, `.reverse/`; `IGNORED_OK` in `scripts/local_ci.py`).
+   A stray `GNUmakefile`, `pytest.ini`, `conftest.py` or `ruff.toml` would change
+   what the steps do without changing the commit. It also stops if `HEAD` is not
+   signed by an allowed signer for `code@ilia.ae` (`git commit -S`).
 2. **Run every step** of [`.ci/local-ci.json`](../.ci/local-ci.json) as it is at
    `HEAD`, in order. A failing step does not stop the run. Each step's log goes to
-   `.local-ci/<sha>/logs/<step>.log` (gitignored).
+   `.local-ci/<sha>/logs/<step>.log` (gitignored). Steps get an allow-listed
+   environment (`PATH`, `HOME`, `USER`, `TMPDIR`, locale, Docker and proxy
+   settings; `STEP_ENV` in `scripts/local_ci.py`), so `make ci UVX=true` (via
+   `MAKEFLAGS`), a leftover `MOLECULE_ARGS`, `IMAGES` or `PYTHON`, tokens and
+   `SSH_AUTH_SOCK` never reach a step. The pytest steps first check that their venv
+   has exactly what the committed requirements file pins (`scripts/check_pins.py`);
+   after a Dependabot bump they fail with `stale .venv-test: run make venv-test`
+   instead of testing, and signing, the previous Home Assistant.
 
    | Step | Command | What it checks |
    | --- | --- | --- |
@@ -239,11 +260,12 @@ target commit, in a separate job with `statuses: write`. Every other job has
   and only the owner can push. The verifier also requires that commit to be
   owner-signed.
 - **Pull requests**: GitHub takes the workflow file and the verifier from the PR
-  merge commit. For a fork PR, that is the contributor's code. The PR check is
-  therefore advisory: it has a read-only token and no secrets. The authoritative
-  result is a dispatch on `main`, which runs the verifier from `main`
-  (`github.workflow_sha`) and sets `local-ci/verified`. A dispatch from any
-  other ref is skipped.
+  merge commit, so the PR controls that run (it could simply `exit 0`). It is
+  therefore named **Verify signed local CI (advisory)** and means nothing on its
+  own; it has a read-only token and no secrets. The authoritative result is a
+  dispatch on `main`, which runs the verifier from `main` (`github.workflow_sha`)
+  and sets the commit status `local-ci/verified` on the PR head. A dispatch from
+  any other ref is skipped. Fork PR tokens cannot write commit statuses.
 - **Releases** ([release.yaml](../.github/workflows/release.yaml)): the workflow
   checks that the tag equals the `manifest.json` version. It runs the same
   verifier for the tag's commit, and also requires the tag to be an annotated
@@ -252,8 +274,12 @@ target commit, in a separate job with `statuses: write`. Every other job has
 
 One-time setup for the owner: put the allowed signers in the repository variable
 `LOCAL_CI_ALLOWED_SIGNERS`, for example with
-`gh variable set LOCAL_CI_ALLOWED_SIGNERS < ~/.ssh/allowed_signers`. Then make
-**Verify signed local CI** a required check for `main`.
+`gh variable set LOCAL_CI_ALLOWED_SIGNERS < ~/.ssh/allowed_signers`. If you
+protect `main` with required checks, require the commit status
+**`local-ci/verified`** with **GitHub Actions** as its expected source. Do not
+require the job **Verify signed local CI**: on a pull request the only check run
+with a matching name would come from the PR's own workflow file. The owner's
+signed pushes to `main` are verified by the push run of the same workflow.
 
 ### Releases
 
@@ -268,24 +294,43 @@ git push origin main vx.y.z
 ### Pull requests and Dependabot
 
 Pull request commits are not owner-signed and carry no evidence, so
-**Verify signed local CI** fails on them at first. That is expected. After
-reviewing the PR:
+**Verify signed local CI (advisory)** fails on them at first. That is expected,
+and that run is advisory anyway; `local-ci/verified` is what counts. Dependabot
+PRs change requirement files or `.github/`, so they always need `CONFIRM=1`
+after you have read the bump. After reviewing the PR:
 
 ```bash
-make ci-pr PR=<number>             # CONFIRM=1 if the PR touches .ci/, scripts/, Makefile, mk/ or .github/
+make ci-pr PR=<number>             # CONFIRM=1 if it changes anything beyond integration code, tests/test_*.py and docs
 ```
 
 `ci-pr` uses the runner from your trusted checkout. It works in these steps:
 
 1. Fetches `pull/<n>/head` and checks the head is the commit GitHub reports.
-2. Checks it out in a temporary worktree. Your `.venv*` and
-   `ansible/collections` are symlinked into it.
-3. Runs the PR's policy there. **This executes the PR's code (its tests and
-   Makefile) on your Mac, so review the diff first.**
-4. Signs the evidence, marked `commit_signature: external`, and publishes the
+2. Lists every changed file. Unless all of them are routine (`PR_ROUTINE` in
+   `scripts/local_ci.py`: `custom_components/klipsch_flexus/` code, JSON,
+   translations and brand images, `tests/test_*.py`, `README.md` and `docs/`),
+   it stops and asks for `CONFIRM=1`. Any `conftest.py`, makefile, `mk/`,
+   `pyproject.toml`, requirements file, lint configuration, `.ci/`, `scripts/`,
+   `ansible/` or `.github/` change, and any new top-level file, can change what
+   the steps do, so review those files before confirming.
+3. Checks it out in a temporary worktree and builds the PR's own tooling there
+   from its requirement files (`make venv-test venv-testmin venv collections`).
+   Nothing is linked to your venvs, so PR code cannot write into the tooling that
+   later owner-signed runs use.
+4. Runs the PR's policy there, with the same allow-listed environment as
+   `make ci` (no tokens, no `SSH_AUTH_SOCK`).
+5. Signs the evidence, marked `commit_signature: external`, and publishes the
    note.
-5. Dispatches verification with `external=true`. That sets `local-ci/verified`
+6. Dispatches verification with `external=true`. That sets `local-ci/verified`
    on the PR head.
+
+**`ci-pr` is not a sandbox.** The PR's tests, integration code and (with
+`CONFIRM=1`) Makefile run on your Mac as your user. They can read and write
+your files (the main checkout, `~/.ssh`, the `gh` keychain entry) and reach the
+signing agent: `git-sign-helper` signs through a socket at a fixed path, not
+through `SSH_AUTH_SOCK`, so code running as you could ask it to sign evidence or
+commits. Run `ci-pr` only for a PR whose full diff you have read, the same as
+running its code by hand.
 
 External evidence is accepted only for a commit that is not on `main`. Pushes to
 `main` and tags always need an owner-signed commit. So merge pull requests
@@ -301,7 +346,21 @@ API: repository description, topics, issues, archived flag, releases, and the
 files at a ref that has already been pushed. It never reads the local checkout.
 It cannot attest an unpushed commit, and its result depends on repository
 settings rather than on the commit. So it is listed under `not_required` in the
-policy. Run it after pushing and before a release:
+policy.
+
+HACS asks every repository in its default list (this one is) to run it as a
+GitHub Action. [`validate.yaml`](../.github/workflows/validate.yaml) does that
+on pushes to `main` and `v*` tags, daily and on demand. It checks out nothing
+and runs no repository code: it runs the HACS image pinned by the same digest
+as the `Makefile` (`HACS_IMAGE`) against the pushed commit with a read-only
+token. That is verification of pushed state, which fits "GitHub only verifies".
+
+hassfest, the other action HACS lists for integrations, runs only locally (the
+`hassfest` step, the pinned official image, recorded in the signed evidence).
+That deviates from the letter of HACS's inclusion checklist; if HACS reviewers
+ask for a hassfest workflow, restore one.
+
+To run the HACS validation by hand, after pushing:
 
 ```bash
 make hacs REF=main          # or REF=vX.Y.Z / a pushed SHA
@@ -352,7 +411,8 @@ docker buildx imagetools inspect --format '{{json .Provenance}}' ghcr.io/home-as
 
 | Message | Meaning |
 | --- | --- |
-| `refusing to run on a dirty tree` | commit or stash first; `.local-ci/` and `.venv*` are ignored |
+| `refusing to run on a dirty tree` | commit, stash or delete the listed files; untracked files and ignored files other than tooling and caches count (`IGNORED_OK`) |
+| `stale .venv-test: run make venv-test` | the venv does not match the committed pins (for example after a Dependabot bump): `make venv-test` or `make venv-testmin` |
 | `HEAD ... is not signed by an allowed signer` | amend with `git commit --amend -S --no-edit`, or use `make ci-pr` for someone else's PR |
 | `signing did not finish within 60 s` | the signing agent is waiting for a YubiKey touch or is not running |
 | `no signed local CI evidence for <sha>` | the note was never published: `make ci && make ci-publish` |

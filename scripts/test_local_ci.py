@@ -444,8 +444,18 @@ class RunnerTests(Fixture):
             self.run_ci()
         self.assertIn("dirty tree", str(caught.exception))
 
-    def test_refuses_untracked_source_file(self) -> None:
-        for path in ("tests/test_new.py", "custom_components/x/new.py", ".ci/extra.json", "ansible/new.yml"):
+    def test_refuses_any_untracked_file(self) -> None:
+        for path in (
+            "tests/test_new.py",
+            "custom_components/x/new.py",
+            ".ci/extra.json",
+            "ansible/new.yml",
+            "GNUmakefile",
+            "pytest.ini",
+            "conftest.py",
+            "ruff.toml",
+            "scratch.txt",
+        ):
             target = self.repo / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("x\n")
@@ -453,9 +463,77 @@ class RunnerTests(Fixture):
                 self.run_ci()
             target.unlink()
 
-    def test_untracked_file_outside_sources_is_allowed(self) -> None:
-        (self.repo / "scratch.txt").write_text("notes\n")
+    def test_refuses_unexpected_ignored_file(self) -> None:
+        exclude = self.repo / ".git" / "info" / "exclude"
+        exclude.write_text("GNUmakefile\nconftest.py\n")
+        for path in ("GNUmakefile", "tests/conftest.py"):
+            target = self.repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n")
+            with self.assertRaises(L.Failure, msg=path) as caught:
+                self.run_ci()
+            self.assertIn("!! ", str(caught.exception))
+            target.unlink()
+
+    def test_tooling_and_caches_may_be_ignored(self) -> None:
+        (self.repo / ".gitignore").write_text(".local-ci/\n.venv*\n__pycache__/\n/ansible/collections\n.molecule/\n")
+        self.git("add", ".gitignore")
+        self.sha = self.commit("ignore tooling")
+        for path in (".venv-test/bin/python", "tests/__pycache__/x.pyc", "ansible/collections/x", ".molecule/s/state"):
+            target = self.repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n")
         self.assertEqual(self.run_ci(), 0)
+
+    def test_steps_get_a_scrubbed_environment(self) -> None:
+        policy = json.loads(json.dumps(POLICY))
+        probe = "echo MOLECULE=${MOLECULE-unset} MAKEFLAGS=${MAKEFLAGS-unset} SSH=${SSH_AUTH_SOCK-unset} CI=$LOCAL_CI"
+        policy["steps"][0]["command"] = ["sh", "-c", probe]
+        self.write_policy(policy)
+        self.git("add", "-A")
+        sha = self.commit("environment probe")
+        saved = dict(os.environ)
+        os.environ.update(MOLECULE="true", MAKEFLAGS="UVX=true", SSH_AUTH_SOCK="/tmp/agent.sock")
+        try:
+            self.assertEqual(self.run_ci(), 0)
+        finally:
+            os.environ.clear()
+            os.environ.update(saved)
+        log = (self.repo / ".local-ci" / sha / "logs" / "first.log").read_text()
+        self.assertEqual(log.strip(), "MOLECULE=unset MAKEFLAGS=unset SSH=unset CI=1")
+
+    def test_pr_confirm_gate(self) -> None:
+        routine = [
+            "custom_components/klipsch_flexus/api.py",
+            "custom_components/klipsch_flexus/translations/de.json",
+            "custom_components/klipsch_flexus/brand/dark_icon@2x.png",
+            "tests/test_api.py",
+            "docs/TESTING.md",
+            "README.md",
+        ]
+        machinery = [
+            "tests/conftest.py",
+            "custom_components/klipsch_flexus/conftest.py",
+            "GNUmakefile",
+            "Makefile",
+            "mk/ansible.mk",
+            "pyproject.toml",
+            "pytest.ini",
+            "setup.cfg",
+            "ruff.toml",
+            "requirements_test.txt",
+            "requirements-dev.txt",
+            ".github/ci/requirements_test_min.txt",
+            ".github/workflows/local-ci.yaml",
+            ".ci/local-ci.json",
+            "scripts/local_ci.py",
+            "ansible/requirements.yml",
+            ".yamllint",
+            ".ansible-lint",
+            "tests/fixtures/data.json",
+        ]
+        self.assertEqual(L.machinery_changes(routine), [])
+        self.assertEqual(L.machinery_changes(routine + machinery), machinery)
 
     def test_refuses_unsigned_head(self) -> None:
         self.commit("unsigned", key=None)
