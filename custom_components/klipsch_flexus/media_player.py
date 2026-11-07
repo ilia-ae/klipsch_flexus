@@ -305,10 +305,12 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
             "front_height": data.get("front_height"),
             "side_left": data.get("side_left"),
             "side_right": data.get("side_right"),
-            # Subwoofers. The CORE 300's two subs are both wireless, so the
-            # firmware's "wired"/"wireless" volume nodes are surfaced as Wireless
-            # 1/2 (matching the number-entity translations) — intentional mapping,
-            # not a copy/paste slip.
+            # Subwoofers: the wired RCA sub output has its own trim; all wireless
+            # subs (up to two) play as one channel and share a single trim.
+            "sub_wired": data.get("sub_wired"),
+            "sub_wireless": data.get("sub_wireless"),
+            # Deprecated aliases (pre-2.5.20 names) so existing templates keep
+            # working; remove in a later stable release that announces it.
             "sub_wireless_1": data.get("sub_wired"),
             "sub_wireless_2": data.get("sub_wireless"),
             # Tone

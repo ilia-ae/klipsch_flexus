@@ -118,10 +118,10 @@
         "name": "Canal : Latéral droit"
       },
       "sub_wired": {
-        "name": "Canal : Caisson de basses 1"
+        "name": "Canal : Caisson filaire"
       },
       "sub_wireless": {
-        "name": "Canal : Caisson de basses 2"
+        "name": "Canal : Caissons sans fil"
       },
       "bass": {
         "name": "Tonalité : Graves"
@@ -186,10 +186,10 @@
         "name": "Liaison réseau"
       },
       "operating_mode": {
-        "name": "État : mode de fonctionnement"
+        "name": "Statut : Mode de fonctionnement"
       },
       "speaker_test": {
-        "name": "État : test des haut-parleurs"
+        "name": "Statut : Test des haut-parleurs"
       },
       "sub_wired_delay": {
         "name": "Délai : caisson filaire"

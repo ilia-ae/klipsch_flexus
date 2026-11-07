@@ -10,7 +10,7 @@
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-🌐 **English** | [Русский](docs/README_ru.md) | [Deutsch](docs/README_de.md) | [Español](docs/README_es.md) | [Português](docs/README_pt.md) | [中文](docs/README_zh.md)  
+🌐 **English** | [Русский](docs/README_ru.md) | [Deutsch](docs/README_de.md) | [Español](docs/README_es.md) | [Português](docs/README_pt.md) | [Français](docs/README_fr.md) | [Italiano](docs/README_it.md) | [Nederlands](docs/README_nl.md) | [中文](docs/README_zh.md)  
 🔒 **Security**: [Policy](SECURITY.md) | [Assessment Report](docs/SECURITY_ASSESSMENT_CORE_300.md)
 
 ---
@@ -94,7 +94,7 @@ Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy
 | Back Height | Dolby Atmos rear height speaker |
 | Side Left / Right | Surround side speakers |
 | Back Left / Right | Surround rear speakers |
-| Subwoofer Wireless 1 / 2 | Subwoofer levels (-12 to +6 dB) |
+| Wired Subwoofer / Wireless Subwoofers | Wired RCA sub output and the wireless subs (one or two, adjusted together), -12 to +6 dB |
 | Bass / Mid / Treble | Tone EQ controls |
 
 ### Audio Settings (Selects)
@@ -130,7 +130,7 @@ Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy
 - **Download diagnostics** — full device state export (Settings > Devices > Klipsch Flexus > Download diagnostics). The IP address, every MAC address, the Wi-Fi BSSID, the device ID and stream URLs are redacted
 
 ### Translations
-Full UI translation in **8 languages**: English, Russian, German, Spanish, French, Italian, Portuguese, Simplified Chinese (`zh-Hans`). All entity names, states, and configuration screens are translated.
+Full UI translation in **9 languages**: English, Russian, German, Spanish, French, Italian, Portuguese, Dutch, Simplified Chinese (`zh-Hans`). All entity names, states, and configuration screens are translated.
 
 ## Installation
 
@@ -227,7 +227,7 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Klipsch Flexus CORE 300 | Media Player | — |
 | Night Mode / Dialog Mode / EQ Preset / Dirac Filter / LED Brightness / Idle Timeout | Select (x6) | Config |
 | Back Height / Left / Right, Front Height, Side Left / Right | Number (x6) | Config |
-| Subwoofer Wireless 1 / 2 | Number (x2) | Config |
+| Wired Subwoofer / Wireless Subwoofers | Number (x2) | Config |
 | Bass / Mid / Treble | Number (x3) | Config |
 | Lip-sync Delay, Balance | Number (x2) | Config |
 | Auto Lip-sync, EQ Bypass, Auto Power, UI Sounds, Extra Sound Modes, BLE Remote Auto-pair, Firmware Auto-update | Switch (x7) | Config |

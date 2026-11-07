@@ -10,7 +10,7 @@
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-🌐 [English](../README.md) | **Русский** | [Deutsch](README_de.md) | [Español](README_es.md) | [Português](README_pt.md) | [中文](README_zh.md)  
+🌐 [English](../README.md) | **Русский** | [Deutsch](README_de.md) | [Español](README_es.md) | [Português](README_pt.md) | [Français](README_fr.md) | [Italiano](README_it.md) | [Nederlands](README_nl.md) | [中文](README_zh.md)  
 🔒 **Безопасность**: [Политика](../SECURITY.md) | [Отчёт об оценке](SECURITY_ASSESSMENT_CORE_300.md)
 
 ---
@@ -94,7 +94,7 @@
 | Back Height | Верхний тыловой (Dolby Atmos) |
 | Side Left / Right | Боковые окружающие колонки |
 | Back Left / Right | Тыловые окружающие колонки |
-| Subwoofer Wireless 1 / 2 | Уровни сабвуферов (от -12 до +6 дБ) |
+| Wired Subwoofer / Wireless Subwoofers | Проводной выход сабвуфера (RCA) и беспроводные сабвуферы (один или два, регулируются вместе), от -12 до +6 дБ |
 | Bass / Mid / Treble | Тембр: НЧ / СЧ / ВЧ |
 
 ### Настройки звука (Select)
@@ -130,7 +130,7 @@
 - **Скачать диагностику** — полный дамп состояния (Настройки > Устройства > Klipsch Flexus > Скачать диагностику). IP-адрес, все MAC-адреса, BSSID Wi-Fi, ID устройства и URL потоков в нём скрыты
 
 ### Переводы
-Полный перевод интерфейса на **8 языков**: английский, русский, немецкий, испанский, французский, итальянский, португальский, упрощённый китайский (`zh-Hans`). Все имена сущностей, состояния и экраны настройки переведены.
+Полный перевод интерфейса на **9 языков**: английский, русский, немецкий, испанский, французский, итальянский, португальский, нидерландский, упрощённый китайский (`zh-Hans`). Все имена сущностей, состояния и экраны настройки переведены.
 
 ## Установка
 
@@ -227,7 +227,7 @@ Klipsch Flexus имеет **однопоточный HTTP-сервер**, обр
 | Klipsch Flexus CORE 300 | Медиаплеер | — |
 | Ночной режим / Режим диалога / Эквалайзер / Фильтр Dirac / Яркость LED / Таймаут простоя | Select (x6) | Конфигурация |
 | Back Height / Left / Right, Front Height, Side Left / Right | Number (x6) | Конфигурация |
-| Subwoofer Wireless 1 / 2 | Number (x2) | Конфигурация |
+| Wired Subwoofer / Wireless Subwoofers | Number (x2) | Конфигурация |
 | Bass / Mid / Treble | Number (x3) | Конфигурация |
 | Задержка lip-sync, Баланс | Number (x2) | Конфигурация |
 | Авто lip-sync, Обход EQ, Авто-питание, Звуки интерфейса, Доп. звуковые режимы, Авто-сопряжение BLE-пульта, Авто-обновление прошивки | Switch (x7) | Конфигурация |

@@ -10,7 +10,7 @@
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-🌐 [English](../README.md) | [Русский](README_ru.md) | [Deutsch](README_de.md) | [Español](README_es.md) | [Português](README_pt.md) | **中文**  
+🌐 [English](../README.md) | [Русский](README_ru.md) | [Deutsch](README_de.md) | [Español](README_es.md) | [Português](README_pt.md) | [Français](README_fr.md) | [Italiano](README_it.md) | [Nederlands](README_nl.md) | **中文**  
 🔒 **安全**：[安全策略](../SECURITY.md) | [安全评估报告](SECURITY_ASSESSMENT_CORE_300.md)
 
 ---
@@ -94,7 +94,7 @@
 | 后置高度 | Dolby Atmos 后置高度扬声器 |
 | 左侧/右侧 | 侧环绕扬声器 |
 | 左后/右后 | 后环绕扬声器 |
-| 无线低音炮 1/2 | 低音炮电平（-12 至 +6 dB） |
+| 有线低音炮/无线低音炮 | 有线低音炮输出（RCA）与无线低音炮（一个或两个，统一调节），-12 至 +6 dB |
 | 低音/中音/高音 | 音调 EQ 控制 |
 
 ### 音频设置（选择实体）
@@ -130,7 +130,7 @@
 - **下载诊断**：导出完整的设备状态（设置 > 设备 > Klipsch Flexus > 下载诊断）。其中的 IP 地址、所有 MAC 地址、Wi-Fi BSSID、设备 ID 和流地址都会被隐去
 
 ### 翻译
-完整的界面翻译，共 **8 种语言**：英语、俄语、德语、西班牙语、法语、意大利语、葡萄牙语、简体中文（`zh-Hans`）。所有实体名称、状态和配置界面都已翻译。
+完整的界面翻译，共 **9 种语言**：英语、俄语、德语、西班牙语、法语、意大利语、葡萄牙语、荷兰语、简体中文（`zh-Hans`）。所有实体名称、状态和配置界面都已翻译。
 
 ## 安装
 
@@ -227,7 +227,7 @@ Klipsch Flexus 使用**单线程 HTTP 服务器**，一次只处理一个请求�
 | Klipsch Flexus CORE 300 | 媒体播放器 | — |
 | 夜间模式/对白模式/EQ 预设/Dirac 滤波器/LED 亮度/空闲超时 | 选择（x6） | 配置 |
 | 后置高度/左后/右后、前置高度、左侧/右侧 | 数值（x6） | 配置 |
-| 无线低音炮 1/2 | 数值（x2） | 配置 |
+| 有线低音炮/无线低音炮 | 数值（x2） | 配置 |
 | 低音/中音/高音 | 数值（x3） | 配置 |
 | 唇形同步延迟、平衡 | 数值（x2） | 配置 |
 | 自动唇形同步、EQ 旁路、自动开关机、界面提示音、更多声音模式、BLE 遥控器自动配对、固件自动更新 | 开关（x7） | 配置 |

@@ -118,10 +118,10 @@
         "name": "Channel: Side Right"
       },
       "sub_wired": {
-        "name": "Channel: Subwoofer Wireless 1"
+        "name": "Channel: Wired Subwoofer"
       },
       "sub_wireless": {
-        "name": "Channel: Subwoofer Wireless 2"
+        "name": "Channel: Wireless Subwoofers"
       },
       "bass": {
         "name": "Tone: Bass"

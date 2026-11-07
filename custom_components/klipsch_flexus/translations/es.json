@@ -118,10 +118,10 @@
         "name": "Canal: Lateral derecho"
       },
       "sub_wired": {
-        "name": "Canal: Subwoofer 1"
+        "name": "Canal: Subwoofer con cable"
       },
       "sub_wireless": {
-        "name": "Canal: Subwoofer 2"
+        "name": "Canal: Subwoofers inalámbricos"
       },
       "bass": {
         "name": "Tono: Graves"

@@ -118,10 +118,10 @@
         "name": "Kanal: Seite rechts"
       },
       "sub_wired": {
-        "name": "Kanal: Subwoofer 1"
+        "name": "Kanal: Kabel-Subwoofer"
       },
       "sub_wireless": {
-        "name": "Kanal: Subwoofer 2"
+        "name": "Kanal: Funk-Subwoofer"
       },
       "bass": {
         "name": "Ton: Bass"

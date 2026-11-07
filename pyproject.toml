@@ -24,3 +24,6 @@ known-first-party = ["custom_components.klipsch_flexus"]
 # whole async suite never runs in CI. AUTO mode treats them as asyncio tests.
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# A bare `pytest` must not collect the test suites of the Ansible collections
+# installed (git-ignored) under ansible/collections for the Molecule harness.
+testpaths = ["tests"]

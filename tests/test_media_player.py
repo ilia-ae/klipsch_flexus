@@ -207,6 +207,19 @@ def test_unread_values_are_none(monkeypatch):
     assert player.extra_state_attributes["bass"] is None
 
 
+def test_subwoofer_attributes_name_wired_and_wireless(monkeypatch):
+    """The wired RCA sub output and the shared wireless-subs trim keep their own
+    names; the old 'wireless 1/2' attribute names stay as deprecated aliases so
+    existing templates do not silently turn into None."""
+    player, coordinator, _clock = _make_player(monkeypatch)
+    coordinator.data = {"online": True, "sub_wired": -3, "sub_wireless": 4}
+    attrs = player.extra_state_attributes
+    assert attrs["sub_wired"] == -3
+    assert attrs["sub_wireless"] == 4
+    assert attrs["sub_wireless_1"] == -3
+    assert attrs["sub_wireless_2"] == 4
+
+
 @pytest.mark.parametrize("step", ["async_volume_up", "async_volume_down"])
 async def test_volume_step_refuses_unknown_volume(monkeypatch, step):
     """Stepping needs the real current level; never step from a made-up 0."""

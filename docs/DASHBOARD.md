@@ -32,7 +32,7 @@
 | **Dirac Filter** | Dropdown selector for room correction filters |
 | **Tone** | Bass (red) / Mid (orange) / Treble (blue) — gradient fill bars, tap for slider |
 | **Surround** | Front/Back Height (green), Side L/R (purple), Back L/R (teal) — directional icons |
-| **Subwoofer** | Sub 1 & 2 (deep orange) — gradient fill bars over the -12..+6 dB subwoofer range |
+| **Subwoofer** | Wired sub output and Wireless subs (deep orange; the one or two wireless subs share one level) — gradient fill bars over the -12..+6 dB subwoofer range |
 
 ## Color Scheme
 ```
@@ -55,6 +55,8 @@ Sub:       #FF5722
 ## Dashboard YAML
 
 The entity ids below use the default `klipsch_flexus_core_300` prefix; replace it with your own device's entity-id prefix (see Settings > Devices > Klipsch Flexus).
+
+The Subwoofer cards use the entity ids existing installs have: `number.<device>_channel_subwoofer_wireless_1` (the wired sub output) and `number.<device>_channel_subwoofer_wireless_2` (the wireless subs). Renaming the entities kept those ids, but a soundbar added on v2.5.20-beta.1 or later gets `number.<device>_channel_wired_subwoofer` and `number.<device>_channel_wireless_subwoofers` instead, so pick your actual ids from Settings > Devices > the soundbar.
 
 ```yaml
 title: Soundbar
@@ -1329,7 +1331,7 @@ sections:
     icon: mdi:speaker-wireless
   - type: custom:button-card
     entity: number.klipsch_flexus_core_300_channel_subwoofer_wireless_1
-    name: Sub Wireless 1
+    name: Sub Wired
     icon: mdi:speaker
     show_state: true
     show_name: true
@@ -1365,7 +1367,7 @@ sections:
       columns: full
   - type: custom:button-card
     entity: number.klipsch_flexus_core_300_channel_subwoofer_wireless_2
-    name: Sub Wireless 2
+    name: Sub Wireless
     icon: mdi:speaker
     show_state: true
     show_name: true

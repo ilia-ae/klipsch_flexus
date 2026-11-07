@@ -118,10 +118,10 @@
         "name": "Canale: Laterale destro"
       },
       "sub_wired": {
-        "name": "Canale: Subwoofer 1"
+        "name": "Canale: Subwoofer cablato"
       },
       "sub_wireless": {
-        "name": "Canale: Subwoofer 2"
+        "name": "Canale: Subwoofer wireless"
       },
       "bass": {
         "name": "Tono: Bassi"

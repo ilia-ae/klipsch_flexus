@@ -1,0 +1,237 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Klipsch Flexus",
+        "description": "Voer het IP-adres van je Klipsch Flexus-soundbar in.\n\nDe soundbar moet eerst volledig zijn ingesteld in de Klipsch Connect Plus-app — doorloop de volledige onboarding minstens één keer. Op de firmware van 2026 worden zo de toegangsgegevens ingericht die de integratie nodig heeft om opdrachten te sturen.",
+        "data": {
+          "host": "IP-adres"
+        }
+      },
+      "reconfigure": {
+        "title": "Klipsch Flexus opnieuw configureren",
+        "description": "Werk het IP-adres van je soundbar bij.",
+        "data": {
+          "host": "IP-adres"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "Klipsch Flexus ontdekt",
+        "description": "**{name}** gevonden op `{host}`.\n\nWil je deze soundbar toevoegen?"
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken met het apparaat. Controleer het IP-adres."
+    },
+    "abort": {
+      "already_configured": "Dit apparaat is al geconfigureerd.",
+      "not_klipsch_device": "Geen Klipsch Flexus-apparaat.",
+      "wrong_device": "Dat IP-adres hoort bij een andere soundbar dan degene die je opnieuw configureert.",
+      "reconfigure_successful": "De herconfiguratie is gelukt.",
+      "already_in_progress": "De configuratie is al bezig."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Klipsch Flexus-instellingen",
+        "data": {
+          "scan_interval": "Pollinginterval (seconden)",
+          "device_mac": "MAC-adres van het apparaat (optioneel)"
+        },
+        "data_description": {
+          "device_mac": "Alleen nodig als schrijfopdrachten (ingang, geluidsmodus, EQ…) op de firmware van 2026 niet worden geauthenticeerd. Laat leeg voor automatische detectie; voer anders het MAC-adres van de soundbar in."
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Geen geldig MAC-adres (verwacht 12 hexadecimale tekens, bijv. AA:BB:CC:DD:EE:FF)."
+    }
+  },
+  "entity": {
+    "select": {
+      "night_mode": {
+        "name": "1. Nachtmodus",
+        "state": {
+          "off": "Uit",
+          "night_mode_1": "Aan"
+        }
+      },
+      "dialog_mode": {
+        "name": "2. Dialoogmodus",
+        "state": {
+          "off": "Uit",
+          "dialog_1": "Niveau 1",
+          "dialog_2": "Niveau 2",
+          "dialog_3": "Niveau 3"
+        }
+      },
+      "eq_preset": {
+        "name": "3. EQ-voorinstelling",
+        "state": {
+          "flat": "Vlak",
+          "bass": "Bas",
+          "rock": "Rock",
+          "vocal": "Zang",
+          "custom": "Aangepast"
+        }
+      },
+      "dirac": {
+        "name": "4. Dirac-filter"
+      },
+      "led_mode": {
+        "name": "5. Led-helderheid",
+        "state": {
+          "off": "Uit",
+          "dim": "Gedimd",
+          "bright": "Helder"
+        }
+      },
+      "idle_timeout": {
+        "name": "6. Inactiviteitstime-out",
+        "state": {
+          "off": "Uit",
+          "5_min": "5 minuten",
+          "10_min": "10 minuten",
+          "15_min": "15 minuten",
+          "30_min": "30 minuten"
+        }
+      }
+    },
+    "number": {
+      "back_height": {
+        "name": "Kanaal: Achter hoog"
+      },
+      "back_left": {
+        "name": "Kanaal: Achter links"
+      },
+      "back_right": {
+        "name": "Kanaal: Achter rechts"
+      },
+      "front_height": {
+        "name": "Kanaal: Voor hoog"
+      },
+      "side_left": {
+        "name": "Kanaal: Zijkant links"
+      },
+      "side_right": {
+        "name": "Kanaal: Zijkant rechts"
+      },
+      "sub_wired": {
+        "name": "Kanaal: Bekabelde subwoofer"
+      },
+      "sub_wireless": {
+        "name": "Kanaal: Draadloze subwoofers"
+      },
+      "bass": {
+        "name": "Toon: Lage tonen"
+      },
+      "mid": {
+        "name": "Toon: Middentonen"
+      },
+      "treble": {
+        "name": "Toon: Hoge tonen"
+      },
+      "lipsync_delay": {
+        "name": "Lipsync-vertraging"
+      },
+      "balance": {
+        "name": "Balans"
+      }
+    },
+    "sensor": {
+      "response_time": {
+        "name": "Status: Reactietijd"
+      },
+      "device_status": {
+        "name": "Status: Apparaat",
+        "state": {
+          "offline": "Offline",
+          "on": "Aan",
+          "standby": "Stand-by"
+        }
+      },
+      "active_input": {
+        "name": "Status: Actieve ingang",
+        "state": {
+          "hdmiarc": "TV ARC",
+          "hdmi1": "HDMI",
+          "spdif": "SPDIF",
+          "bluetooth": "Bluetooth",
+          "usbdevice": "USB",
+          "googlecast": "Google Cast",
+          "spotify": "Spotify Connect",
+          "tidal": "TIDAL Connect",
+          "qplay": "QPlay",
+          "dirac": "Dirac"
+        }
+      },
+      "active_sound_mode": {
+        "name": "Status: Geluidsmodus",
+        "state": {
+          "movie": "Film",
+          "music": "Muziek",
+          "game": "Game",
+          "sport": "Sport",
+          "night": "Nacht",
+          "direct": "Direct",
+          "surround": "Surround",
+          "stereo": "Stereo"
+        }
+      },
+      "signing_mac": {
+        "name": "Ondertekenings-MAC"
+      },
+      "network_link": {
+        "name": "Netwerkverbinding"
+      },
+      "operating_mode": {
+        "name": "Status: Bedrijfsmodus"
+      },
+      "speaker_test": {
+        "name": "Status: Luidsprekertest"
+      },
+      "sub_wired_delay": {
+        "name": "Vertraging: Bekabelde subwoofer"
+      },
+      "sub_wireless_delay": {
+        "name": "Vertraging: Draadloze subwoofer"
+      },
+      "surround_delay": {
+        "name": "Vertraging: Draadloze surround"
+      }
+    },
+    "switch": {
+      "auto_lipsync": {
+        "name": "Automatische lipsync"
+      },
+      "eq_bypass": {
+        "name": "EQ-bypass"
+      },
+      "auto_power": {
+        "name": "Automatisch inschakelen"
+      },
+      "ui_sounds": {
+        "name": "Interfacegeluiden"
+      },
+      "extra_modes": {
+        "name": "Extra geluidsmodi"
+      },
+      "ble_pair": {
+        "name": "BLE-afstandsbediening automatisch koppelen"
+      },
+      "ota_updates": {
+        "name": "Automatische firmware-update"
+      },
+      "loudness": {
+        "name": "Loudness"
+      },
+      "do_not_disturb": {
+        "name": "Niet storen"
+      },
+      "auto_standby": {
+        "name": "Automatische stand-by"
+      }
+    }
+  }
+}
