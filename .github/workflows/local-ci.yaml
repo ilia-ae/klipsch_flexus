@@ -1,0 +1,141 @@
+# CI runs on the owner's Mac (make ci); GitHub only verifies the result.
+# This workflow never runs project code: it runs the stdlib-only verifier
+# (scripts/verify_local_ci.py) from the workflow's own revision, which reads the
+# tested commit, its tree, its .ci/local-ci.json and its refs/notes/local-ci
+# note as git data, and checks them against the allowed signers in the
+# repository variable LOCAL_CI_ALLOWED_SIGNERS.
+#
+# Trust model (docs/TESTING.md, "Local CI and signed evidence"):
+# - push to main / v* tags: the workflow file comes from the pushed commit,
+#   which only the owner can push; the verifier also requires that commit to
+#   be signed by an allowed signer.
+# - pull_request: the workflow file and verifier come from the PR merge commit,
+#   so for a fork PR this result is advisory only (read-only token, no
+#   secrets). The owner runs `make ci-pr PR=<n>`, which dispatches this
+#   workflow on main.
+# - workflow_dispatch (main only): the verifier comes from github.workflow_sha
+#   on main, and the result is published as the commit status
+#   local-ci/verified on the target commit.
+name: Verify signed local CI
+run-name: "Verify signed local CI ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}"
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character SHA of the commit to verify
+        required: true
+        type: string
+      external:
+        description: The commit is a pull request head written by someone else (evidence from make ci-pr)
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: local-ci-${{ github.event_name }}-${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify signed local CI
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # pull_request: the default merge ref (a merge commit no branch holds);
+      # otherwise the exact revision this workflow file was loaded from.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name != 'pull_request' && github.workflow_sha || '' }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the commit to verify
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SHA: ${{ inputs.sha }}
+          INPUT_EXTERNAL: ${{ inputs.external }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          case "$EVENT" in
+            workflow_dispatch) sha="$INPUT_SHA" ;;
+            pull_request) sha="$PR_HEAD_SHA" ;;
+            *) sha="$(git rev-parse --verify "$PUSH_SHA^{commit}")" ;;
+          esac
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::expected a full 40-character commit SHA, got '$sha'"
+            exit 1
+          fi
+          mode=strict
+          if [ "$EVENT" = pull_request ]; then
+            mode=external
+          elif [ "$EVENT" = workflow_dispatch ] && [ "$INPUT_EXTERNAL" = true ]; then
+            git cat-file -e "$sha^{commit}" 2>/dev/null || git fetch --no-tags --quiet origin "$sha"
+            if git merge-base --is-ancestor "$sha" origin/main; then
+              echo "::notice::$sha is on main; verifying it strictly (owner-signed commit required)"
+            else
+              mode=external
+            fi
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "verifying $sha ($mode) with the verifier at $(git rev-parse HEAD)"
+
+      - name: Exercise the verifier (accept and every reject path, throwaway keys)
+        run: python3 -I scripts/test_local_ci.py
+
+      - name: Verify commit signature and signed local CI evidence
+        env:
+          LOCAL_CI_ALLOWED_SIGNERS: ${{ vars.LOCAL_CI_ALLOWED_SIGNERS }}
+          SHA: ${{ steps.target.outputs.sha }}
+          MODE: ${{ steps.target.outputs.mode }}
+        run: |
+          args=(--sha "$SHA" --fetch origin --wait 180)
+          if [ "$MODE" = external ]; then args+=(--allow-external); fi
+          if ! python3 -I scripts/verify_local_ci.py "${args[@]}"; then
+            echo "::error::no valid signed local CI evidence for $SHA: run make ci && make ci-publish (pull requests: make ci-pr PR=<n>)"
+            exit 1
+          fi
+
+  status:
+    name: Publish local-ci/verified
+    needs: verify
+    if: always() && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+    steps:
+      - name: Set the commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+          RESULT: ${{ needs.verify.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::not a commit SHA: '$SHA'"
+            exit 1
+          fi
+          if [ "$RESULT" = success ]; then
+            state=success description="Signed local CI evidence verified"
+          else
+            state=failure description="No valid signed local CI evidence"
+          fi
+          gh api --method POST "repos/$REPOSITORY/statuses/$SHA" \
+            -f state="$state" -f context=local-ci/verified \
+            -f description="$description" -f target_url="$RUN_URL" > /dev/null
+          echo "local-ci/verified = $state on $SHA"

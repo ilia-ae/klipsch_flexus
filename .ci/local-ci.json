@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "repository": "ilia-ae/klipsch_flexus",
+  "description": "Required local CI steps. scripts/local_ci.py runs them in order on a clean, signed HEAD; scripts/verify_local_ci.py (GitHub) requires every one of them, with exactly these commands, in the signed evidence for the commit.",
+  "steps": [
+    {
+      "id": "ruff",
+      "description": "ruff check + ruff format --check (pinned ruff via uvx)",
+      "command": ["make", "ruff"],
+      "timeout": 300
+    },
+    {
+      "id": "lint-workflows",
+      "description": "actionlint and shellcheck on the workflows and scripts/*.sh, yamllint on .github",
+      "command": ["make", "lint-workflows"],
+      "timeout": 300
+    },
+    {
+      "id": "local-ci-selftest",
+      "description": "the runner and the remote verifier: accept and every reject path, throwaway keys",
+      "command": ["make", "ci-selftest"],
+      "timeout": 300
+    },
+    {
+      "id": "pytest-latest",
+      "description": "pytest on the pinned current Home Assistant (.venv-test, requirements_test.txt)",
+      "command": ["make", "test-latest"],
+      "timeout": 1800
+    },
+    {
+      "id": "pytest-min",
+      "description": "pytest on the oldest supported Home Assistant (.venv-testmin, .github/ci/requirements_test_min.txt)",
+      "command": ["make", "test-min"],
+      "timeout": 1800
+    },
+    {
+      "id": "hassfest",
+      "description": "official hassfest image pinned by digest (or, where Docker cannot run amd64, the same Dockerfile built at the pinned image's source commit) on the committed integration files",
+      "command": ["make", "hassfest"],
+      "timeout": 1200
+    },
+    {
+      "id": "lint-ansible",
+      "description": "yamllint + ansible-lint on ansible/ (mk/ansible.mk)",
+      "command": ["make", "lint-ansible"],
+      "timeout": 900
+    },
+    {
+      "id": "molecule",
+      "description": "Molecule scenarios of the install role, one at a time, on throwaway containers (mk/ansible.mk)",
+      "command": [
+        "make",
+        "molecule-scenarios",
+        "SCENARIOS=klipsch_flexus_install/fresh klipsch_flexus_install/upgrade klipsch_flexus_install/minimum"
+      ],
+      "timeout": 5400
+    }
+  ],
+  "tools": {
+    "ruff": ["make", "-s", "ruff-version"],
+    "python-latest": [".venv-test/bin/python", "-c", "import sys; print(sys.version.split()[0])"],
+    "homeassistant-latest": [".venv-test/bin/python", "-c", "from homeassistant.const import __version__; print(__version__)"],
+    "phcc-latest": [".venv-test/bin/python", "-c", "import importlib.metadata as m; print(m.version('pytest-homeassistant-custom-component'))"],
+    "python-min": [".venv-testmin/bin/python", "-c", "import sys; print(sys.version.split()[0])"],
+    "homeassistant-min": [".venv-testmin/bin/python", "-c", "from homeassistant.const import __version__; print(__version__)"],
+    "phcc-min": [".venv-testmin/bin/python", "-c", "import importlib.metadata as m; print(m.version('pytest-homeassistant-custom-component'))"],
+    "hassfest-image": ["make", "-s", "hassfest-image"],
+    "docker": ["docker", "version", "--format", "{{.Server.Version}} {{.Server.Os}}/{{.Server.Arch}}"],
+    "ansible-core": [".venv/bin/ansible", "--version"],
+    "molecule": [".venv/bin/molecule", "--version"],
+    "molecule-images": ["make", "-s", "molecule-images"]
+  },
+  "not_required": {
+    "hacs": "The HACS action (ghcr.io/hacs/action) validates the repository as GitHub serves it - description, topics, issues, archived flag, releases and the files at a pushed ref, all fetched through the GitHub API - and never reads the local checkout. It cannot attest an unpushed commit, and its result depends on mutable repository settings rather than on the commit, so it is not evidence for a commit. Run 'make hacs REF=<pushed ref>' after pushing and before a release."
+  }
+}

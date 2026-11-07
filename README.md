@@ -6,9 +6,7 @@
 [![License](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/badge-license-mit.svg)](https://github.com/ilia-ae/klipsch_flexus/blob/main/LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#auto-discovery)
 
-[![Validate](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
-[![Hassfest](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/hassfest.yaml)
-[![CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/ci.yaml)
+[![Verify signed local CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml)
 [![CodeQL](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/github-code-scanning/codeql)
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -251,6 +249,8 @@ Thank you to everyone who has reported issues and sent fixes:
 - **G Johansson** ([@gjohansson-ST](https://github.com/gjohansson-ST)) — replaced the removed `STANDBY` media player state so the integration keeps working on Home Assistant 2026.12+ ([#25](https://github.com/ilia-ae/klipsch_flexus/pull/25))
 
 Issues and pull requests are welcome — see the [full contributor list](https://github.com/ilia-ae/klipsch_flexus/graphs/contributors).
+
+**Testing and CI**: all tests run locally (pytest on the current and the oldest supported Home Assistant, hassfest, ruff, Molecule); GitHub only verifies signed evidence of that run (the *Verify signed local CI* badge). See [docs/TESTING.md](docs/TESTING.md#local-ci-and-signed-evidence) and [CONTRIBUTING.md](CONTRIBUTING.md) — a pull request's check stays red until the maintainer has tested it locally.
 
 ## License
 

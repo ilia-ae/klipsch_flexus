@@ -4,7 +4,11 @@ __pycache__/
 .reverse/
 .coverage
 
-# Molecule harness (make venv / collections / molecule-*)
-.venv/
+# Local CI state (logs, evidence, signatures) and local tooling
+.local-ci/
+.venv*
+
+# Molecule harness (make venv / collections / molecule-*). No trailing slash on
+# ansible/collections: make ci-pr may symlink it into a temporary worktree.
 .molecule/
-ansible/collections/
+/ansible/collections

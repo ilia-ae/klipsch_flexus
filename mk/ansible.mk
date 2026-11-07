@@ -28,7 +28,7 @@ ANSIBLE_ENV := PATH="$(ANSIBLE_VENV_BIN):$$PATH" \
 	PIP_DISABLE_PIP_VERSION_CHECK=1 \
 	PYTHONDONTWRITEBYTECODE=1
 
-.PHONY: venv collections lint-ansible molecule-scenarios molecule-stage molecule-list molecule-cleanup
+.PHONY: venv collections lint-ansible molecule-scenarios molecule-stage molecule-list molecule-cleanup molecule-images
 
 venv: $(ANSIBLE_VENV_STAMP) ## Create .venv (Python 3.13) with the pinned requirements-dev.txt
 
@@ -57,6 +57,10 @@ molecule-stage: $(ANSIBLE_COLLECTIONS_STAMP) ## STAGE=create|prepare|converge|id
 
 molecule-list: ## List every Molecule scenario (<role>/<scenario>)
 	@scripts/molecule.sh --list
+
+# One line, for the local CI evidence: the pinned Home Assistant images the scenarios run.
+molecule-images:
+	@grep -h '^ *image: ' ansible/roles/*/molecule/*/molecule.yml | sed 's/^ *image: *//' | sort -u | tr '\n' ' ' | sed 's/ $$//'; echo
 
 molecule-cleanup: ## Remove leftover klipsch-flexus-* containers (+ state) of SCENARIOS, or of every scenario
 	scripts/molecule.sh --cleanup $(SCENARIOS)

@@ -1,3 +1,8 @@
+# Dependabot PRs are not owner-signed and carry no local CI evidence, so the
+# "Verify signed local CI" check fails on them until the owner runs
+# make ci-pr PR=<n> (tests the PR head locally, signs and publishes the
+# evidence, dispatches verification). Merge them with a signed commit
+# (docs/TESTING.md, "Local CI and signed evidence").
 version: 2
 updates:
   - package-ecosystem: "github-actions"
