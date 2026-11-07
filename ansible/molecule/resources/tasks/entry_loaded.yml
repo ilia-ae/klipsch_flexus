@@ -1,0 +1,20 @@
+# Wait until molecule_entry_id is the only klipsch_flexus entry and its state is "loaded".
+- name: Wait until the klipsch_flexus entry is loaded
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['rest', 'GET', '/api/config/config_entries/entry?domain=klipsch_flexus'] }}"
+  register: molecule_entries
+  changed_when: false
+  until: >-
+    molecule_entries.rc == 0
+    and (molecule_entries.stdout | from_json).status == 200
+    and (molecule_entries.stdout | from_json).json | selectattr('entry_id', 'equalto', molecule_entry_id)
+        | selectattr('state', 'equalto', 'loaded') | list | length == 1
+  retries: 60
+  delay: 2
+
+- name: Check that there is exactly one klipsch_flexus entry
+  ansible.builtin.assert:
+    that:
+      - (molecule_entries.stdout | from_json).json | length == 1
+    fail_msg: "{{ (molecule_entries.stdout | from_json).json | to_json }}"
+    quiet: true

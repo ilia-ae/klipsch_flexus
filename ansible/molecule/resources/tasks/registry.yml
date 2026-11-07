@@ -1,0 +1,25 @@
+# The entity registry entries of molecule_entry_id (WebSocket config/entity_registry/list).
+# Sets molecule_registry (list) and molecule_entities ({"<domain>.<key>": entity_id}, where key is
+# the unique_id without the "<entry_id>_" prefix).
+- name: List the entity registry
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['ws', 'config/entity_registry/list'] }}"
+  register: molecule_registry_list
+  changed_when: false
+
+- name: Keep this entry's entities
+  ansible.builtin.set_fact:
+    molecule_registry: >-
+      {{ (molecule_registry_list.stdout | from_json).result
+         | selectattr('config_entry_id', 'equalto', molecule_entry_id)
+         | selectattr('platform', 'equalto', 'klipsch_flexus') | list }}
+
+- name: Index the entities by domain and key
+  ansible.builtin.set_fact:
+    molecule_entities: >-
+      {{ dict(molecule_registry
+              | map(attribute='entity_id') | map('regex_replace', '\..*$', '')
+              | zip(molecule_registry | map(attribute='unique_id')
+                    | map('regex_replace', '^' ~ molecule_entry_id ~ '_', ''))
+              | map('join', '.')
+              | zip(molecule_registry | map(attribute='entity_id'))) }}

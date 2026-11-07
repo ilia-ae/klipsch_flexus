@@ -1,0 +1,48 @@
+# Add the soundbar like a user does (Settings -> Devices & services -> Add -> Klipsch Flexus ->
+# host) through the config flow REST API, and wait until the entry is loaded.
+# Sets molecule_entry_id.
+- name: Start the config flow (user step)
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['rest', 'POST', '/api/config/config_entries/flow', {'handler': 'klipsch_flexus'} | to_json] }}"
+  register: molecule_flow_start
+  changed_when: true
+
+- name: Check that the flow asks for the host
+  ansible.builtin.assert:
+    that:
+      - molecule_flow.status == 200
+      - molecule_flow.json.type == 'form'
+      - molecule_flow.json.step_id == 'user'
+      - molecule_flow.json.data_schema | map(attribute='name') | list == ['host']
+    fail_msg: "{{ molecule_flow | to_json }}"
+    quiet: true
+  vars:
+    molecule_flow: "{{ molecule_flow_start.stdout | from_json }}"
+
+- name: Submit the stub's address
+  ansible.builtin.command:
+    argv: >-
+      {{ molecule_ha_api + ['rest', 'POST',
+         '/api/config/config_entries/flow/' ~ (molecule_flow_start.stdout | from_json).json.flow_id,
+         {'host': molecule_stub_host} | to_json] }}
+  register: molecule_flow_submit
+  changed_when: true
+
+- name: Check that the flow created the entry
+  ansible.builtin.assert:
+    that:
+      - molecule_flow_done.status == 200
+      - molecule_flow_done.json.type == 'create_entry'
+      - molecule_flow_done.json.title == 'Flexus Stub'
+      - molecule_flow_done.json.result.entry_id is defined
+    fail_msg: "{{ molecule_flow_done | to_json }}"
+    quiet: true
+  vars:
+    molecule_flow_done: "{{ molecule_flow_submit.stdout | from_json }}"
+
+- name: Remember the entry
+  ansible.builtin.set_fact:
+    molecule_entry_id: "{{ (molecule_flow_submit.stdout | from_json).json.result.entry_id }}"
+
+- name: Wait until the entry is loaded
+  ansible.builtin.include_tasks: entry_loaded.yml

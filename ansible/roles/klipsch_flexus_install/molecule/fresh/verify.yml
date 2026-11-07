@@ -1,0 +1,31 @@
+- name: Verify (fresh install of this checkout on Home Assistant 2026.10.4)
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - ../../../../molecule/resources/vars/harness.yml
+  tasks:
+    - name: Onboard the test owner and wait until Home Assistant runs
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/ha_ready.yml
+
+    - name: Check that Home Assistant loaded this checkout's version
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/version.yml
+
+    - name: Add the soundbar through the config flow
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/configure_entry.yml
+
+    - name: Check that the entry is keyed by the soundbar's MAC
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/unique_id.yml
+      vars:
+        molecule_expect_unique_id: "{{ molecule_stub_mac_id }}"
+
+    - name: Check the entities and their states
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/entities.yml
+
+    - name: Check that service calls reach the soundbar
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/writes.yml
+
+    - name: Check the brand images (local brands, Home Assistant 2026.3+)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/brands.yml
+
+    - name: Check the logs
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/logs.yml

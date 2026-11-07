@@ -1,0 +1,75 @@
+- name: Prepare (a HACS user on v2.5.17 with the soundbar configured)
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - ../../../../molecule/resources/vars/harness.yml
+  vars:
+    molecule_old_release: v2.5.17
+    # Extracted on the controller into this scenario's Molecule state (.molecule/, gitignored).
+    molecule_old_root: "{{ lookup('ansible.builtin.env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/release-{{ molecule_old_release }}"
+  tasks:
+    - name: Common prepare
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/prepare_common.yml
+
+    - name: Extract the old release from this repository (git archive, no network)
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail &&
+          rm -rf '{{ molecule_old_root }}' && mkdir -p '{{ molecule_old_root }}' &&
+          git -C '{{ molecule_repo_root }}' archive --format=tar '{{ molecule_old_release }}' custom_components/klipsch_flexus
+          | tar -xf - -C '{{ molecule_old_root }}'
+        executable: /bin/bash
+      delegate_to: localhost
+      run_once: true
+      changed_when: true
+
+    - name: Install the old release like HACS (+ restart)
+      ansible.builtin.include_role:
+        name: klipsch_flexus_install
+      vars:
+        klipsch_flexus_install_src: "{{ molecule_old_root }}/custom_components/klipsch_flexus"
+
+    - name: Restart Home Assistant now
+      ansible.builtin.meta: flush_handlers
+
+    - name: Onboard the test owner and wait until Home Assistant runs
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/ha_ready.yml
+
+    - name: Check that Home Assistant runs the old release
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/version.yml
+      vars:
+        molecule_expect_version: "{{ molecule_old_release | regex_replace('^v', '') }}"
+
+    - name: Add the soundbar through the config flow (old release)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/configure_entry.yml
+
+    - name: Read the entry's unique_id (old release)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/unique_id.yml
+
+    - name: Read the entity registry (old release)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/registry.yml
+
+    - name: Read what the stub recorded (old release)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/stub_traffic.yml
+
+    - name: Check the starting point of the update
+      ansible.builtin.assert:
+        that:
+          # eureka_info reports the all-zero MAC (2026 firmware): v2.5.17 keys the entry by host
+          - molecule_entry_unique_id == molecule_stub_host
+          - "'number.idle_timeout' in molecule_entities"
+          - "'select.idle_timeout' not in molecule_entities"
+          - "'media_player.media_player' in molecule_entities"
+        fail_msg: "unique_id {{ molecule_entry_unique_id }}; entities {{ molecule_entities | to_json }}"
+        quiet: true
+
+    - name: Record the state before the update
+      ansible.builtin.copy:
+        content: >-
+          {{ {'entry_id': molecule_entry_id, 'unique_id': molecule_entry_unique_id,
+              'version': molecule_old_release, 'entities': molecule_entities,
+              'stub_writes': molecule_stub_writes | length} | to_nice_json }}
+        dest: "{{ molecule_state_dir }}/before_update.json"
+        owner: root
+        group: root
+        mode: "0600"

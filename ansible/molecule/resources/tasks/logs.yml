@@ -1,0 +1,40 @@
+# Home Assistant found the custom integration, and nothing logged an error, a traceback through
+# its code, or a warning from its own loggers: in the container log (stdout of every Home
+# Assistant run since the container started, `docker logs` on the controller) and in Home
+# Assistant's system log (WebSocket system_log/list, the current run).
+- name: Read the container log (docker logs)
+  ansible.builtin.command:
+    argv: [docker, logs, "{{ inventory_hostname }}"]
+  delegate_to: localhost
+  register: molecule_docker_logs
+  changed_when: false
+
+- name: Read Home Assistant's system log
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['ws', 'system_log/list'] }}"
+  register: molecule_system_log
+  changed_when: false
+
+- name: Check the logs
+  ansible.builtin.assert:
+    that:
+      - log_found | length > 0
+      - log_errors | length == 0
+      - log_frames | length == 0
+      - (molecule_system_log.stdout | from_json).success
+      - syslog_errors | length == 0
+      - syslog_own_warnings | length == 0
+    fail_msg: >-
+      found: {{ log_found }}; error lines: {{ log_errors }}; traceback frames: {{ log_frames }};
+      system log errors: {{ syslog_errors }}; integration warnings: {{ syslog_own_warnings }}
+    quiet: true
+  vars:
+    log_lines: >-
+      {{ (molecule_docker_logs.stdout_lines + molecule_docker_logs.stderr_lines) | map('regex_replace', '\x1b\[[0-9;]*m', '') | list }}
+    log_found: "{{ log_lines | select('search', 'We found a custom integration klipsch_flexus which has not been tested') | list }}"
+    log_errors: "{{ log_lines | select('search', ' (ERROR|CRITICAL) ') | select('search', 'klipsch_flexus') | list }}"
+    log_frames: "{{ log_lines | select('search', 'File \"[^\"]*custom_components/klipsch_flexus/') | list }}"
+    syslog: "{{ (molecule_system_log.stdout | from_json).result | default([]) }}"
+    syslog_errors: >-
+      {{ syslog | selectattr('level', 'in', ['ERROR', 'CRITICAL']) | map('to_json') | select('search', 'klipsch_flexus') | list }}
+    syslog_own_warnings: "{{ syslog | selectattr('name', 'match', 'custom_components[.]klipsch_flexus') | list }}"

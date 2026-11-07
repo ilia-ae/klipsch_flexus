@@ -1,0 +1,32 @@
+# Common prepare of every scenario: Home Assistant finished its first start, the fake soundbar
+# runs next to it and the REST/WebSocket helper is in place.
+- name: Wait for the first start of Home Assistant
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8123/manifest.json
+  register: molecule_ha_first_start
+  until: molecule_ha_first_start.status == 200
+  retries: 180
+  delay: 2
+
+- name: Start the fake Klipsch Flexus soundbar
+  ansible.builtin.include_role:
+    name: flexus_stub
+
+- name: Create the helper and state directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - /opt/molecule
+    - "{{ molecule_state_dir }}"
+
+- name: Install the REST/WebSocket helper
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../../molecule/resources/files/ha_api.py"
+    dest: /opt/molecule/ha_api.py
+    owner: root
+    group: root
+    mode: "0644"

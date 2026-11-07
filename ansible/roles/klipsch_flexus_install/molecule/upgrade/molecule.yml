@@ -1,0 +1,81 @@
+# upgrade: what a HACS user experiences when updating. Release v2.5.17 (extracted from this
+# repository with `git archive v2.5.17`, no network) is installed into Home Assistant 2026.10.4,
+# the soundbar is added and the entity registry recorded; then this checkout is installed over it
+# like a HACS update + restart. Test-only (the soundbar is the flexus_stub role). Run from the
+# repository root (one scenario at a time, the Docker VM is shared):
+#   make molecule-scenarios SCENARIOS=klipsch_flexus_install/upgrade
+#
+# prepare.yml   first start, fake soundbar (127.0.0.2, alias 127.0.0.3), v2.5.17 installed with the
+#               role + restart, onboarding, config flow, registry recorded in /config/.molecule
+#               (v2.5.17 keys the entry by host: eureka_info reports the all-zero MAC, as on 2026
+#               firmware; it has number.*idle_timeout)
+# converge.yml  the role with this checkout: full replace of the directory + restart (the update)
+# idempotence   the same source again: changed=0 and no restart
+# verify.yml    same entry still loaded and now keyed by the stub's MAC (a second flow for the
+#               same soundbar aborts as already configured), the number idle timeout is gone and
+#               the select "6. Idle Timeout" exists, every other entity kept its entity_id, states
+#               from the stub, no write reached the device, brand images, no error/traceback
+dependency:
+  name: galaxy
+  enabled: false
+driver:
+  name: docker
+platforms:
+  # "klipsch-flexus-" = this repository (the Docker daemon is shared; cleanup only touches these).
+  - name: klipsch-flexus-upgrade
+    # Official image, pinned by its multi-arch index (linux/amd64 + linux/arm64); Docker runs the
+    # host's architecture natively (arm64 on the owner's Mac, amd64 on CI runners).
+    image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
+    pre_build_image: true
+    # Keep the image's ENTRYPOINT (/init, s6-overlay): Home Assistant runs as an s6 service.
+    override_command: false
+    env:
+      TZ: UTC
+    # An internal network: no route to the internet or to any LAN host. Home Assistant only talks
+    # to itself and to the stub on loopback.
+    docker_networks:
+      - name: klipsch-flexus-upgrade
+        internal: true
+    networks:
+      - name: klipsch-flexus-upgrade
+provisioner:
+  name: ansible
+  inventory:
+    host_vars:
+      klipsch-flexus-upgrade:
+        ansible_connection: community.docker.docker_api
+        ansible_docker_timeout: 60
+        ansible_python_interpreter: /usr/local/bin/python3
+        # A second address of the same fake soundbar (the duplicate-flow check).
+        flexus_stub_addresses: [127.0.0.2, 127.0.0.3]
+ansible:
+  cfg:
+    defaults:
+      roles_path: ${MOLECULE_PROJECT_DIRECTORY}/..
+      collections_path: ${MOLECULE_PROJECT_DIRECTORY}/../../collections
+      interpreter_python: auto_silent
+      stdout_callback: ansible.builtin.default
+      callback_result_format: yaml
+    connection:
+      pipelining: true
+  env:
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../../collections"
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/.."
+    PYTHONDONTWRITEBYTECODE: "1"
+    # macOS: Python HTTP clients in forked Ansible workers (docker_api connection) crash in the
+    # system proxy lookup unless these are set. No effect on Linux.
+    no_proxy: "*"
+    OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy

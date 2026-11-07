@@ -1,0 +1,12 @@
+galaxy_info:
+  role_name: klipsch_flexus_install
+  namespace: klipsch_flexus
+  author: Ilia Arestov
+  description: Test-only HACS-like install/update of the Klipsch Flexus integration into a Molecule Home Assistant container
+  license: MIT
+  min_ansible_version: "2.20"
+  platforms:
+    - name: Alpine
+      versions:
+        - all
+dependencies: []

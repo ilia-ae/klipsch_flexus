@@ -1,0 +1,61 @@
+# Shared variables of the klipsch_flexus_install scenarios (test-only, no secrets).
+# Repository root on the controller (playbook_dir = ansible/roles/<role>/molecule/<scenario>).
+molecule_repo_root: "{{ (playbook_dir ~ '/../../../../..') | realpath }}"
+# The integration as it is in this checkout (what HACS would install from this commit).
+molecule_checkout_src: "{{ molecule_repo_root }}/custom_components/klipsch_flexus"
+# REST/WebSocket helper, run with the image's Python inside the container.
+molecule_ha_api: [/usr/local/bin/python3, -I, -B, /opt/molecule/ha_api.py]
+# Test state kept in the container (token, the registry recorded before an update).
+molecule_state_dir: /config/.molecule
+# The fake soundbar (flexus_stub role): address the config flow is given, and its MAC as the
+# unique_id the integration must derive (settings:/system/primaryMacAddress of the fixture).
+molecule_stub_host: 127.0.0.2
+molecule_stub_mac_id: "020000000001"
+# Recorded by the stub (flexus_stub_state_dir).
+molecule_stub_state_dir: /var/lib/flexus-stub
+# The entities the checkout must create, as <domain>.<key> (key = unique_id without the
+# "<entry_id>_" prefix). A newer version may add entities; none of these may go missing.
+molecule_expected_entities:
+  - media_player.media_player
+  - select.night_mode
+  - select.dialog_mode
+  - select.eq_preset
+  - select.dirac
+  - select.led_mode
+  - select.idle_timeout
+  - number.back_height
+  - number.back_left
+  - number.back_right
+  - number.front_height
+  - number.side_left
+  - number.side_right
+  - number.sub_wired
+  - number.sub_wireless
+  - number.bass
+  - number.mid
+  - number.treble
+  - number.lipsync_delay
+  - number.balance
+  - sensor.response_time
+  - sensor.status
+  - sensor.active_input
+  - sensor.active_sound_mode
+  - sensor.signing_mac
+  - sensor.network_link
+  - sensor.operating_mode
+  - sensor.speaker_test
+  - sensor.sub_wired_delay
+  - sensor.sub_wireless_delay
+  - sensor.surround_delay
+  - switch.auto_lipsync
+  - switch.eq_bypass
+  - switch.auto_power
+  - switch.ui_sounds
+  - switch.extra_modes
+  - switch.ble_pair
+  - switch.ota_updates
+  - switch.loudness
+  - switch.do_not_disturb
+  - switch.auto_standby
+# Brand images of custom_components/klipsch_flexus/brand (served locally by Home Assistant 2026.3+).
+molecule_brand_images: [icon.png, icon@2x.png, dark_icon.png, dark_icon@2x.png]

@@ -1,0 +1,19 @@
+# Onboard the test owner (once; later calls only check the token) and wait until Home Assistant
+# reports that it finished starting (core state RUNNING).
+- name: Onboard the test owner and store a token
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['onboard'] }}"
+  register: molecule_onboard
+  changed_when: (molecule_onboard.stdout | from_json).changed
+
+- name: Wait until Home Assistant is RUNNING
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['rest', 'GET', '/api/config'] }}"
+  register: molecule_core_config
+  changed_when: false
+  until: >-
+    molecule_core_config.rc == 0
+    and (molecule_core_config.stdout | from_json).status == 200
+    and (molecule_core_config.stdout | from_json).json.state == 'RUNNING'
+  retries: 90
+  delay: 2

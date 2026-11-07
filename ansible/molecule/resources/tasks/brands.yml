@@ -1,0 +1,32 @@
+# Home Assistant 2026.3+ serves the integration's own brand images (custom_components/
+# klipsch_flexus/brand/) at /api/brands/integration/klipsch_flexus/<image> before the brands CDN:
+# every image answers 200 with exactly the bytes of the repository file (the dark-theme logo fix).
+- name: Hash the brand images of the checkout (controller)
+  ansible.builtin.stat:
+    path: "{{ molecule_checkout_src }}/brand/{{ item }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  register: molecule_brand_files
+  loop: "{{ molecule_brand_images }}"
+
+- name: Fetch the brand images from Home Assistant
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['fetch', '/api/brands/integration/klipsch_flexus/' ~ item] }}"
+  register: molecule_brand_served
+  changed_when: false
+  loop: "{{ molecule_brand_images }}"
+
+- name: Check that Home Assistant serves the repository's brand images byte for byte
+  ansible.builtin.assert:
+    that:
+      - item.0.stat.exists
+      - served.status == 200
+      - served.sha256 == item.0.stat.checksum
+      - served.size == item.0.stat.size
+    fail_msg: "{{ item.0.item }}: served {{ served }}, repository sha256 {{ item.0.stat.checksum | default('missing') }}"
+    quiet: true
+  loop: "{{ molecule_brand_files.results | zip(molecule_brand_served.results) | list }}"
+  loop_control:
+    label: "{{ item.0.item }}"
+  vars:
+    served: "{{ item.1.stdout | from_json }}"

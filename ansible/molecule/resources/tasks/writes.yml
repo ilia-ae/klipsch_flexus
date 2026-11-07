@@ -1,0 +1,59 @@
+# Service calls reach the soundbar as writes (POST /api/setData, authMode "none") and the new
+# values come back through the next poll. Needs molecule_entities (entities.yml).
+- name: Read what the stub recorded during setup
+  ansible.builtin.include_tasks: stub_traffic.yml
+
+- name: Check that setting up the integration wrote nothing to the device
+  ansible.builtin.assert:
+    that:
+      - molecule_stub_writes | length == 0
+    fail_msg: "Unexpected writes during setup: {{ molecule_stub_writes }}"
+    quiet: true
+
+- name: Call media_player.volume_set (0.3 of 0..50 = 15)
+  ansible.builtin.command:
+    argv: >-
+      {{ molecule_ha_api + ['rest', 'POST', '/api/services/media_player/volume_set',
+         {'entity_id': molecule_entities['media_player.media_player'], 'volume_level': 0.3} | to_json] }}
+  register: molecule_call_volume
+  changed_when: true
+  failed_when: molecule_call_volume.rc != 0 or (molecule_call_volume.stdout | from_json).status != 200
+
+- name: Call select.select_option (6. Idle Timeout -> 15_min = 900 s)
+  ansible.builtin.command:
+    argv: >-
+      {{ molecule_ha_api + ['rest', 'POST', '/api/services/select/select_option',
+         {'entity_id': molecule_entities['select.idle_timeout'], 'option': '15_min'} | to_json] }}
+  register: molecule_call_idle
+  changed_when: true
+  failed_when: molecule_call_idle.rc != 0 or (molecule_call_idle.stdout | from_json).status != 200
+
+- name: Read what the stub recorded
+  ansible.builtin.include_tasks: stub_traffic.yml
+
+- name: Check that exactly these two writes reached the device
+  ansible.builtin.assert:
+    that:
+      - molecule_stub_writes | length == 2
+      - molecule_stub_writes[0].path == 'player:volume'
+      - molecule_stub_writes[0].roles == 'value'
+      - "molecule_stub_writes[0].value == {'type': 'i32_', 'i32_': 15}"
+      - molecule_stub_writes[1].path == 'settings:/system/maxIdleTime'
+      - molecule_stub_writes[1].roles == 'value'
+      - "molecule_stub_writes[1].value == {'type': 'i32_', 'i32_': 900}"
+    fail_msg: "{{ molecule_stub_writes | to_json }}"
+    quiet: true
+
+- name: Wait until the entities show the written values (read back from the device)
+  ansible.builtin.include_tasks: states.yml
+  vars:
+    molecule_wait_entity_ids:
+      - "{{ molecule_entities['media_player.media_player'] }}"
+      - "{{ molecule_entities['select.idle_timeout'] }}"
+
+- name: Check the written values
+  ansible.builtin.assert:
+    that:
+      - molecule_states_now[molecule_entities['media_player.media_player']].attributes.volume_level | float == 0.3
+      - molecule_states_now[molecule_entities['select.idle_timeout']].state == '15_min'
+    quiet: true

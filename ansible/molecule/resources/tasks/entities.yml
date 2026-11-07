@@ -1,0 +1,61 @@
+# Every expected entity exists for molecule_entry_id and shows the stub's values (fixture.json of
+# the flexus_stub role). Needs molecule_entry_id. Sets molecule_entities and molecule_states_now.
+- name: Read the entity registry
+  ansible.builtin.include_tasks: registry.yml
+
+- name: Check that every expected entity exists and the old idle-timeout number is gone
+  ansible.builtin.assert:
+    that:
+      - molecule_expected_entities | difference(molecule_entities.keys()) | length == 0
+      - "'number.idle_timeout' not in molecule_entities"
+    fail_msg: >-
+      missing: {{ molecule_expected_entities | difference(molecule_entities.keys()) }};
+      registry: {{ molecule_entities }}
+    quiet: true
+
+- name: Wait for the states of every expected entity
+  ansible.builtin.include_tasks: states.yml
+  vars:
+    molecule_wait_entity_ids: "{{ molecule_expected_entities | map('extract', molecule_entities) | list }}"
+
+- name: Check the states derived from the stub
+  ansible.builtin.assert:
+    that:
+      # media player: power "online", player state "playing", volume 20 of 0..50 (edit metadata)
+      - mp.state == 'playing'
+      - mp.attributes.volume_level | float == 0.4
+      - mp.attributes.is_volume_muted == false
+      - mp.attributes.source == 'TV ARC'
+      - mp.attributes.sound_mode == 'movie'
+      - mp.attributes.media_title == 'Molecule Test Tone'
+      - mp.attributes.media_artist == 'Flexus Stub'
+      # selects (maxIdleTime 600 s = 10_min; dirac filter 1 = "Living Room" from getRows)
+      - st['select.idle_timeout'] == '10_min'
+      - st['select.eq_preset'] == 'custom'
+      - st['select.dialog_mode'] == 'dialog_2'
+      - st['select.night_mode'] == 'off'
+      - st['select.dirac'] == 'Living Room'
+      - st['select.led_mode'] == 'dim'
+      # numbers
+      - st['number.bass'] | float == 2
+      - st['number.treble'] | float == -1
+      - st['number.sub_wired'] | float == -3
+      - st['number.front_height'] | float == 1
+      - st['number.balance'] | float == 0.5
+      - st['number.lipsync_delay'] | float == 40
+      # switches
+      - st['switch.loudness'] == 'on'
+      - st['switch.auto_lipsync'] == 'on'
+      - st['switch.extra_modes'] == 'off'
+      - st['switch.do_not_disturb'] == 'off'
+      # sensors
+      - st['sensor.status'] == 'on'
+      - st['sensor.sub_wired_delay'] | float == 1500
+      - st['sensor.operating_mode'] == 'normal'
+    fail_msg: "states: {{ st }}; media player: {{ mp }}"
+    quiet: true
+  vars:
+    mp: "{{ molecule_states_now[molecule_entities['media_player.media_player']] }}"
+    st: >-
+      {{ dict(molecule_expected_entities | zip(molecule_expected_entities | map('extract', molecule_entities)
+              | map('extract', molecule_states_now) | map(attribute='state'))) }}

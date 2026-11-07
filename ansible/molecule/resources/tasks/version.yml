@@ -1,0 +1,21 @@
+# Home Assistant loaded the expected integration: the manifest it reports (WebSocket
+# manifest/get) has the checkout's version, or molecule_expect_version when given.
+- name: Read the loaded integration's manifest
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['ws', 'manifest/get', {'integration': 'klipsch_flexus'} | to_json] }}"
+  register: molecule_loaded_manifest
+  changed_when: false
+
+- name: Check the loaded version
+  ansible.builtin.assert:
+    that:
+      - loaded.success
+      - loaded.result.domain == 'klipsch_flexus'
+      - loaded.result.version == expected
+      - loaded.result.is_built_in == false
+    fail_msg: "loaded {{ loaded | to_json }}, expected version {{ expected }}"
+    quiet: true
+  vars:
+    loaded: "{{ molecule_loaded_manifest.stdout | from_json }}"
+    expected: >-
+      {{ molecule_expect_version | default((lookup('ansible.builtin.file', molecule_checkout_src ~ '/manifest.json') | from_json).version) }}

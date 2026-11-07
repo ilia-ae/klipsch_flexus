@@ -1,0 +1,18 @@
+# Installs custom_components/klipsch_flexus into a Molecule Home Assistant container the way HACS
+# installs or updates it. Test-only: users (and the owner) install through HACS; there is no
+# deployment of this role to any real Home Assistant.
+
+# Source tree ON THE CONTROLLER: the integration directory (with manifest.json) to install. The
+# default is this checkout; a scenario passes an older release extracted with `git archive`.
+klipsch_flexus_install_src: "{{ role_path }}/../../../custom_components/klipsch_flexus"
+# Home Assistant configuration directory in the container (the image's /config).
+klipsch_flexus_install_config_dir: /config
+# Restart Home Assistant after a change (HACS: "restart required"). Never restarts when nothing
+# changed.
+klipsch_flexus_install_restart: true
+# s6-overlay service of Home Assistant in the official container image.
+klipsch_flexus_install_ha_service: /run/service/home-assistant
+# Where Home Assistant answers inside the container.
+klipsch_flexus_install_ha_url: http://127.0.0.1:8123
+# Seconds to wait for Home Assistant to answer again after the restart.
+klipsch_flexus_install_wait_timeout: 300

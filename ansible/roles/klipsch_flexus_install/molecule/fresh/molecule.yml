@@ -1,0 +1,73 @@
+# fresh: a HACS user installs klipsch_flexus (this checkout) into Home Assistant 2026.10.4 and
+# restarts, then adds the soundbar. Test-only: the "soundbar" is the flexus_stub role inside the
+# same container. Run from the repository root (one scenario at a time, the Docker VM is shared):
+#   make molecule-scenarios SCENARIOS=klipsch_flexus_install/fresh
+#
+# prepare.yml   first start of Home Assistant, fake soundbar on 127.0.0.2, REST/WebSocket helper
+# converge.yml  the role: full replace of /config/custom_components/klipsch_flexus + restart
+# idempotence   the same source again: changed=0 and no restart
+# verify.yml    onboarding -> config flow -> loaded entry keyed by the stub's MAC, entities and
+#               states from the stub, two service calls reach the stub as writes, brand images
+#               served byte for byte, no error/traceback for klipsch_flexus in any log
+dependency:
+  name: galaxy
+  enabled: false
+driver:
+  name: docker
+platforms:
+  # "klipsch-flexus-" = this repository (the Docker daemon is shared; cleanup only touches these).
+  - name: klipsch-flexus-fresh
+    # Official image, pinned by its multi-arch index (linux/amd64 + linux/arm64); Docker runs the
+    # host's architecture natively (arm64 on the owner's Mac, amd64 on CI runners).
+    image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
+    pre_build_image: true
+    # Keep the image's ENTRYPOINT (/init, s6-overlay): Home Assistant runs as an s6 service.
+    override_command: false
+    env:
+      TZ: UTC
+    # An internal network: no route to the internet or to any LAN host. Home Assistant only talks
+    # to itself and to the stub on loopback.
+    docker_networks:
+      - name: klipsch-flexus-fresh
+        internal: true
+    networks:
+      - name: klipsch-flexus-fresh
+provisioner:
+  name: ansible
+  inventory:
+    host_vars:
+      klipsch-flexus-fresh:
+        ansible_connection: community.docker.docker_api
+        ansible_docker_timeout: 60
+        ansible_python_interpreter: /usr/local/bin/python3
+ansible:
+  cfg:
+    defaults:
+      roles_path: ${MOLECULE_PROJECT_DIRECTORY}/..
+      collections_path: ${MOLECULE_PROJECT_DIRECTORY}/../../collections
+      interpreter_python: auto_silent
+      stdout_callback: ansible.builtin.default
+      callback_result_format: yaml
+    connection:
+      pipelining: true
+  env:
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../../collections"
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/.."
+    PYTHONDONTWRITEBYTECODE: "1"
+    # macOS: Python HTTP clients in forked Ansible workers (docker_api connection) crash in the
+    # system proxy lookup unless these are set. No effect on Linux.
+    no_proxy: "*"
+    OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy

@@ -1,0 +1,106 @@
+# HACS-like install / update of custom_components/klipsch_flexus into a Molecule Home Assistant
+# container (test-only). Like HACS it replaces the whole integration directory with the release
+# tree (files gone from the release disappear too) and then needs a Home Assistant restart. The
+# comparison is by content (sha1 of every file; __pycache__ that Home Assistant writes is
+# ignored), so a second run with the same source changes nothing and does not restart.
+- name: Resolve the source and destination directories
+  ansible.builtin.set_fact:
+    klipsch_flexus_install_src_dir: "{{ klipsch_flexus_install_src | realpath }}"
+    klipsch_flexus_install_dest: "{{ klipsch_flexus_install_config_dir }}/custom_components/klipsch_flexus"
+    klipsch_flexus_install_staging: /tmp/klipsch_flexus.hacs-staging
+
+- name: Read the source manifest (controller)
+  ansible.builtin.set_fact:
+    klipsch_flexus_install_manifest: "{{ lookup('ansible.builtin.file', klipsch_flexus_install_src_dir ~ '/manifest.json') | from_json }}"
+
+- name: Check that the source is the klipsch_flexus integration
+  ansible.builtin.assert:
+    that:
+      - klipsch_flexus_install_manifest.domain == 'klipsch_flexus'
+      - klipsch_flexus_install_manifest.version is defined
+    fail_msg: "{{ klipsch_flexus_install_src_dir }} is not custom_components/klipsch_flexus"
+    quiet: true
+
+- name: List the source files (controller)
+  ansible.builtin.find:
+    paths: "{{ klipsch_flexus_install_src_dir }}"
+    recurse: true
+    file_type: file
+    hidden: true
+    excludes: ["*.pyc", ".DS_Store"]
+    get_checksum: true
+  delegate_to: localhost
+  register: klipsch_flexus_install_src_files
+
+- name: List the installed files (container)
+  ansible.builtin.find:
+    paths: "{{ klipsch_flexus_install_dest }}"
+    recurse: true
+    file_type: file
+    hidden: true
+    excludes: ["*.pyc"]
+    get_checksum: true
+  register: klipsch_flexus_install_dest_files
+
+- name: Compare the installed tree with the source tree
+  ansible.builtin.set_fact:
+    klipsch_flexus_install_src_map: >-
+      {{ dict(klipsch_flexus_install_src_files.files | map(attribute='path')
+              | map('relpath', klipsch_flexus_install_src_dir)
+              | zip(klipsch_flexus_install_src_files.files | map(attribute='checksum'))) }}
+    klipsch_flexus_install_dest_map: >-
+      {{ dict(klipsch_flexus_install_dest_files.files | map(attribute='path')
+              | map('relpath', klipsch_flexus_install_dest)
+              | zip(klipsch_flexus_install_dest_files.files | map(attribute='checksum'))) }}
+
+- name: Fail on an empty source tree
+  ansible.builtin.assert:
+    that:
+      - klipsch_flexus_install_src_map | length > 0
+      - "'__init__.py' in klipsch_flexus_install_src_map"
+    quiet: true
+
+- name: Install like HACS (full replace of the directory) klipsch_flexus {{ klipsch_flexus_install_manifest.version }}
+  when: klipsch_flexus_install_src_map != klipsch_flexus_install_dest_map
+  block:
+    - name: Start from an empty staging directory
+      ansible.builtin.file:
+        path: "{{ klipsch_flexus_install_staging }}"
+        state: absent
+
+    - name: Create the staging directories
+      ansible.builtin.file:
+        path: "{{ (klipsch_flexus_install_staging ~ '/' ~ item) | regex_replace('/\\.?$', '') }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop: "{{ klipsch_flexus_install_src_map.keys() | map('dirname') | unique | sort }}"
+
+    - name: Copy the release files into staging
+      ansible.builtin.copy:
+        src: "{{ klipsch_flexus_install_src_dir }}/{{ item }}"
+        dest: "{{ klipsch_flexus_install_staging }}/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop: "{{ klipsch_flexus_install_src_map.keys() | sort }}"
+
+    - name: Create custom_components
+      ansible.builtin.file:
+        path: "{{ klipsch_flexus_install_config_dir }}/custom_components"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Remove the previously installed version
+      ansible.builtin.file:
+        path: "{{ klipsch_flexus_install_dest }}"
+        state: absent
+
+    - name: Move the new version into place
+      ansible.builtin.command:
+        argv: [mv, "{{ klipsch_flexus_install_staging }}", "{{ klipsch_flexus_install_dest }}"]
+      changed_when: true
+      notify: klipsch_flexus_install restart home assistant

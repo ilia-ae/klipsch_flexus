@@ -1,0 +1,21 @@
+# Read the unique_id of molecule_entry_id. The REST/WebSocket APIs do not expose a config entry's
+# unique_id, so it is read from Home Assistant's own store (.storage/core.config_entries, saved a
+# moment after a change). With molecule_expect_unique_id set, wait until it has that value.
+# Sets molecule_entry_unique_id.
+- name: Read the entry's unique_id from .storage/core.config_entries
+  ansible.builtin.slurp:
+    src: /config/.storage/core.config_entries
+  register: molecule_entries_store
+  until: >-
+    molecule_expect_unique_id | default('') == ''
+    or (molecule_entries_store.content | b64decode | from_json).data.entries
+       | selectattr('entry_id', 'equalto', molecule_entry_id) | map(attribute='unique_id') | first | default('')
+       == molecule_expect_unique_id
+  retries: 30
+  delay: 2
+
+- name: Remember the unique_id
+  ansible.builtin.set_fact:
+    molecule_entry_unique_id: >-
+      {{ (molecule_entries_store.content | b64decode | from_json).data.entries
+         | selectattr('entry_id', 'equalto', molecule_entry_id) | map(attribute='unique_id') | first }}

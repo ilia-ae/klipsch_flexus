@@ -1,0 +1,41 @@
+# Restart through the container's own supervisor. s6-svc -h sends SIGHUP, which Home Assistant
+# treats as "restart": it exits with code 100, the image's finish script keeps the container up
+# for that code, and s6 starts Home Assistant again (SIGTERM would stop the container instead).
+- name: Record the running Home Assistant process
+  listen: klipsch_flexus_install restart home assistant
+  when: klipsch_flexus_install_restart | bool
+  ansible.builtin.command:
+    argv: [s6-svstat, -o, pid, "{{ klipsch_flexus_install_ha_service }}"]
+  register: klipsch_flexus_install_old_pid
+  changed_when: false
+
+- name: Restart Home Assistant (s6-svc -h, SIGHUP = restart)
+  listen: klipsch_flexus_install restart home assistant
+  when: klipsch_flexus_install_restart | bool
+  ansible.builtin.command:
+    argv: [s6-svc, -h, "{{ klipsch_flexus_install_ha_service }}"]
+  changed_when: true
+
+- name: Wait for the new Home Assistant process
+  listen: klipsch_flexus_install restart home assistant
+  when: klipsch_flexus_install_restart | bool
+  ansible.builtin.command:
+    argv: [s6-svstat, -o, "up,pid", "{{ klipsch_flexus_install_ha_service }}"]
+  register: klipsch_flexus_install_new_pid
+  changed_when: false
+  until: >-
+    klipsch_flexus_install_new_pid.stdout.split() | length == 2
+    and klipsch_flexus_install_new_pid.stdout.split()[0] == 'true'
+    and klipsch_flexus_install_new_pid.stdout.split()[1] != klipsch_flexus_install_old_pid.stdout | trim
+  retries: 120
+  delay: 1
+
+- name: Wait until Home Assistant answers again
+  listen: klipsch_flexus_install restart home assistant
+  when: klipsch_flexus_install_restart | bool
+  ansible.builtin.uri:
+    url: "{{ klipsch_flexus_install_ha_url }}/manifest.json"
+  register: klipsch_flexus_install_ha_up
+  until: klipsch_flexus_install_ha_up.status == 200
+  retries: "{{ (klipsch_flexus_install_wait_timeout | int / 2) | int }}"
+  delay: 2

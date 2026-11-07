@@ -1,0 +1,8 @@
+- name: Prepare (first start of Home Assistant, fake soundbar, helper)
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - ../../../../molecule/resources/vars/harness.yml
+  tasks:
+    - name: Common prepare
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/prepare_common.yml

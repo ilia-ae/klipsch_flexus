@@ -1,0 +1,20 @@
+- name: Verify (HACS update from v2.5.17 to this checkout on Home Assistant 2026.10.4)
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - ../../../../molecule/resources/vars/harness.yml
+  tasks:
+    - name: Wait until Home Assistant runs (the owner was onboarded before the update)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/ha_ready.yml
+
+    - name: Check that Home Assistant loaded this checkout's version
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/version.yml
+
+    - name: Check the entry, the entities and the device after the update
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/after_update.yml
+
+    - name: Check the brand images (local brands, Home Assistant 2026.3+)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/brands.yml
+
+    - name: Check the logs (both releases, every Home Assistant run)
+      ansible.builtin.include_tasks: ../../../../molecule/resources/tasks/logs.yml

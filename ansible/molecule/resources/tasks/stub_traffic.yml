@@ -1,0 +1,24 @@
+# What the fake soundbar recorded. Sets molecule_stub_writes (list of {path, roles, value, known})
+# and molecule_stub_unknown (reads of paths the stub does not emulate). Missing files = nothing.
+- name: Read the stub's records
+  ansible.builtin.slurp:
+    src: "{{ molecule_stub_state_dir }}/{{ item }}"
+  register: molecule_stub_files
+  failed_when: false
+  loop:
+    - writes.jsonl
+    - unknown_paths.jsonl
+
+- name: Parse the stub's records
+  ansible.builtin.set_fact:
+    molecule_stub_writes: >-
+      {{ (molecule_stub_files.results[0].content | default('') | b64decode).splitlines() | select | map('from_json') | list }}
+    molecule_stub_unknown: >-
+      {{ (molecule_stub_files.results[1].content | default('') | b64decode).splitlines() | select | map('from_json') | list }}
+
+- name: Check that the integration only reads paths the stub emulates
+  ansible.builtin.assert:
+    that:
+      - molecule_stub_unknown | length == 0
+    fail_msg: "The integration read paths the stub does not know (extend the fixture): {{ molecule_stub_unknown }}"
+    quiet: true

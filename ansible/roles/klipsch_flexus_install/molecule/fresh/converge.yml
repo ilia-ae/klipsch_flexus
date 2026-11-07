@@ -1,0 +1,9 @@
+- name: Converge (HACS-like install of this checkout + restart)
+  hosts: all
+  gather_facts: false
+  vars_files:
+    - ../../../../molecule/resources/vars/harness.yml
+  roles:
+    - role: klipsch_flexus_install
+      vars:
+        klipsch_flexus_install_src: "{{ molecule_checkout_src }}"

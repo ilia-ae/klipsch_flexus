@@ -1,0 +1,84 @@
+# After the HACS-like update from the release recorded in before_update.json (upgrade scenario):
+# the same entry, now keyed by the MAC; the number idle timeout replaced by the select; every other
+# entity_id kept; a second flow for the same soundbar aborts; nothing written to the device.
+- name: Read the state recorded before the update
+  ansible.builtin.slurp:
+    src: "{{ molecule_state_dir }}/before_update.json"
+  register: molecule_before_raw
+
+- name: Use the entry configured before the update
+  ansible.builtin.set_fact:
+    molecule_before: "{{ molecule_before_raw.content | b64decode | from_json }}"
+    molecule_entry_id: "{{ (molecule_before_raw.content | b64decode | from_json).entry_id }}"
+
+- name: Check that the same entry is still the only one and loaded
+  ansible.builtin.include_tasks: entry_loaded.yml
+
+- name: Check that the entry is now keyed by the soundbar's MAC
+  ansible.builtin.include_tasks: unique_id.yml
+  vars:
+    molecule_expect_unique_id: "{{ molecule_stub_mac_id }}"
+
+- name: Check the entities and their states (number idle timeout gone, select present)
+  ansible.builtin.include_tasks: entities.yml
+
+- name: Check that every other entity kept its entity_id (dashboards and automations keep working)
+  ansible.builtin.assert:
+    that:
+      - kept_changed | length == 0
+      - molecule_entities['select.idle_timeout'] is match('select[.]')
+    fail_msg: "changed entity_ids: {{ kept_changed | to_json }}"
+    quiet: true
+  vars:
+    kept_changed: >-
+      {{ molecule_before.entities | dict2items | rejectattr('key', 'equalto', 'number.idle_timeout')
+         | rejectattr('value', 'in', molecule_entities.values() | list) | list }}
+
+- name: Read the state of the removed number entity
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['rest', 'GET', '/api/states/' ~ molecule_before.entities['number.idle_timeout']] }}"
+  register: molecule_old_number
+  changed_when: false
+
+- name: Check that the removed number entity has no state any more
+  ansible.builtin.assert:
+    that:
+      - (molecule_old_number.stdout | from_json).status == 404
+    fail_msg: "{{ molecule_before.entities['number.idle_timeout'] }}: {{ molecule_old_number.stdout }}"
+    quiet: true
+
+- name: Start a second config flow for the same soundbar (other address)
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['rest', 'POST', '/api/config/config_entries/flow', {'handler': 'klipsch_flexus'} | to_json] }}"
+  register: molecule_dup_start
+  changed_when: true
+
+- name: Submit the soundbar's second address
+  ansible.builtin.command:
+    argv: >-
+      {{ molecule_ha_api + ['rest', 'POST',
+         '/api/config/config_entries/flow/' ~ (molecule_dup_start.stdout | from_json).json.flow_id,
+         {'host': '127.0.0.3'} | to_json] }}
+  register: molecule_dup_submit
+  changed_when: true
+
+- name: Check that the second flow aborts as already configured (matched by MAC)
+  ansible.builtin.assert:
+    that:
+      - dup.status == 200
+      - dup.json.type == 'abort'
+      - dup.json.reason == 'already_configured'
+    fail_msg: "{{ dup | to_json }}"
+    quiet: true
+  vars:
+    dup: "{{ molecule_dup_submit.stdout | from_json }}"
+
+- name: Read what the stub recorded
+  ansible.builtin.include_tasks: stub_traffic.yml
+
+- name: Check that the update wrote nothing to the device
+  ansible.builtin.assert:
+    that:
+      - molecule_stub_writes | length == molecule_before.stub_writes
+    fail_msg: "writes: {{ molecule_stub_writes | to_json }}"
+    quiet: true

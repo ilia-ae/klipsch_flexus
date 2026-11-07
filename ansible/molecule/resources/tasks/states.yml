@@ -1,0 +1,21 @@
+# Wait until every entity in molecule_wait_entity_ids has a state other than "unavailable", then
+# set molecule_states_now ({entity_id: state object}) from one GET /api/states.
+- name: Wait for the entity states
+  ansible.builtin.command:
+    argv: "{{ molecule_ha_api + ['rest', 'GET', '/api/states'] }}"
+  register: molecule_states_raw
+  changed_when: false
+  until: >-
+    molecule_states_raw.rc == 0
+    and (molecule_states_raw.stdout | from_json).status == 200
+    and (molecule_states_raw.stdout | from_json).json
+        | selectattr('entity_id', 'in', molecule_wait_entity_ids)
+        | rejectattr('state', 'equalto', 'unavailable') | list | length == molecule_wait_entity_ids | length
+  retries: 30
+  delay: 2
+
+- name: Index the states by entity_id
+  ansible.builtin.set_fact:
+    molecule_states_now: >-
+      {{ dict((molecule_states_raw.stdout | from_json).json | map(attribute='entity_id')
+              | zip((molecule_states_raw.stdout | from_json).json)) }}
