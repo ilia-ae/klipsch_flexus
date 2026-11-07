@@ -1,17 +1,31 @@
-name: Bug Report
-description: Report a bug with the Klipsch Flexus integration
+name: Bug report
+description: Something in the Klipsch Flexus integration does not work as described
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting! Please fill in the details below.
+        Thanks for reporting. Please check [Troubleshooting](https://github.com/ilia-ae/klipsch_flexus#troubleshooting) first.
+        Questions go to [Discussions](https://github.com/ilia-ae/klipsch_flexus/discussions).
+        Report security problems privately, see [SECURITY.md](https://github.com/ilia-ae/klipsch_flexus/blob/main/SECURITY.md).
 
   - type: input
     id: version
     attributes:
       label: Integration version
-      placeholder: "v1.3.0"
+      description: Shown in HACS, or under Settings > Devices & Services > Klipsch Flexus.
+      placeholder: "2.5.19"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Release channel
+      description: Beta versions are pre-releases tagged vX.Y.Z-beta.N.
+      options:
+        - stable
+        - beta
     validations:
       required: true
 
@@ -19,7 +33,28 @@ body:
     id: ha_version
     attributes:
       label: Home Assistant version
-      placeholder: "2024.12.0"
+      description: Settings > About.
+      placeholder: "2026.10.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model
+    attributes:
+      label: Soundbar model
+      options:
+        - CORE 100
+        - CORE 200
+        - CORE 300
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Soundbar firmware version
+      description: The device version in the Klipsch Connect Plus app, or "Firmware" on the device page in Home Assistant.
+      placeholder: "1.1.3.0x7cd294e"
     validations:
       required: true
 
@@ -27,7 +62,7 @@ body:
     id: description
     attributes:
       label: Describe the bug
-      placeholder: What happened? What did you expect?
+      placeholder: What did you do? What did you expect? What happened instead?
     validations:
       required: true
 
@@ -35,7 +70,7 @@ body:
     id: logs
     attributes:
       label: Relevant log output
-      description: Copy logs from Settings → System → Logs (filter by "klipsch")
+      description: Settings > System > Logs. Copy the lines that mention klipsch_flexus.
       render: shell
 
   - type: textarea
@@ -43,6 +78,8 @@ body:
     attributes:
       label: Diagnostics
       description: |
-        Download from Settings → Devices → Klipsch Flexus → "Download diagnostics"
-        Paste the JSON here (IP is auto-redacted).
+        Settings > Devices & Services > Klipsch Flexus > ⋮ > Download diagnostics. Paste the JSON here.
+        The integration redacts the IP address, every MAC address (including the signing MAC and its candidates),
+        the Wi-Fi BSSID, the device ID and stream URLs. The file never contains a signed request header.
+        Read it before you post it anyway.
       render: json

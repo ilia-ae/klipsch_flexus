@@ -1,9 +1,16 @@
+# Categories for GitHub's generated release notes (.github/workflows/release.yaml
+# sets generate_release_notes). The same categories serve beta pre-releases
+# (vX.Y.Z-beta.N) and stable releases (vX.Y.Z): there is no beta label, because
+# whether a release is a beta comes from its tag, not from its pull requests.
+# Labels used here must exist in the repository: breaking-change,
+# ignore-for-release, enhancement and bug.
 changelog:
   exclude:
     labels:
       - "ignore-for-release"
     authors:
       - "dependabot"
+      - "dependabot[bot]"
   categories:
     - title: "Breaking Changes"
       labels:

@@ -1,17 +1,33 @@
-name: Feature Request
-description: Suggest a new feature
+name: Feature request
+description: Suggest a new feature for the Klipsch Flexus integration
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Open questions and loose ideas can also go to [Discussions](https://github.com/ilia-ae/klipsch_flexus/discussions).
+
   - type: textarea
     id: description
     attributes:
       label: What would you like?
-      placeholder: Describe the feature you'd like to see.
+      placeholder: Describe the feature and what you would use it for.
     validations:
       required: true
+
+  - type: dropdown
+    id: model
+    attributes:
+      label: Soundbar model
+      description: The model you would use it with.
+      multiple: true
+      options:
+        - CORE 100
+        - CORE 200
+        - CORE 300
 
   - type: textarea
     id: context
     attributes:
       label: Additional context
-      placeholder: Any screenshots, API endpoints, or use cases.
+      placeholder: Screenshots, the setting in the Klipsch Connect Plus app, API paths you know (settings:/...), or diagnostics.

@@ -1,23 +1,23 @@
 # Klipsch Flexus
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://hacs.xyz/)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ilia-ae&repository=klipsch_flexus&category=integration)
 [![GitHub Release](https://img.shields.io/github/release/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/releases)
 [![Last Commit](https://img.shields.io/github/last-commit/ilia-ae/klipsch_flexus.svg?style=for-the-badge)](https://github.com/ilia-ae/klipsch_flexus/commits/main)
 [![License](https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/main/docs/images/badge-license-mit.svg)](https://github.com/ilia-ae/klipsch_flexus/blob/main/LICENSE)
 [![Auto Discovery](https://img.shields.io/badge/Auto_Discovery-Zeroconf-44cc11.svg?style=for-the-badge)](#descoberta-automática)
 
-[![Verify signed local CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml)
 [![CodeQL](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/github-code-scanning/codeql)
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-🌐 [English](../README.md) | [Русский](README_ru.md) | [Deutsch](README_de.md) | [Español](README_es.md) | **Português**
+🌐 [English](../README.md) | [Русский](README_ru.md) | [Deutsch](README_de.md) | [Español](README_es.md) | **Português**  
+🔒 **Segurança**: [Política](../SECURITY.md) | [Relatório de avaliação](SECURITY_ASSESSMENT_CORE_300.md)
 
 ---
 
 Integração personalizada do Home Assistant para soundbars **Klipsch Flexus** — controle via **API HTTP local nativa**, sem nuvem, sem atrasos.
 
-> ✅ **41 entidades**, todos os comandos de escrita verificados ao vivo contra o firmware de 2026 (assinados com HMAC), controláveis em standby. Os selos acima refletem a versão publicada e o último push.
+> ✅ **41 entidades**. Todos os comandos de escrita foram verificados ao vivo no firmware de 2026 (assinados com HMAC) e funcionam em standby. Cada commit em `main` é testado primeiro localmente: veja [Resultados dos testes](#resultados-dos-testes).
 
 ## 📸 Painel (Dashboard)
 
@@ -43,6 +43,8 @@ Um painel Lovelace personalizado inteiramente baseado nas entidades da integraç
 | **Flexus CORE 300** | 5.1.2 | Dirac Live, Dolby Atmos, 13 drivers |
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
+
+A integração não verifica o modelo. Ela adiciona qualquer soundbar Flexus que se anuncie via Google Cast e usa a mesma API local e as mesmas 41 entidades para todos os modelos. O mantenedor testa numa CORE 300. Um controle para hardware que o seu modelo não tem (por exemplo, os canais de altura numa CORE 100) pode falhar com um erro.
 
 > A soundbar deve ser **totalmente configurada primeiro no aplicativo oficial Klipsch Connect Plus** — conclua todo o processo de configuração pelo menos uma vez (Wi-Fi, atualização de firmware, pareamento de caixas, calibração Dirac). No firmware de 2026 isso também provisiona a credencial de assinatura dos comandos, então uma configuração incompleta deixa a maioria dos comandos sem autorização. Esta integração cuida apenas do controle diário.
 
@@ -125,7 +127,7 @@ Firmware mais antigo (anterior à `1.1.3`) não é afetado e mantém o controle 
 - **Link de rede** — interface ativa com fio/sem fio, nomes das interfaces, origens do MAC
 - **Modo de operação** / **Teste de caixas** — estado do dispositivo somente leitura (exibido, deliberadamente não controlável)
 - **Atrasos das caixas** (sub com fio/sem fio, surround sem fio) — somente leitura, autocalibrados pelo dispositivo
-- **Baixar diagnósticos** — exportação completa do estado (Configurações > Dispositivos > Klipsch Flexus > Baixar diagnósticos)
+- **Baixar diagnósticos** — exportação completa do estado (Configurações > Dispositivos > Klipsch Flexus > Baixar diagnósticos). O endereço IP, todos os endereços MAC, o BSSID do Wi-Fi, o ID do dispositivo e as URLs de streaming são ocultados
 
 ### Traduções
 Tradução completa da interface em **7 idiomas**: inglês, russo, alemão, espanhol, francês, italiano, português. Todos os nomes de entidades, estados e telas de configuração estão traduzidos.
@@ -134,8 +136,12 @@ Tradução completa da interface em **7 idiomas**: inglês, russo, alemão, espa
 
 ### HACS (recomendado)
 
-1. Abra **HACS** > Integrações > pesquise **Klipsch Flexus**
-2. Baixe-a e reinicie o Home Assistant
+O Klipsch Flexus está na loja padrão do HACS, então você não precisa adicionar um repositório personalizado.
+
+[![Abra a sua instância do Home Assistant e este repositório no HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ilia-ae&repository=klipsch_flexus&category=integration)
+
+1. Use o botão acima para abrir o Klipsch Flexus no seu HACS (link do My Home Assistant), ou abra o **HACS** e pesquise **Klipsch Flexus**
+2. Selecione **Baixar** e reinicie o Home Assistant
 3. A soundbar deve ser **descoberta automaticamente** — verifique as notificações
 4. Ou vá para **Configurações** > Dispositivos e serviços > **Adicionar integração** > Klipsch Flexus
 
@@ -148,6 +154,19 @@ Tradução completa da interface em **7 idiomas**: inglês, russo, alemão, espa
 ### Atualização
 
 Depois de atualizar a integração (HACS ou manual), **reinicie o Home Assistant**: o HA carrega o código Python da integração na inicialização, então a nova versão só roda após um reinício. Alterar as **Opções** ou **Reconfigurar** o host tem efeito imediato, sem reinício (a entrada é recarregada).
+
+### Versões beta
+
+Novos recursos e correções saem primeiro como **beta**: uma pre-release do GitHub com a tag `vX.Y.Z-beta.N`. A versão estável `vX.Y.Z` vem depois. O HACS só oferece uma beta a quem optar por ela. Se você não fizer nada, continua nas versões estáveis e não recebe avisos de betas.
+
+Para receber betas (HACS 2.x; os nomes estão em inglês, o seu HACS pode mostrá-los traduzidos):
+
+1. Vá em **Configurações** > Dispositivos e serviços > **HACS** e abra a entrada de serviço **Klipsch Flexus** (o HACS cria uma para cada repositório baixado)
+2. Encontre o interruptor **Pre-release** (uma entidade de diagnóstico). Ele vem desativado: abra-o, selecione o ícone de engrenagem, ative a entidade e salve
+3. Ligue o **Pre-release**. O HACS passa a oferecer a beta mais recente como atualização. Para verificar na hora, abra o Klipsch Flexus no HACS e selecione **Update information** no menu ⋮
+4. Instale a atualização e reinicie o Home Assistant
+
+Para voltar à versão estável, desligue o **Pre-release**. O HACS volta a oferecer apenas versões estáveis, e você fica com a beta até que a próxima versão estável a substitua. Para voltar imediatamente, abra o Klipsch Flexus no HACS, selecione ⋮ > **Redownload** > **Need a different version?**, escolha a versão mais recente sem a marca *pre-release*, baixe-a e reinicie o Home Assistant.
 
 ## Descoberta automática
 
@@ -168,7 +187,7 @@ Se a descoberta automática não funcionar (ex.: isolamento de rede), você semp
 | Parâmetro | Padrão | Descrição |
 |-----------|--------|-----------|
 | Host | — | Endereço IP da soundbar (obrigatório) |
-| Intervalo de consulta | 15 s (60 s em standby) | Configurável em Opções (5–120 s); reduzido automaticamente em modo de espera |
+| Intervalo de consulta | 15 s | Configurável em Opções (5–120 s). Em standby a integração consulta sempre a cada 60 s |
 | MAC do dispositivo | detectado automaticamente | Só em Opções (opcional). Substitui o MAC usado para assinar as escritas do firmware de 2026; só é necessário se comandos além de volume/mudo falharem (veja o sensor de diagnóstico **MAC de assinatura**) |
 
 **Dica:** Atribua um IP estático / reserva DHCP à soundbar.
@@ -181,6 +200,8 @@ A soundbar disponibiliza uma API HTTP local na porta 80:
 - `GET /api/getData` — ler parâmetros
 - `POST /api/setData` — escrever parâmetros (corpo JSON; fallback para GET em firmware antigo)
 - `GET /api/getRows` — listar dados estruturados (filtros Dirac)
+
+No firmware de 2026, as escritas assinadas com HMAC vão para `POST https://<IP>/api/setData`.
 
 ### Design resiliente para um dispositivo lento
 
@@ -241,6 +262,29 @@ Política de segurança e boas práticas em [SECURITY.md](../SECURITY.md).
 
 **Aviso de segurança de rede:** a soundbar comunica por HTTP simples e a sua API local está praticamente sem autenticação na LAN. Firmware antigo não exigia autenticação nenhuma; o firmware de 2026 (`1.1.3.x`) assina a maioria das escritas (`HMAC_SHA256_AES256`), mas isto **não é uma fronteira de segurança real** — a credencial é derivada do próprio MAC do dispositivo (que ele divulga sem autenticação) mais uma constante fixa em toda a linha de produtos, por isso qualquer host na rede pode forjá-la. As leituras estão sempre abertas. **Mantenha a soundbar num segmento de rede confiável / isolado.** Análise completa no [relatório de avaliação de segurança](SECURITY_ASSESSMENT_CORE_300.md) (secção 12).
 
+## Resultados dos testes
+
+[![pytest, Home Assistant atual](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/pytest-latest.json)](TESTING.md#test-result-badges)
+[![pytest, Home Assistant mais antigo suportado](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/pytest-min.json)](TESTING.md#test-result-badges)
+[![hassfest](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/hassfest.json)](TESTING.md#test-result-badges)
+[![Molecule](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/molecule.json)](TESTING.md#test-result-badges)
+[![CI local assinada](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/signed.json)](https://github.com/ilia-ae/klipsch_flexus/tree/ci-results/evidence)
+[![Verify signed local CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml)
+[![HACS validation](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
+
+Todos os testes rodam na máquina do mantenedor, não no GitHub. Os cinco primeiros selos mostram os resultados dessa execução local assinada para o commit mais recente em `main`. O GitHub só os grava depois de verificar a evidência assinada. *Verify signed local CI* é essa verificação no GitHub. *HACS validation* é a verificação do repositório pelo HACS, que roda no GitHub.
+
+Você mesmo pode verificar a evidência (Python 3.11 ou mais recente, git, OpenSSH):
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/allowed_signers
+git clone https://github.com/ilia-ae/klipsch_flexus.git && cd klipsch_flexus
+git fetch origin refs/notes/local-ci:refs/notes/local-ci
+python3 -I scripts/verify_local_ci.py --sha "$(git rev-parse HEAD)" --allowed-signers-file ../allowed_signers
+```
+
+`allowed_signers` contém a chave pública de assinatura do mantenedor. Compare-a com as chaves SSH de assinatura que o GitHub lista para o mantenedor: `curl -s https://api.github.com/users/ilia-ae/ssh_signing_keys`. Detalhes em [TESTING.md](TESTING.md#test-result-badges) (em inglês).
+
 ## Colaboradores
 
 Obrigado a todos que relatam problemas e enviam correções:
@@ -248,7 +292,15 @@ Obrigado a todos que relatam problemas e enviam correções:
 - **Kevin Jilissen** ([@Kevinjil](https://github.com/Kevinjil)) — descobriu que o volume da soundbar vai de 0 a 50, não de 0 a 100, e corrigiu a conversão ([#22](https://github.com/ilia-ae/klipsch_flexus/issues/22), [#23](https://github.com/ilia-ae/klipsch_flexus/pull/23))
 - **G Johansson** ([@gjohansson-ST](https://github.com/gjohansson-ST)) — substituiu o estado `STANDBY` removido do media player para que a integração continue funcionando no Home Assistant 2026.12+ ([#25](https://github.com/ilia-ae/klipsch_flexus/pull/25))
 
-Issues e pull requests são bem-vindos — veja a [lista completa de colaboradores](https://github.com/ilia-ae/klipsch_flexus/graphs/contributors).
+Veja a [lista completa de colaboradores](https://github.com/ilia-ae/klipsch_flexus/graphs/contributors).
+
+## Contribuir e suporte
+
+- **Dúvidas e ideias**: [GitHub Discussions](https://github.com/ilia-ae/klipsch_flexus/discussions). O que incluir: [SUPPORT.md](../SUPPORT.md).
+- **Bugs**: abra uma [issue](https://github.com/ilia-ae/klipsch_flexus/issues/new/choose) com o formulário de bug e anexe os diagnósticos.
+- **Problemas de segurança**: relate-os em privado, veja [SECURITY.md](../SECURITY.md).
+- **Pull requests** são bem-vindos. [CONTRIBUTING.md](../CONTRIBUTING.md) explica como testar a sua alteração e como o mantenedor a verifica. [TESTING.md](TESTING.md) descreve os testes e a CI local assinada.
+- Todos os participantes seguem o [Código de Conduta](../CODE_OF_CONDUCT.md).
 
 ## Licença
 

@@ -8,16 +8,15 @@ We take the security of Klipsch Flexus integration seriously. If you discover a 
 
 **Please DO NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them privately by:
+Instead, report them privately through GitHub's private vulnerability reporting:
 
-1. **GitHub Security Advisories** (preferred):
-   - Go to https://github.com/ilia-ae/klipsch_flexus/security/advisories
-   - Click "New draft security advisory"
-   - Fill in the details of the vulnerability
+- Go to https://github.com/ilia-ae/klipsch_flexus/security/advisories/new
+  (or **Security** > **Report a vulnerability** on the repository page)
+- Fill in the details of the vulnerability
 
-2. **Direct Contact**:
-   - Email the maintainer directly through GitHub
-   - Include detailed information about the vulnerability
+This channel is only for security problems. For conduct reports see
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and for other questions see
+[SUPPORT.md](SUPPORT.md).
 
 ### What to Include
 
@@ -45,7 +44,7 @@ We will acknowledge your report, assess the vulnerability, and work with you to 
 | 2.5.x   | :white_check_mark: |
 | < 2.5   | :x:                |
 
-Security updates will be provided for the latest stable version only. Please ensure you're running the most recent version from HACS or GitHub releases.
+Security updates will be provided for the latest stable version only. Beta versions (pre-releases `vX.Y.Z-beta.N`) are for testing and get fixes through the next beta or stable release. Please ensure you're running the most recent version from HACS or GitHub releases.
 
 ## Security Considerations
 
@@ -80,7 +79,7 @@ This integration communicates with your Klipsch Flexus CORE 300 soundbar over yo
 - This integration uses Home Assistant's built-in authentication system
 - No user credentials are stored for the soundbar. On 2026 firmware the write-signing key is derived at runtime from the device MAC (optionally overridden with the **Device MAC** option); see the [Security Assessment](docs/SECURITY_ASSESSMENT_CORE_300.md), Section 12
 - Configuration (host, options such as the Device MAC) is stored in Home Assistant's config entry storage (`.storage`), which is plain JSON, not encrypted
-- Downloaded diagnostics redact the host, MAC addresses and the Wi-Fi BSSID
+- Downloaded diagnostics redact the host, every MAC address, the Wi-Fi BSSID, the device ID and stream URLs
 
 #### Data Privacy
 - **No telemetry**: This integration does not send any data outside your local network

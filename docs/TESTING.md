@@ -358,7 +358,7 @@ owner's word.
 
 | Tag | `manifest.json` version | GitHub release | Who gets it in HACS |
 | --- | --- | --- | --- |
-| `vX.Y.Z-beta.N` | `X.Y.Z-beta.N` | pre-release, never marked Latest | only users who enable **Show beta versions** for this repository |
+| `vX.Y.Z-beta.N` | `X.Y.Z-beta.N` | pre-release, never marked Latest | only users who turn on the HACS **Pre-release** switch for this repository ([README](../README.md#beta-versions)) |
 | `vX.Y.Z` | `X.Y.Z` | normal release, marked Latest | everyone |
 
 Any other tag (`v1.2`, `v1.2.3-rc1`, `v1.2.3b1`) is refused by the release

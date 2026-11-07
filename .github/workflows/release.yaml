@@ -6,7 +6,7 @@
 #
 # Tags: vX.Y.Z (stable: a normal release, marked Latest) or vX.Y.Z-beta.N
 # (beta: a GitHub pre-release, never Latest; HACS offers it only to users who
-# enable "Show beta versions" for this repository). Any other tag is refused.
+# turn on the HACS "Pre-release" switch for this repository). Any other tag is refused.
 # The tag must equal "v" + the manifest.json version.
 name: Release
 
