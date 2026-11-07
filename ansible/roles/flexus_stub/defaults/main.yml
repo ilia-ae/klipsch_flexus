@@ -1,0 +1,15 @@
+# Fake Klipsch Flexus soundbar inside the Molecule Home Assistant container (test-only).
+# Where the stub and its NON-SECRET fixture live in the container.
+flexus_stub_dir: /opt/flexus-stub
+# Recorded traffic: writes.jsonl (every setData), unknown_paths.jsonl, requests.jsonl.
+flexus_stub_state_dir: /var/lib/flexus-stub
+# Loopback addresses the stub listens on (ports 80 = device API, 8008 = Google Cast eureka_info).
+# Linux routes all of 127.0.0.0/8 to lo, so no interface has to be added.
+flexus_stub_addresses:
+  - 127.0.0.2
+# Python of the Home Assistant image (stdlib only is used).
+flexus_stub_python: /usr/local/bin/python3
+# s6-overlay scan directory of the Home Assistant image: the stub runs as a supervised longrun
+# next to Home Assistant, so it survives Home Assistant restarts.
+flexus_stub_scandir: /run/service
+flexus_stub_service_name: flexus-stub

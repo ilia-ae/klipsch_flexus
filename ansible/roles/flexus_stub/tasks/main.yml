@@ -1,0 +1,67 @@
+# Fake Klipsch Flexus soundbar for the Molecule harness. Test-only: it is applied to Molecule
+# containers of the Home Assistant image, never to a real host.
+- name: Check that this is the s6-overlay Home Assistant container
+  ansible.builtin.stat:
+    path: "{{ flexus_stub_scandir }}/home-assistant"
+  register: flexus_stub_ha_service
+
+- name: Refuse anything but the Home Assistant container image
+  ansible.builtin.assert:
+    that:
+      - flexus_stub_ha_service.stat.exists
+    fail_msg: >-
+      {{ flexus_stub_scandir }}/home-assistant is missing: the stub only runs inside the Home Assistant
+      container of a Molecule scenario.
+    quiet: true
+
+- name: Create the stub directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ flexus_stub_dir }}"
+    - "{{ flexus_stub_dir }}/service"
+    - "{{ flexus_stub_state_dir }}"
+
+- name: Install the stub and its fixture
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ flexus_stub_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - flexus_stub.py
+    - fixture.json
+  notify: flexus_stub restart
+
+- name: Install the s6 run script
+  ansible.builtin.template:
+    src: run.j2
+    dest: "{{ flexus_stub_dir }}/service/run"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: flexus_stub restart
+
+- name: Register the stub in the s6 scan directory
+  ansible.builtin.file:
+    src: "{{ flexus_stub_dir }}/service"
+    dest: "{{ flexus_stub_scandir }}/{{ flexus_stub_service_name }}"
+    state: link
+  notify: flexus_stub restart
+
+- name: Start or restart the stub now
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait until the stub answers on every address (eureka_info and getData)
+  ansible.builtin.uri:
+    url: "http://{{ item[0] }}:{{ item[1] }}"
+  register: flexus_stub_probe
+  until: flexus_stub_probe.status == 200
+  retries: 30
+  delay: 1
+  loop: "{{ flexus_stub_addresses | product(['8008/setup/eureka_info', '80/api/getData?path=powermanager:target&roles=value']) | list }}"

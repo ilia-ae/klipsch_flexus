@@ -1,0 +1,7 @@
+#!/bin/sh
+# {{ ansible_managed }}
+# s6 longrun of the Molecule Flexus stub (test-only).
+exec {{ flexus_stub_python }} -I -B {{ flexus_stub_dir }}/flexus_stub.py \
+  --fixture {{ flexus_stub_dir }}/fixture.json \
+  --state-dir {{ flexus_stub_state_dir }}{% for address in flexus_stub_addresses %} \
+  --bind {{ address }}{% endfor %} 2>&1

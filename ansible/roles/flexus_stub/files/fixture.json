@@ -1,0 +1,338 @@
+{
+  "_comment": "NON-SECRET fixture of the Molecule Flexus stub. MAC 02:00:00:00:00:01 is a locally administered documentation address; eureka_info reports the all-zero MAC like 2026 firmware.",
+  "values": {
+    "powermanager:target": [
+      {
+        "type": "powerTarget",
+        "powerTarget": {
+          "target": "online",
+          "reason": "userActivity"
+        }
+      }
+    ],
+    "player:volume": [
+      {
+        "type": "i32_",
+        "i32_": 20
+      }
+    ],
+    "settings:/mediaPlayer/mute": [
+      {
+        "type": "bool_",
+        "bool_": false
+      }
+    ],
+    "cinema:/external/physicalAudioInput": [
+      {
+        "type": "cinemaPhysicalAudioInput",
+        "cinemaPhysicalAudioInput": "hdmiarc"
+      }
+    ],
+    "settings:/cinema/postProcessorMode": [
+      {
+        "type": "cinemaPostProcessorMode",
+        "cinemaPostProcessorMode": "movie"
+      }
+    ],
+    "cinema:/nightMode": [
+      {
+        "type": "cinemaNightMode",
+        "cinemaNightMode": "off"
+      }
+    ],
+    "settings:/cinema/dialogMode": [
+      {
+        "type": "cinemaDialogMode",
+        "cinemaDialogMode": "dialog_2"
+      }
+    ],
+    "cinema:cinemaBass": [
+      {
+        "type": "i32_",
+        "i32_": 2
+      }
+    ],
+    "cinema:cinemaMid": [
+      {
+        "type": "i32_",
+        "i32_": 0
+      }
+    ],
+    "cinema:cinemaTreble": [
+      {
+        "type": "i32_",
+        "i32_": -1
+      }
+    ],
+    "cinema:/audioDecoder": [
+      {
+        "type": "cinemaAudioDecoder",
+        "cinemaAudioDecoder": "dolbyDigitalPlus"
+      }
+    ],
+    "settings:/cinema/dsp/cinemaEqPreset": [
+      {
+        "type": "cinemaEqPreset",
+        "cinemaEqPreset": "custom"
+      }
+    ],
+    "dirac:/activeFilter": [
+      {
+        "type": "i32_",
+        "i32_": 1
+      }
+    ],
+    "settings:/cinema/dsp/wiredSubwooferVolume": [
+      {
+        "type": "i32_",
+        "i32_": -3
+      }
+    ],
+    "settings:/cinema/dsp/wirelessSubwoofersVolume": [
+      {
+        "type": "i32_",
+        "i32_": 0
+      }
+    ],
+    "settings:/cinema/dsp/backHeightVolume": [
+      {
+        "type": "i32_",
+        "i32_": 0
+      }
+    ],
+    "settings:/cinema/dsp/backLeftVolume": [
+      {
+        "type": "i32_",
+        "i32_": 0
+      }
+    ],
+    "settings:/cinema/dsp/backRightVolume": [
+      {
+        "type": "i32_",
+        "i32_": 0
+      }
+    ],
+    "settings:/cinema/dsp/frontHeightVolume": [
+      {
+        "type": "i32_",
+        "i32_": 1
+      }
+    ],
+    "settings:/cinema/dsp/sideLeftVolume": [
+      {
+        "type": "i32_",
+        "i32_": 0
+      }
+    ],
+    "settings:/cinema/dsp/sideRightVolume": [
+      {
+        "type": "i32_",
+        "i32_": 0
+      }
+    ],
+    "settings:/cinema/dsp/autoLipSyncDelayEnabled": [
+      {
+        "type": "bool_",
+        "bool_": true
+      }
+    ],
+    "settings:/cinema/eqBypass": [
+      {
+        "type": "bool_",
+        "bool_": false
+      }
+    ],
+    "settings:/cinema/automaticOperation": [
+      {
+        "type": "bool_",
+        "bool_": true
+      }
+    ],
+    "settings:/cinema/audioEffectsEnabled": [
+      {
+        "type": "bool_",
+        "bool_": true
+      }
+    ],
+    "settings:/cinema/extraPostProcessorModesEnabled": [
+      {
+        "type": "bool_",
+        "bool_": false
+      }
+    ],
+    "settings:/cinema/bleRcAutoPairEnabled": [
+      {
+        "type": "bool_",
+        "bool_": false
+      }
+    ],
+    "settings:/cinema/otaUpdateEnabled": [
+      {
+        "type": "bool_",
+        "bool_": true
+      }
+    ],
+    "settings:/cinema/dsp/manualLipSyncDelay": [
+      {
+        "type": "i32_",
+        "i32_": 40
+      }
+    ],
+    "settings:/cinema/dsp/wiredSubwooferDelay": [
+      {
+        "type": "i64_",
+        "i64_": 1500
+      }
+    ],
+    "settings:/cinema/dsp/wirelessSubwooferDelay": [
+      {
+        "type": "i64_",
+        "i64_": 21000
+      }
+    ],
+    "settings:/cinema/dsp/wirelessSurroundDelay": [
+      {
+        "type": "i64_",
+        "i64_": 18000
+      }
+    ],
+    "settings:/cinema/ledMode": [
+      {
+        "type": "cinemaLEDMode",
+        "cinemaLEDMode": "dim"
+      }
+    ],
+    "settings:/cinema/operatingMode": [
+      {
+        "type": "cinemaOperatingMode",
+        "cinemaOperatingMode": "normal"
+      }
+    ],
+    "settings:/cinema/speakerTestMode": [
+      {
+        "type": "cinemaSpeakerTestMode",
+        "cinemaSpeakerTestMode": "off"
+      }
+    ],
+    "settings:/mediaPlayer/balance": [
+      {
+        "type": "double_",
+        "double_": 0.5
+      }
+    ],
+    "settings:/mediaPlayer/loudness": [
+      {
+        "type": "bool_",
+        "bool_": true
+      }
+    ],
+    "settings:/system/doNotDisturb": [
+      {
+        "type": "bool_",
+        "bool_": false
+      }
+    ],
+    "settings:/system/autoStandby": [
+      {
+        "type": "bool_",
+        "bool_": true
+      }
+    ],
+    "settings:/system/maxIdleTime": [
+      {
+        "type": "i32_",
+        "i32_": 600
+      }
+    ],
+    "settings:/system/primaryMacAddress": [
+      {
+        "type": "string_",
+        "string_": "02:00:00:00:00:01"
+      }
+    ],
+    "settings:/webserver/authMode": [
+      {
+        "type": "webserverAuthMode",
+        "webserverAuthMode": "none"
+      }
+    ],
+    "settings:/network/wiredInterface": [
+      {
+        "type": "string_",
+        "string_": "eth0"
+      }
+    ],
+    "settings:/network/wirelessInterface": [
+      {
+        "type": "string_",
+        "string_": "wlan0"
+      }
+    ],
+    "player:player/data": [
+      {
+        "state": "playing",
+        "controls": {
+          "pause": true,
+          "next_": true,
+          "previous": true
+        },
+        "trackRoles": {
+          "title": "Molecule Test Tone",
+          "mediaData": {
+            "metaData": {
+              "artist": "Flexus Stub",
+              "album": "Harness",
+              "externalAppName": "Stub App"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "edit": {
+    "player:volume": [
+      {
+        "type": "slider",
+        "min": "0",
+        "max": "50",
+        "step": "1"
+      }
+    ]
+  },
+  "rows": {
+    "dirac:filters": {
+      "rows": [
+        {
+          "title": "Off",
+          "value": {
+            "type": "i32_",
+            "i32_": -1
+          }
+        },
+        {
+          "title": "Living Room",
+          "value": {
+            "type": "i32_",
+            "i32_": 1
+          }
+        },
+        {
+          "title": "Movie Night",
+          "value": {
+            "type": "i32_",
+            "i32_": 2
+          }
+        }
+      ]
+    }
+  },
+  "eureka_info": {
+    "name": "Flexus Stub",
+    "mac_address": "00:00:00:00:00:00",
+    "cast_build_revision": "1.0.0-molecule",
+    "build_version": "000000",
+    "ethernet_connected": true,
+    "hotspot_bssid": "02:00:00:00:00:02",
+    "uptime": 1234.5
+  }
+}

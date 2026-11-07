@@ -1,0 +1,18 @@
+# One handler for "new" and "changed": rescan the s6 tree (picks up a new service directory),
+# wait until s6-supervise controls it, then restart the stub so it serves the current files.
+- name: Restart the Flexus stub under s6
+  listen: flexus_stub restart
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      svc="{{ flexus_stub_scandir }}/{{ flexus_stub_service_name }}"
+      s6-svscanctl -a "{{ flexus_stub_scandir }}"
+      i=0
+      until s6-svstat "$svc" >/dev/null 2>&1; do
+        i=$((i + 1))
+        if [ "$i" -gt 100 ]; then echo "s6 does not supervise $svc" >&2; exit 1; fi
+        sleep 0.1
+      done
+      s6-svc -r "$svc"
+    executable: /bin/sh
+  changed_when: true
