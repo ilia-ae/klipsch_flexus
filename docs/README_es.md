@@ -272,7 +272,7 @@ Política de seguridad y buenas prácticas en [SECURITY.md](../SECURITY.md).
 [![Verify signed local CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml)
 [![HACS validation](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
 
-Todas las pruebas se ejecutan en el equipo del mantenedor, no en GitHub. Las cinco primeras insignias muestran los resultados de esa ejecución local firmada para el último commit en `main`. GitHub solo las escribe después de verificar la evidencia firmada. *Verify signed local CI* es esa verificación en GitHub. *HACS validation* es la comprobación del repositorio por HACS, que se ejecuta en GitHub.
+Todas las pruebas se ejecutan en el equipo del mantenedor, no en GitHub. Las cinco primeras insignias muestran los resultados de esa ejecución local firmada para el último commit verificado en `main` (la insignia *Signed local CI* muestra su SHA corto y su fecha). GitHub solo las escribe después de verificar la evidencia firmada. *Verify signed local CI* es esa verificación en GitHub. *HACS validation* es la comprobación del repositorio por HACS, que se ejecuta en GitHub.
 
 Puede comprobar la evidencia usted mismo (Python 3.11 o posterior, git, OpenSSH):
 

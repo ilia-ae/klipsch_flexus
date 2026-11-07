@@ -272,7 +272,7 @@ Política de segurança e boas práticas em [SECURITY.md](../SECURITY.md).
 [![Verify signed local CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml)
 [![HACS validation](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
 
-Todos os testes rodam na máquina do mantenedor, não no GitHub. Os cinco primeiros selos mostram os resultados dessa execução local assinada para o commit mais recente em `main`. O GitHub só os grava depois de verificar a evidência assinada. *Verify signed local CI* é essa verificação no GitHub. *HACS validation* é a verificação do repositório pelo HACS, que roda no GitHub.
+Todos os testes rodam na máquina do mantenedor, não no GitHub. Os cinco primeiros selos mostram os resultados dessa execução local assinada para o commit verificado mais recente em `main` (o selo *Signed local CI* mostra o SHA curto e a data dele). O GitHub só os grava depois de verificar a evidência assinada. *Verify signed local CI* é essa verificação no GitHub. *HACS validation* é a verificação do repositório pelo HACS, que roda no GitHub.
 
 Você mesmo pode verificar a evidência (Python 3.11 ou mais recente, git, OpenSSH):
 

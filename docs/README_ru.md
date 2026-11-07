@@ -272,7 +272,7 @@ Klipsch Flexus имеет **однопоточный HTTP-сервер**, обр
 [![Verify signed local CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml)
 [![HACS validation](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
 
-Все тесты выполняются на машине мейнтейнера, а не на GitHub. Первые пять бейджей показывают результаты этого подписанного локального прогона для последнего коммита в `main`. GitHub записывает их только после того, как проверит подписанные данные. *Verify signed local CI* — это и есть проверка на GitHub. *HACS validation* — проверка репозитория самим HACS, она выполняется на GitHub.
+Все тесты выполняются на машине мейнтейнера, а не на GitHub. Первые пять бейджей показывают результаты этого подписанного локального прогона для последнего проверенного коммита в `main` (бейдж *Signed local CI* показывает его короткий SHA и дату). GitHub записывает их только после того, как проверит подписанные данные. *Verify signed local CI* — это и есть проверка на GitHub. *HACS validation* — проверка репозитория самим HACS, она выполняется на GitHub.
 
 Данные можно проверить самостоятельно (Python 3.11 или новее, git, OpenSSH):
 

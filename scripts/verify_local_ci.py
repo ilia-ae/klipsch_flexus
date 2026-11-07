@@ -509,7 +509,7 @@ Do not edit: every update replaces this branch with one new commit.
 
 - badges/*.json: shields.io endpoint badges, built from the verified evidence.
 - evidence/<sha>.json and .sig: the signed evidence (exact bytes) and its SSH
-  signature; latest.json is the newest commit on main.
+  signature; latest.json is the newest verified commit on main.
 - allowed_signers: the trust root the workflow verified with
   (repository variable LOCAL_CI_ALLOWED_SIGNERS).
 

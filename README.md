@@ -272,7 +272,7 @@ See [SECURITY.md](SECURITY.md) for security policy and best practices.
 [![Verify signed local CI](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/local-ci.yaml)
 [![HACS validation](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
 
-All tests run on the maintainer's machine, not on GitHub. The first five badges show the results of that signed local run for the latest commit on `main`. GitHub writes them only after it has verified the signed evidence. *Verify signed local CI* is that check on GitHub. *HACS validation* is the HACS check of the repository, which runs on GitHub.
+All tests run on the maintainer's machine, not on GitHub. The first five badges show the results of that signed local run for the latest verified commit on `main` (the *Signed local CI* badge shows its short SHA and date). GitHub writes them only after it has verified the signed evidence. *Verify signed local CI* is that check on GitHub. *HACS validation* is the HACS check of the repository, which runs on GitHub.
 
 You can check the evidence yourself (Python 3.11 or newer, git, OpenSSH):
 

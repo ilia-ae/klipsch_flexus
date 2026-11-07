@@ -272,8 +272,10 @@ updates the [test-result badges](#test-result-badges), in a separate job with
 
 The section **Test results** of the [README](../README.md#test-results) shows
 shields.io badges for pytest (both Home Assistant versions), hassfest, Molecule
-and the signature. They come from the signed evidence of the latest commit on
-`main`, never from a person typing them.
+and the signature. They come from the signed evidence of the latest verified commit on
+`main`, never from a person typing them. A push that fails verification does
+not change them, so they can show an older commit; the signature badge shows
+which one (short SHA and date).
 
 After a push to `main`, and only when the job **Verify signed local CI**
 succeeded, the job **Publish test-result badges (ci-results)** runs. It is the
@@ -296,7 +298,7 @@ only job with `contents: write`. It works like this:
 | `badges/hassfest.json` | `ok` |
 | `badges/molecule.json` | `fresh · upgrade · minimum` |
 | `badges/signed.json` | `signed · <short sha> · <date of the run>` |
-| `evidence/latest.json`, `evidence/latest.json.sig` | the evidence of the newest commit (the exact signed bytes) and its SSH signature |
+| `evidence/latest.json`, `evidence/latest.json.sig` | the evidence of the newest verified commit (the exact signed bytes) and its SSH signature |
 | `evidence/<sha>.json`, `evidence/<sha>.json.sig` | the same for each commit; kept from update to update |
 | `allowed_signers` | the trust root the workflow verified with (`LOCAL_CI_ALLOWED_SIGNERS`) |
 

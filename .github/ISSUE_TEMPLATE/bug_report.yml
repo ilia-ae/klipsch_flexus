@@ -53,10 +53,21 @@ body:
     id: firmware
     attributes:
       label: Soundbar firmware version
-      description: The device version in the Klipsch Connect Plus app, or "Firmware" on the device page in Home Assistant.
+      description: >-
+        The device version in the Klipsch Connect Plus app (1.1.3.x on the 2026
+        firmware).
       placeholder: "1.1.3.0x7cd294e"
     validations:
       required: true
+
+  - type: input
+    id: cast_build
+    attributes:
+      label: Google Cast build (optional)
+      description: >-
+        "Firmware" on the device page in Home Assistant. This is the Google Cast
+        build, not the device version above.
+      placeholder: "20250512_0201_RC25"
 
   - type: textarea
     id: description

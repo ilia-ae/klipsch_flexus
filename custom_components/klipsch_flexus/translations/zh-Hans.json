@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Klipsch Flexus",
-        "description": "请输入 Klipsch Flexus 回音壁的 IP 地址。\n\n回音壁必须先在 Klipsch Connect Plus 应用中完成全部设置：至少完整走完一次初始设置流程。在 2026 固件上，这一步会生成集成发送命令所需的凭据。",
+        "description": "请输入 Klipsch Flexus 回音壁的 IP 地址。\n\n回音壁必须先在 Klipsch Connect Plus 应用中完成全部设置：至少完整走完一次初始设置流程。在 2026 年更新后的固件上，这一步会生成集成发送命令所需的凭据。",
         "data": {
           "host": "IP 地址"
         }
@@ -40,7 +40,7 @@
           "device_mac": "设备 MAC（可选）"
         },
         "data_description": {
-          "device_mac": "仅当 2026 固件上的写入命令（输入源、声音模式、EQ……）身份验证失败时才需要。留空则自动检测；否则请输入回音壁的 MAC 地址。"
+          "device_mac": "仅当 2026 年版固件上的写入命令（输入源、声音模式、EQ……）身份验证失败时才需要。留空则自动检测；否则请输入回音壁的 MAC 地址。"
         }
       }
     },
