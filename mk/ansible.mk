@@ -17,9 +17,7 @@ S ?=
 
 ANSIBLE_ROOT     := $(CURDIR)
 ANSIBLE_VENV_BIN := $(abspath $(ANSIBLE_VENV))/bin
-ANSIBLE_VENV_STAMP        := $(ANSIBLE_VENV)/.requirements-dev.stamp
 ANSIBLE_COLLECTIONS_DIR   := ansible/collections
-ANSIBLE_COLLECTIONS_STAMP := $(ANSIBLE_COLLECTIONS_DIR)/.requirements.stamp
 
 # The venv runs every tool: molecule spawns ansible-playbook by name.
 ANSIBLE_ENV := PATH="$(ANSIBLE_VENV_BIN):$$PATH" \
@@ -30,28 +28,37 @@ ANSIBLE_ENV := PATH="$(ANSIBLE_VENV_BIN):$$PATH" \
 
 .PHONY: venv collections lint-ansible molecule-scenarios molecule-stage molecule-list molecule-cleanup molecule-images
 
-venv: $(ANSIBLE_VENV_STAMP) ## Create .venv (Python 3.13) with the pinned requirements-dev.txt
+# venv and collections compare what is installed with the committed pins
+# (scripts/check_pins.py), not file times: a worktree checkout, or a branch with
+# other pins, must neither skip an install nor keep tooling the commit does not pin.
+venv: ## Create .venv (Python 3.13) with the pinned requirements-dev.txt
+	@if test -x $(ANSIBLE_VENV)/bin/python && $(ANSIBLE_VENV_BIN)/python -I scripts/check_pins.py requirements-dev.txt 2>/dev/null; then \
+		echo "$(ANSIBLE_VENV) matches requirements-dev.txt"; \
+	else \
+		set -e; \
+		test -x $(ANSIBLE_VENV)/bin/python || $(ANSIBLE_PYTHON) -m venv $(ANSIBLE_VENV); \
+		$(ANSIBLE_VENV_BIN)/pip install --disable-pip-version-check -r requirements-dev.txt; \
+		$(ANSIBLE_VENV_BIN)/python -I scripts/check_pins.py requirements-dev.txt; \
+	fi
 
-$(ANSIBLE_VENV_STAMP): requirements-dev.txt
-	test -x $(ANSIBLE_VENV)/bin/python || $(ANSIBLE_PYTHON) -m venv $(ANSIBLE_VENV)
-	$(ANSIBLE_VENV_BIN)/pip install --disable-pip-version-check -r requirements-dev.txt
-	@touch $@
+collections: venv ## Install the pinned collections into ansible/collections
+	@if $(ANSIBLE_VENV_BIN)/python -I scripts/check_pins.py --collections ansible/requirements.yml $(ANSIBLE_COLLECTIONS_DIR) 2>/dev/null; then \
+		echo "$(ANSIBLE_COLLECTIONS_DIR) matches ansible/requirements.yml"; \
+	else \
+		set -e; \
+		$(ANSIBLE_VENV_BIN)/ansible-galaxy collection install --force -r ansible/requirements.yml -p $(ANSIBLE_COLLECTIONS_DIR); \
+		$(ANSIBLE_VENV_BIN)/python -I scripts/check_pins.py --collections ansible/requirements.yml $(ANSIBLE_COLLECTIONS_DIR); \
+	fi
 
-collections: $(ANSIBLE_COLLECTIONS_STAMP) ## Install the pinned collections into ansible/collections
-
-$(ANSIBLE_COLLECTIONS_STAMP): ansible/requirements.yml $(ANSIBLE_VENV_STAMP)
-	$(ANSIBLE_VENV_BIN)/ansible-galaxy collection install --force -r ansible/requirements.yml -p $(ANSIBLE_COLLECTIONS_DIR)
-	@touch $@
-
-lint-ansible: $(ANSIBLE_COLLECTIONS_STAMP) ## yamllint --strict + ansible-lint (production profile) on ansible/
+lint-ansible: collections ## yamllint --strict + ansible-lint (production profile) on ansible/
 	$(ANSIBLE_ENV) $(ANSIBLE_VENV_BIN)/yamllint --strict ansible mk .yamllint .ansible-lint
 	$(ANSIBLE_ENV) $(ANSIBLE_VENV_BIN)/ansible-lint ansible
 
-molecule-scenarios: $(ANSIBLE_COLLECTIONS_STAMP) ## SCENARIOS="<role>/<scenario> ..." full create->destroy, one at a time
+molecule-scenarios: collections ## SCENARIOS="<role>/<scenario> ..." full create->destroy, one at a time
 	@if [ -z "$(SCENARIOS)" ]; then echo 'set SCENARIOS, e.g. make molecule-scenarios SCENARIOS="klipsch_flexus_install/fresh"' >&2; exit 2; fi
 	$(ANSIBLE_ENV) scripts/molecule.sh $(SCENARIOS)
 
-molecule-stage: $(ANSIBLE_COLLECTIONS_STAMP) ## STAGE=create|prepare|converge|idempotence|verify|destroy S=<role>/<scenario> (kept container)
+molecule-stage: collections ## STAGE=create|prepare|converge|idempotence|verify|destroy S=<role>/<scenario> (kept container)
 	@if [ -z "$(STAGE)" ] || [ -z "$(S)" ]; then echo 'set STAGE and S, e.g. make molecule-stage STAGE=verify S=klipsch_flexus_install/fresh' >&2; exit 2; fi
 	$(ANSIBLE_ENV) scripts/molecule.sh --stage $(STAGE) $(S)
 

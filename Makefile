@@ -50,20 +50,27 @@ venv-test: ## Recreate .venv-test (Python 3.14, current HA) from requirements_te
 	rm -rf .venv-test
 	$(UV) venv --quiet --python $(PYTHON_LATEST) .venv-test
 	$(UV) pip install --quiet --python .venv-test/bin/python -r requirements_test.txt
+	.venv-test/bin/python -I scripts/check_pins.py requirements_test.txt
 
 venv-testmin: ## Recreate .venv-testmin (Python 3.12, oldest supported HA)
 	rm -rf .venv-testmin
 	$(UV) venv --quiet --python $(PYTHON_MIN) .venv-testmin
 	$(UV) pip install --quiet --python .venv-testmin/bin/python -r .github/ci/requirements_test_min.txt
+	.venv-testmin/bin/python -I scripts/check_pins.py .github/ci/requirements_test_min.txt
 
 test: test-latest test-min ## pytest on both Home Assistant versions
 
+# The venvs are not rebuilt per run, so each pytest target first checks that its
+# venv has exactly what the committed requirements file pins (a Dependabot bump
+# of Home Assistant must not be tested, and signed, on the previous one).
 test-latest: ## pytest on the pinned current Home Assistant (.venv-test)
 	@test -x .venv-test/bin/python || { echo "missing .venv-test: run make venv-test" >&2; exit 1; }
+	@.venv-test/bin/python -I scripts/check_pins.py requirements_test.txt || { echo "stale .venv-test: run make venv-test" >&2; exit 1; }
 	.venv-test/bin/python -m pytest tests -q -ra
 
 test-min: ## pytest on the oldest supported Home Assistant (.venv-testmin)
 	@test -x .venv-testmin/bin/python || { echo "missing .venv-testmin: run make venv-testmin" >&2; exit 1; }
+	@.venv-testmin/bin/python -I scripts/check_pins.py .github/ci/requirements_test_min.txt || { echo "stale .venv-testmin: run make venv-testmin" >&2; exit 1; }
 	.venv-testmin/bin/python -m pytest tests -q -ra
 
 # --- Lint and validation -----------------------------------------------------
@@ -104,6 +111,7 @@ hassfest-image:
 
 # Not part of the signed policy: the HACS action validates the repository as
 # GitHub serves it (API), never the local tree, so it cannot attest a commit.
+# GitHub runs it on pushed commits (.github/workflows/validate.yaml, same digest).
 # The action refuses to run without a token (an empty one gets HTTP 401). It
 # takes HACS_TOKEN (best: a fine-grained token with read-only public access),
 # else `gh auth token`, read at run time and passed by environment, never argv.
@@ -132,7 +140,7 @@ ci-verify: ## Verify HEAD's signed evidence exactly as GitHub will
 ci-publish: ## Push the signed evidence note (refs/notes/local-ci only); DISPATCH=1 also asks GitHub to verify
 	$(LOCAL_CI) publish $(if $(DISPATCH),--dispatch)
 
-ci-pr: ## Test PR=<n> in a temp worktree, sign, publish and dispatch verification (CONFIRM=1 if it touches CI)
+ci-pr: ## Test PR=<n> in a temp worktree, sign, publish, dispatch verification (CONFIRM=1 beyond code/tests/docs)
 	@test -n "$(PR)" || { echo "usage: make ci-pr PR=<number>" >&2; exit 2; }
 	$(LOCAL_CI) pr --number $(PR) $(if $(CONFIRM),--confirm)
 
