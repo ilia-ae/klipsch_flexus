@@ -16,6 +16,10 @@
 # - workflow_dispatch (main only): the verifier comes from github.workflow_sha
 #   on main, and the result is published as the commit status
 #   local-ci/verified on the target commit.
+# - after a verified push to main only, the job "results" (the only job with
+#   contents: write) replaces the orphan branch ci-results with one new commit:
+#   shields.io endpoint badges and the verified evidence + signature, all
+#   written by the verifier (--write-badges) from the verified note.
 name: Verify signed local CI
 run-name: "Verify signed local CI ${{ inputs.sha || github.event.pull_request.head.sha || github.sha }}"
 
@@ -142,3 +146,81 @@ jobs:
             -f state="$state" -f context=local-ci/verified \
             -f description="$description" -f target_url="$RUN_URL" > /dev/null
           echo "local-ci/verified = $state on $SHA"
+
+  # Test-result badges for README.md ("Test results"). Push to main only, and
+  # only after the verify job succeeded. The verifier from this commit (owner-
+  # signed, pushed by the owner) verifies the note again and writes every file
+  # itself (badge_files: json.dumps of verified values); the shell below only
+  # stores those files as a git tree. The branch ci-results is kept to one
+  # commit: each update builds a new parentless commit from the previous tree
+  # (evidence/<sha>.json* accumulate, badges and latest are replaced) and
+  # force-pushes it with a lease on the commit it read.
+  results:
+    name: Publish test-result badges (ci-results)
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.verify.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: local-ci-results
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify again and write the badge files
+        id: files
+        env:
+          LOCAL_CI_ALLOWED_SIGNERS: ${{ vars.LOCAL_CI_ALLOWED_SIGNERS }}
+          SHA: ${{ github.sha }}
+          OUT: ${{ runner.temp }}/ci-results
+        run: |
+          set -euo pipefail
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::not a commit SHA: '$SHA'"
+            exit 1
+          fi
+          mkdir -p "$OUT"
+          old=""
+          if git fetch --no-tags --quiet origin "+refs/heads/ci-results:refs/remotes/origin/ci-results"; then
+            old="$(git rev-parse --verify refs/remotes/origin/ci-results)"
+            git archive "$old" | tar -x -C "$OUT"
+          fi
+          rm -rf "$OUT/badges"
+          python3 -I scripts/verify_local_ci.py --sha "$SHA" --fetch origin --wait 60 --write-badges "$OUT"
+          echo "old=$old" >> "$GITHUB_OUTPUT"
+
+      - name: Replace the ci-results branch with one commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          OLD: ${{ steps.files.outputs.old }}
+          OUT: ${{ runner.temp }}/ci-results
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          head="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$head" != "$SHA" ]; then
+            echo "::notice::main moved on to $head; the run for that commit updates ci-results"
+            exit 0
+          fi
+          export GIT_INDEX_FILE="$RUNNER_TEMP/ci-results.index"
+          rm -f "$GIT_INDEX_FILE"
+          git --work-tree="$OUT" add --all -- "$OUT"
+          tree="$(git write-tree)"
+          commit="$(git -c user.name='github-actions[bot]' \
+            -c user.email='41898141+github-actions[bot]@users.noreply.github.com' \
+            commit-tree "$tree" -m "Signed local CI results for $SHA")"
+          basic="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$basic"
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.$SERVER_URL/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $basic"
+          git push --quiet --force-with-lease="refs/heads/ci-results:$OLD" \
+            "$SERVER_URL/$REPOSITORY.git" "$commit:refs/heads/ci-results"
+          echo "ci-results = $commit (tree $tree) for $SHA"

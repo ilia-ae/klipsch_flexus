@@ -3,6 +3,11 @@
 # local CI evidence (refs/notes/local-ci). Tests ran on the owner's Mac; this
 # workflow only verifies (scripts/verify_local_ci.py) and publishes the release
 # HACS installs from.
+#
+# Tags: vX.Y.Z (stable: a normal release, marked Latest) or vX.Y.Z-beta.N
+# (beta: a GitHub pre-release, never Latest; HACS offers it only to users who
+# enable "Show beta versions" for this repository). Any other tag is refused.
+# The tag must equal "v" + the manifest.json version.
 name: Release
 
 on:
@@ -18,23 +23,37 @@ concurrency:
 
 jobs:
   version:
+    name: Tag format and manifest version
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      prerelease: ${{ steps.check.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Tag matches manifest version
+      - name: Tag is vX.Y.Z or vX.Y.Z-beta.N and matches the manifest version
+        id: check
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          manifest="$(jq -r .version custom_components/klipsch_flexus/manifest.json)"
-          if [ "${GITHUB_REF_NAME#v}" != "$manifest" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match manifest version ${manifest}"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
+            echo "::error::Tag '$TAG' refused: release tags are vX.Y.Z (stable) or vX.Y.Z-beta.N (beta pre-release)"
             exit 1
           fi
+          manifest="$(jq -r .version custom_components/klipsch_flexus/manifest.json)"
+          if [ "$TAG" != "v$manifest" ]; then
+            echo "::error::Tag $TAG does not match manifest version $manifest (expected tag v$manifest)"
+            exit 1
+          fi
+          if [[ "$TAG" == *-beta.* ]]; then prerelease=true; else prerelease=false; fi
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "$TAG: prerelease=$prerelease"
 
   verify:
     name: Verify signed tag and signed local CI
+    needs: version
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -65,6 +84,7 @@ jobs:
           fi
 
   release:
+    name: Publish the GitHub release
     needs: [version, verify]
     runs-on: ubuntu-24.04
     permissions:
@@ -73,7 +93,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      # A beta is a pre-release and must not become Latest: HACS installs the
+      # latest stable release for everyone who has not enabled beta versions.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.version.outputs.prerelease == 'true' && 'false' || 'true' }}

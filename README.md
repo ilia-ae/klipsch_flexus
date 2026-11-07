@@ -242,6 +242,28 @@ See [SECURITY.md](SECURITY.md) for security policy and best practices.
 
 **Network Security Notice**: The soundbar speaks plain HTTP, and its local API is effectively unauthenticated on the LAN. Older firmware required no authentication at all; the 2026 firmware (`1.1.3.x`) signs most writes (`HMAC_SHA256_AES256`), but this is **not a real security boundary** — the credential is derived from the device's own MAC (which it discloses unauthenticated) plus a hardcoded, product-line-wide constant, so any host on the network can forge it. Reads stay open (see [Firmware Compatibility](#️-firmware-compatibility-2026-update)). **Keep it on a trusted / isolated network segment.** See the [Security Assessment Report](docs/SECURITY_ASSESSMENT_CORE_300.md) (Section 12) for the full analysis.
 
+## Test results
+
+[![pytest, current Home Assistant](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/pytest-latest.json)](docs/TESTING.md#test-result-badges)
+[![pytest, oldest supported Home Assistant](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/pytest-min.json)](docs/TESTING.md#test-result-badges)
+[![hassfest](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/hassfest.json)](docs/TESTING.md#test-result-badges)
+[![Molecule](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/molecule.json)](docs/TESTING.md#test-result-badges)
+[![Signed local CI](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/badges/signed.json)](https://github.com/ilia-ae/klipsch_flexus/tree/ci-results/evidence)
+[![HACS validation](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml/badge.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/validate.yaml)
+
+The first five badges show the results of the owner's signed local CI for the latest commit on `main`. GitHub writes them only after it has verified the signed evidence. The last badge is the HACS validation, which runs on GitHub.
+
+You can check the evidence yourself (Python 3.11 or newer, git, OpenSSH):
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/ilia-ae/klipsch_flexus/ci-results/allowed_signers
+git clone https://github.com/ilia-ae/klipsch_flexus.git && cd klipsch_flexus
+git fetch origin refs/notes/local-ci:refs/notes/local-ci
+python3 -I scripts/verify_local_ci.py --sha "$(git rev-parse HEAD)" --allowed-signers-file ../allowed_signers
+```
+
+`allowed_signers` holds the owner's public signing key. Compare it with the SSH signing keys that GitHub lists for the owner: `curl -s https://api.github.com/users/ilia-ae/ssh_signing_keys`. See [docs/TESTING.md](docs/TESTING.md#test-result-badges) for details.
+
 ## Contributors
 
 Thank you to everyone who has reported issues and sent fixes:

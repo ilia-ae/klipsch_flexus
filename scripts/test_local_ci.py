@@ -32,11 +32,16 @@ L = _load("local_ci")
 V = L.V  # the verifier instance the runner uses, so exception classes match
 
 POLICY = {
-    "schema": 1,
+    "schema": 2,
     "repository": V.REPOSITORY,
     "steps": [
         {"id": "first", "command": ["sh", "-c", "echo first step"], "timeout": 30},
-        {"id": "second", "command": ["sh", "-c", "echo second step"], "timeout": 30},
+        {
+            "id": "second",
+            "command": ["sh", "-c", "echo second step; echo '7 passed in 0.1s'"],
+            "timeout": 30,
+            "summary": {"pattern": "^(?P<count>\\d+) passed in ", "format": "$count passed"},
+        },
     ],
     "tools": {"shell": ["sh", "-c", "echo fake-tool 1.0"]},
 }
@@ -141,6 +146,7 @@ class Fixture(unittest.TestCase):
                 "duration_ms": 5,
                 "log_sha256": "0" * 64,
                 "log_bytes": 0,
+                "summary": None,
             }
             for step in policy["steps"]
         ]
@@ -191,6 +197,7 @@ class AcceptTests(Fixture):
         self.assertEqual(evidence["commit"], self.sha)
         self.assertEqual([s["status"] for s in evidence["steps"]], ["passed", "passed"])
         self.assertEqual(evidence["tools"]["shell"], "fake-tool 1.0")
+        self.assertEqual([s["summary"] for s in evidence["steps"]], [None, "7 passed"])
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(V.main(["--sha", self.sha, "--repo", str(self.repo)]), 0)
 
@@ -608,6 +615,255 @@ class RunnerTests(Fixture):
             self.assertEqual(command[:5], ["/opt/signer", "-Y", "sign", "-n", V.NAMESPACE])
             self.assertIn("-U", command)
             self.assertEqual((Path(folder) / "signing_key.pub").read_text().strip(), public)
+
+
+class SummaryTests(Fixture):
+    """The runner's summary extraction and the verifier's strictness about it."""
+
+    SPEC = {"pattern": r"^(?P<count>\d+) passed in ", "format": "$count passed"}
+
+    def test_extract_formats_every_match(self) -> None:
+        spec = {"pattern": r"^  (?:PASS|(?P<failed>FAIL))  r/(?P<name>[a-z]+)  \(", "format": "$failed $name"}
+        log = "x\n  PASS  r/fresh  (test)\n  FAIL  r/upgrade  (test)\n  PASS  r/minimum  (test)\n"
+        self.assertEqual(L.extract_summary(spec, log), "fresh, FAIL upgrade, minimum")
+
+    def test_extract_whole_match_without_format(self) -> None:
+        self.assertEqual(
+            L.extract_summary({"pattern": r"^All checks passed"}, "a\nAll checks passed!\n"), "All checks passed"
+        )
+        spec = {"pattern": "^Invalid integrations: 0$", "format": "ok"}
+        self.assertEqual(L.extract_summary(spec, "Invalid integrations: 0\n"), "ok")
+
+    def test_extract_strips_colour_and_collapses_spaces(self) -> None:
+        log = "\x1b[32m183   passed\x1b[0m in 9.6s\n"
+        spec = {"pattern": r"^(?P<counts>\d+\s+passed) in ", "format": "$counts"}
+        self.assertEqual(L.extract_summary(spec, log), "183 passed")
+
+    def test_no_spec_or_no_match_gives_none(self) -> None:
+        self.assertIsNone(L.extract_summary(None, "183 passed in 1s\n"))
+        self.assertIsNone(L.extract_summary(self.SPEC, "2 failed in 1s\n"))
+
+    def test_unsafe_or_long_output_gives_none(self) -> None:
+        self.assertIsNone(L.extract_summary({"pattern": r"^<.*>$"}, "<img src=x>\n"))
+        self.assertIsNone(L.extract_summary({"pattern": r"^\S+$"}, "café\n"))
+        self.assertIsNone(L.extract_summary({"pattern": r"^x+$"}, "x" * (V.MAX_SUMMARY + 1) + "\n"))
+        self.assertIsNone(L.extract_summary({"pattern": r"^.+$"}, "a | b\n"))
+
+    def test_matches_are_capped(self) -> None:
+        log = "".join(f"t{i}\n" for i in range(50))
+        self.assertEqual(L.extract_summary({"pattern": r"^t\d+$"}, log).count(", "), L.MAX_SUMMARY_MATCHES - 1)
+
+    def test_valid_summary(self) -> None:
+        for good in ("183 passed", "fresh, upgrade, minimum", "ok", "1 failure(s), 2 warning(s) 95%"):
+            self.assertTrue(V.valid_summary(good), good)
+        for bad in ("", " ok", "ok ", "a  b", "a\nb", "[x](y)", "`x`", "<b>", "a|b", "café", "x" * 121, 5, None):
+            self.assertFalse(V.valid_summary(bad), bad)
+
+    def test_policy_rejects_bad_summary_specs(self) -> None:
+        for spec, fragment in (
+            ("183 passed", "must be"),
+            ({"pattern": "x", "template": "y"}, "must be"),
+            ({"format": "ok"}, "must be"),
+            ({"pattern": ""}, "invalid pattern"),
+            ({"pattern": "x" * (V.MAX_SUMMARY_PATTERN + 1)}, "invalid pattern"),
+            ({"pattern": "(unclosed"}, "does not compile"),
+            ({"pattern": "(?P<n>x)", "format": "$other"}, "groups of its pattern"),
+            ({"pattern": "(?P<n>x)", "format": "$"}, "groups of its pattern"),
+            ({"pattern": "x", "format": ""}, "invalid format"),
+        ):
+            policy = json.loads(json.dumps(POLICY))
+            policy["steps"][0]["summary"] = spec
+            with self.assertRaises(V.Rejected, msg=spec) as caught:
+                V.load_policy(json.dumps(policy).encode())
+            self.assertIn(fragment, str(caught.exception), spec)
+
+    def test_old_policy_schema_rejected(self) -> None:
+        policy = dict(POLICY, schema=1)
+        with self.assertRaises(V.Rejected):
+            V.load_policy(json.dumps(policy).encode())
+
+    def test_old_evidence_schema_rejected(self) -> None:
+        evidence = self.evidence()
+        evidence["schema"] = "klipsch-flexus-local-ci/1"
+        for step in evidence["steps"]:
+            del step["summary"]
+        self.attach(self.sha, self.signed(evidence))
+        self.assertRejected("is not klipsch-flexus-local-ci/2", self.sha)
+
+    def test_verifier_accepts_safe_summary_for_declared_step(self) -> None:
+        evidence = self.evidence()
+        evidence["steps"][1]["summary"] = "7 passed, 1 skipped"
+        self.attach(self.sha, self.signed(evidence))
+        self.assertEqual(self.verify(self.sha)["steps"][1]["summary"], "7 passed, 1 skipped")
+
+    def test_verifier_rejects_bad_summaries(self) -> None:
+        for index, value in (
+            (1, "<img src=x onerror=alert(1)>"),
+            (1, "x" * (V.MAX_SUMMARY + 1)),
+            (1, "7 passed\n"),
+            (1, " 7 passed"),
+            (1, "!["),
+            (1, ""),
+            (1, 7),
+            (1, ["7 passed"]),
+            (0, "7 passed"),  # the policy declares no summary for step "first"
+        ):
+            evidence = self.evidence()
+            evidence["steps"][index]["summary"] = value
+            self.attach(self.sha, self.signed(evidence))
+            self.assertRejected("malformed summary", self.sha)
+
+    def test_verifier_requires_the_summary_field(self) -> None:
+        evidence = self.evidence()
+        del evidence["steps"][0]["summary"]
+        self.attach(self.sha, self.signed(evidence))
+        self.assertRejected("unexpected or missing fields", self.sha)
+
+
+BADGE_POLICY = {
+    "schema": 2,
+    "repository": V.REPOSITORY,
+    "steps": [
+        {"id": step_id, "command": ["true"], "summary": {"pattern": "x"}}
+        for step_id in ("pytest-latest", "pytest-min", "hassfest", "molecule")
+    ],
+}
+
+
+class BadgeTests(Fixture):
+    """badge_files: verified evidence -> shields.io endpoint files for ci-results."""
+
+    def badge_commit(self, summaries: dict[str, str | None], tools: dict[str, str] | None = None) -> bytes:
+        self.write_policy(BADGE_POLICY)
+        self.git("add", "-A")
+        self.sha = self.commit("badge policy")
+        evidence = self.evidence()
+        for step in evidence["steps"]:
+            step["summary"] = summaries.get(step["id"])
+        evidence["tools"].update(tools or {})
+        evidence["created_at"] = "2026-11-01T12:34:56Z"
+        note = self.signed(evidence)
+        self.attach(self.sha, note)
+        self.verify(self.sha)  # badge_files is only ever fed verified notes
+        return note
+
+    def test_files_from_verified_evidence(self) -> None:
+        note = self.badge_commit(
+            {
+                "pytest-latest": "183 passed",
+                "pytest-min": "183 passed, 2 skipped",
+                "hassfest": "ok",
+                "molecule": "fresh, upgrade, minimum",
+            },
+            {"homeassistant-latest": "2026.10.4", "homeassistant-min": "2024.11.0"},
+        )
+        files = V.badge_files(note, "# comment\n" + self.allowed)
+        sha = self.sha
+        self.assertEqual(
+            sorted(files),
+            sorted(
+                [
+                    "README.md",
+                    "allowed_signers",
+                    "badges/hassfest.json",
+                    "badges/molecule.json",
+                    "badges/pytest-latest.json",
+                    "badges/pytest-min.json",
+                    "badges/signed.json",
+                    "evidence/latest.json",
+                    "evidence/latest.json.sig",
+                    f"evidence/{sha}.json",
+                    f"evidence/{sha}.json.sig",
+                ]
+            ),
+        )
+        badge = {
+            name: json.loads(files[f"badges/{name}.json"])
+            for name in ("pytest-latest", "pytest-min", "hassfest", "molecule", "signed")
+        }
+        self.assertEqual(
+            {name: (b["label"], b["message"]) for name, b in badge.items()},
+            {
+                "pytest-latest": ("pytest", "HA 2026.10 · 183 passed"),
+                "pytest-min": ("pytest", "HA 2024.11 · 183 passed · 2 skipped"),
+                "hassfest": ("hassfest", "ok"),
+                "molecule": ("molecule", "fresh · upgrade · minimum"),
+                "signed": ("local CI", f"signed · {sha[:7]} · 2026-11-01"),
+            },
+        )
+        for b in badge.values():
+            self.assertEqual((b["schemaVersion"], b["color"], len(b)), (1, "brightgreen", 4))
+        raw, signature, _ = V.parse_note(note)
+        self.assertEqual(files["evidence/latest.json"], raw)
+        self.assertEqual(files[f"evidence/{sha}.json.sig"], signature)
+        self.assertEqual(files["allowed_signers"].decode(), self.allowed)
+        # the published pair verifies with plain ssh-keygen, as docs/TESTING.md says
+        with tempfile.TemporaryDirectory(dir=self.dir.name) as folder:
+            V.write_files(folder, files)
+            result = subprocess.run(
+                [
+                    "ssh-keygen",
+                    "-Y",
+                    "verify",
+                    "-f",
+                    f"{folder}/allowed_signers",
+                    "-I",
+                    V.PRINCIPAL,
+                    "-n",
+                    V.NAMESPACE,
+                    "-s",
+                    f"{folder}/evidence/latest.json.sig",
+                ],
+                input=Path(folder, "evidence", "latest.json").read_bytes(),
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_summary_or_odd_version_falls_back(self) -> None:
+        note = self.badge_commit({"pytest-latest": None}, {"homeassistant-latest": "unavailable (exit 1): $(rm -rf ~)"})
+        files = V.badge_files(note, self.allowed)
+        self.assertEqual(json.loads(files["badges/pytest-latest.json"])["message"], "passed")
+        self.assertNotIn("homeassistant-min", self.evidence()["tools"])
+        self.assertEqual(json.loads(files["badges/pytest-min.json"])["message"], "passed")
+
+    def test_badge_only_for_steps_in_the_evidence(self) -> None:
+        note = self.signed(self.evidence())  # POLICY: steps first/second, no badge steps
+        self.attach(self.sha, note)
+        files = V.badge_files(note, self.allowed)
+        self.assertEqual(sorted(name for name in files if name.startswith("badges/")), ["badges/signed.json"])
+
+    def test_refuses_external_evidence(self) -> None:
+        evidence = self.evidence()
+        evidence["commit_signature"] = "external"
+        with self.assertRaises(V.Rejected):
+            V.badge_files(self.signed(evidence), self.allowed)
+
+    def test_write_files_stays_inside(self) -> None:
+        with tempfile.TemporaryDirectory(dir=self.dir.name) as folder:
+            with self.assertRaises(V.Rejected):
+                V.write_files(folder, {"../escape.json": b"{}"})
+            self.assertFalse(Path(folder).parent.joinpath("escape.json").exists())
+
+    def test_cli_writes_badges_after_verification(self) -> None:
+        self.badge_commit({"pytest-latest": "183 passed"}, {"homeassistant-latest": "2026.10.4"})
+        out = Path(self.dir.name) / "ci-results"
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = V.main(["--sha", self.sha, "--repo", str(self.repo), "--write-badges", str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            json.loads((out / "badges/pytest-latest.json").read_text())["message"], "HA 2026.10 · 183 passed"
+        )
+        self.assertTrue((out / "evidence" / f"{self.sha}.json.sig").is_file())
+
+    def test_cli_writes_nothing_when_verification_fails(self) -> None:
+        out = Path(self.dir.name) / "ci-results"
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(V.main(["--sha", self.sha, "--repo", str(self.repo), "--write-badges", str(out)]), 1)
+            self.attach(self.sha, self.signed(self.evidence()))
+            args = ["--sha", self.sha, "--repo", str(self.repo), "--write-badges", str(out), "--allow-external"]
+            self.assertEqual(V.main(args), 1)
+        self.assertFalse(out.exists())
 
 
 if __name__ == "__main__":

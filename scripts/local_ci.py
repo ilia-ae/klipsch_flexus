@@ -48,6 +48,8 @@ Rejected = V.Rejected
 
 STATE_DIR = ".local-ci"
 SIGN_TIMEOUT = 60
+MAX_SUMMARY_MATCHES = 20
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # Ignored paths a clean checkout may hold: local tooling, caches and the state
 # of this runner. Any other ignored file (a GNUmakefile, pytest.ini, conftest.py
 # hidden by a global excludes file, ...) could change what a step does without
@@ -238,6 +240,32 @@ def run_step(step: dict, root: Path, log: Path, env: dict) -> tuple[str, int | N
     return ("passed" if code == 0 else "failed"), code
 
 
+def extract_summary(spec: dict | None, log_text: str, step_id: str = "step") -> str | None:
+    """The step's short summary from its log, per the policy's ``summary`` spec.
+
+    Every match of ``pattern`` (multiline) gives one part: ``format`` with its
+    ``$name`` groups filled in (an unmatched group is empty), or the whole
+    match. Parts are joined with ", ". The result must pass the verifier's
+    ``valid_summary`` (short, plain ASCII), else the step has no summary.
+    """
+    if spec is None:
+        return None
+    pattern, template = V.summary_spec(spec, step_id)
+    parts = []
+    for match in pattern.finditer(ANSI_RE.sub("", log_text)):
+        if template is None:
+            part = match.group(0)
+        else:
+            part = template.substitute({name: value or "" for name, value in match.groupdict().items()})
+        part = " ".join(part.split())
+        if part:
+            parts.append(part)
+        if len(parts) >= MAX_SUMMARY_MATCHES:
+            break
+    summary = ", ".join(parts)
+    return summary if V.valid_summary(summary) else None
+
+
 def _stop(process: subprocess.Popen) -> None:
     for sig, grace in ((signal.SIGTERM, 20), (signal.SIGKILL, 10)):
         try:
@@ -299,7 +327,9 @@ def run(root: Path, state_root: Path, *, external: bool = False) -> int:
         status, code = run_step(step, root, log, env)
         duration_ms = int((time.monotonic() - started) * 1000)
         digest, size = sha256_file(log)
-        say(f"<== {step['id']}: {status} (exit {code}) in {duration_ms / 1000:.1f} s")
+        summary = extract_summary(step.get("summary"), log.read_bytes().decode("utf-8", errors="replace"), step["id"])
+        note = f": {summary}" if summary else (" (no summary found in the log)" if "summary" in step else "")
+        say(f"<== {step['id']}: {status} (exit {code}) in {duration_ms / 1000:.1f} s{note}")
         if status != "passed":
             tail = log.read_bytes()[-4000:].decode(errors="replace").splitlines()[-25:]
             say("    " + "\n    ".join(tail))
@@ -312,6 +342,7 @@ def run(root: Path, state_root: Path, *, external: bool = False) -> int:
                 "duration_ms": duration_ms,
                 "log_sha256": digest,
                 "log_bytes": size,
+                "summary": summary,
             }
         )
 

@@ -21,12 +21,17 @@ A commit passes when all of this holds:
    tag signature, namespace ``git``, can never be replayed as evidence);
 4. the evidence names this repository, this commit and its tree, the policy
    blob at this commit, and every step that policy requires, in order, with
-   the same command, passed with exit code 0;
+   the same command, passed with exit code 0; a step's optional ``summary``
+   is a short plain string, present only where the policy declares one;
 5. with ``--tag``: the tag is annotated, points at the commit and is signed by
    an allowed signer (``git tag -s``).
 
+``--write-badges DIR`` (push to main only) then writes shields.io endpoint
+badges, the verified evidence and its signature into DIR, built by
+``badge_files`` from the verified note alone.
+
 Usage: python3 -I scripts/verify_local_ci.py --sha <40-hex> [--tag vX.Y.Z]
-       [--allow-external] [--fetch origin --wait 180]
+       [--allow-external] [--fetch origin --wait 180] [--write-badges DIR]
 """
 
 from __future__ import annotations
@@ -37,6 +42,7 @@ import json
 import os
 import re
 import shutil
+import string
 import subprocess
 import sys
 import tempfile
@@ -49,8 +55,8 @@ PRINCIPAL = "code@ilia.ae"
 NAMESPACE = "klipsch-flexus-local-ci@ilia.ae"
 NOTES_REF = "refs/notes/local-ci"
 POLICY_PATH = ".ci/local-ci.json"
-SCHEMA = "klipsch-flexus-local-ci/1"
-POLICY_SCHEMA = 1
+SCHEMA = "klipsch-flexus-local-ci/2"
+POLICY_SCHEMA = 2
 HINT = "run make ci && make ci-publish"
 
 MAX_NOTE_BYTES = 256 * 1024
@@ -60,6 +66,11 @@ HEX64_RE = re.compile(r"[0-9a-f]{64}")
 STEP_ID_RE = re.compile(r"[a-z][a-z0-9-]{0,63}")
 TAG_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
 TIMESTAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+# A step summary (e.g. "183 passed", "fresh, upgrade, minimum") is signed
+# evidence that ends up in badges and Markdown: short, plain ASCII, no markup.
+MAX_SUMMARY = 120
+SUMMARY_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,:;/()+%=_-]*")  # length: valid_summary
+MAX_SUMMARY_PATTERN = 400
 SIGNATURE_RE = re.compile(
     rb"-----BEGIN SSH SIGNATURE-----\n(?:[A-Za-z0-9+/=]{1,76}\n){1,64}-----END SSH SIGNATURE-----\n"
 )
@@ -81,9 +92,10 @@ EVIDENCE_KEYS = frozenset(
         "result",
     }
 )
-STEP_KEYS = frozenset({"id", "command", "status", "exit_code", "duration_ms", "log_sha256", "log_bytes"})
+STEP_KEYS = frozenset({"id", "command", "status", "exit_code", "duration_ms", "log_sha256", "log_bytes", "summary"})
 HOST_KEYS = frozenset({"os", "release", "arch", "python"})
-POLICY_STEP_KEYS = frozenset({"id", "command", "timeout", "description"})
+POLICY_STEP_KEYS = frozenset({"id", "command", "timeout", "description", "summary"})
+SUMMARY_SPEC_KEYS = frozenset({"pattern", "format"})
 SIGNATURE_STATES = {
     "N": "unsigned",
     "U": "signed by a key that is not an allowed signer",
@@ -154,6 +166,38 @@ def load_canonical(raw: bytes) -> dict:
     return value
 
 
+def valid_summary(value: object) -> bool:
+    """A summary: short, plain ASCII from a safe charset, single spaces, no padding."""
+    return (
+        isinstance(value, str)
+        and len(value) <= MAX_SUMMARY
+        and SUMMARY_RE.fullmatch(value) is not None
+        and " ".join(value.split()) == value
+    )
+
+
+def summary_spec(spec: object, step_id: str) -> tuple[re.Pattern, string.Template | None]:
+    """Validate a policy step's ``summary``: a regex and an optional $group template."""
+    where = f"{POLICY_PATH} step {step_id} summary"
+    if not isinstance(spec, dict) or "pattern" not in spec or set(spec) - SUMMARY_SPEC_KEYS:
+        raise Rejected(f"{where} must be {{pattern, format?}}")
+    pattern, template = spec["pattern"], spec.get("format")
+    if not isinstance(pattern, str) or not pattern or len(pattern) > MAX_SUMMARY_PATTERN:
+        raise Rejected(f"{where} has an invalid pattern")
+    try:
+        compiled = re.compile(pattern, re.MULTILINE)
+    except re.error as error:
+        raise Rejected(f"{where} pattern does not compile: {error}") from None
+    if template is None:
+        return compiled, None
+    if not isinstance(template, str) or not template or len(template) > MAX_SUMMARY:
+        raise Rejected(f"{where} has an invalid format")
+    parsed = string.Template(template)
+    if not parsed.is_valid() or not set(parsed.get_identifiers()) <= set(compiled.groupindex):
+        raise Rejected(f"{where} format must use only $name groups of its pattern")
+    return compiled, parsed
+
+
 def load_policy(raw: bytes) -> dict:
     """Validate the CI policy (data only) and return it."""
     if len(raw) > MAX_POLICY_BYTES:
@@ -181,6 +225,8 @@ def load_policy(raw: bytes) -> dict:
         timeout = step.get("timeout", 1800)
         if type(timeout) is not int or timeout <= 0:
             raise Rejected(f"{POLICY_PATH} step {step_id} has an invalid timeout")
+        if "summary" in step:
+            summary_spec(step["summary"], step_id)
         seen.add(step_id)
     tools = policy.get("tools", {})
     if not isinstance(tools, dict) or not all(
@@ -190,15 +236,21 @@ def load_policy(raw: bytes) -> dict:
     return policy
 
 
-def write_allowed_signers(text: str, folder: str) -> str:
-    """Write the trusted allowed signers to a private temp file."""
+def normalize_allowed_signers(text: str) -> str:
+    """The allowed signers without blank lines and comments; Rejected when empty."""
     text = text.replace("\r\n", "\n").strip()
     lines = [line for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")]
     if not lines:
         raise Rejected("no allowed signers configured (repository variable LOCAL_CI_ALLOWED_SIGNERS is empty)")
+    return "\n".join(lines) + "\n"
+
+
+def write_allowed_signers(text: str, folder: str) -> str:
+    """Write the trusted allowed signers to a private temp file."""
+    content = normalize_allowed_signers(text)
     path = os.path.join(folder, "allowed_signers")
     with open(path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines) + "\n")
+        handle.write(content)
     return path
 
 
@@ -329,6 +381,7 @@ def validate_evidence(evidence: dict, sha: str, tree: str, policy_raw: bytes, *,
 
     policy = load_policy(policy_raw)
     required = [(step["id"], step["command"]) for step in policy["steps"]]
+    summarized = {step["id"] for step in policy["steps"] if "summary" in step}
     steps = evidence["steps"]
     if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
         raise Rejected("evidence field steps is malformed")
@@ -352,6 +405,12 @@ def validate_evidence(evidence: dict, sha: str, tree: str, policy_raw: bytes, *,
         _require_int(step["log_bytes"], f"{step_id}.log_bytes")
         if not isinstance(step["log_sha256"], str) or not HEX64_RE.fullmatch(step["log_sha256"]):
             raise Rejected(f"evidence step {step_id} has a malformed log digest")
+        text = step["summary"]
+        if text is not None and (step_id not in summarized or not valid_summary(text)):
+            raise Rejected(
+                f"evidence step {step_id} has a malformed summary (at most {MAX_SUMMARY} plain characters, "
+                "only for steps whose policy declares one)"
+            )
         if status != "passed" or code != 0:
             raise Rejected(f"required step {step_id} did not pass ({status}, exit code {code})")
     if evidence["result"] != "passed":
@@ -417,15 +476,103 @@ def summary(evidence: dict, sha: str, tag: str | None) -> str:
         f"Signed by `{PRINCIPAL}` at {evidence['created_at']} on "
         f"{evidence['host']['os']} {evidence['host']['arch']}; commit signature: {evidence['commit_signature']}.",
         "",
-        "| step | status | duration | command |",
-        "| --- | --- | --- | --- |",
+        "| step | status | duration | summary | command |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for step in evidence["steps"]:
         command = " ".join(step["command"]).replace("|", "\\|")
-        lines.append(f"| {step['id']} | {step['status']} | {step['duration_ms'] / 1000:.1f} s | `{command}` |")
+        lines.append(
+            f"| {step['id']} | {step['status']} | {step['duration_ms'] / 1000:.1f} s | {step['summary'] or ''} "
+            f"| `{command}` |"
+        )
     lines += ["", "| tool | version |", "| --- | --- |"]
     lines += [f"| {name} | {value.replace('|', '/')} |" for name, value in sorted(evidence["tools"].items())]
     return "\n".join(lines) + "\n"
+
+
+# Test-result badges (shields.io endpoint JSON), written to the ci-results
+# branch by .github/workflows/local-ci.yaml after a verified push to main.
+# (file name, label, evidence step, tools key of the Home Assistant version)
+BADGES = (
+    ("pytest-latest", "pytest", "pytest-latest", "homeassistant-latest"),
+    ("pytest-min", "pytest", "pytest-min", "homeassistant-min"),
+    ("hassfest", "hassfest", "hassfest", None),
+    ("molecule", "molecule", "molecule", None),
+)
+BADGE_COLOR = "brightgreen"
+HA_VERSION_RE = re.compile(r"(\d{4})\.(\d{1,2})(?:\.\d+)?(?:[a-z0-9.]*)")
+CI_RESULTS_README = f"""# ci-results
+
+Written by the workflow "Verify signed local CI" (.github/workflows/local-ci.yaml)
+after it verified the owner's signed local CI evidence for a push to main.
+Do not edit: every update replaces this branch with one new commit.
+
+- badges/*.json: shields.io endpoint badges, built from the verified evidence.
+- evidence/<sha>.json and .sig: the signed evidence (exact bytes) and its SSH
+  signature; latest.json is the newest commit on main.
+- allowed_signers: the trust root the workflow verified with
+  (repository variable LOCAL_CI_ALLOWED_SIGNERS).
+
+Check a signature (principal {PRINCIPAL}, namespace {NAMESPACE}):
+
+    ssh-keygen -Y verify -f allowed_signers -I {PRINCIPAL} -n {NAMESPACE} \\
+      -s evidence/latest.json.sig < evidence/latest.json
+
+scripts/verify_local_ci.py in {REPOSITORY} also checks that the evidence
+matches the commit, its tree and its policy (see docs/TESTING.md).
+"""
+
+
+def _endpoint(label: str, message: str) -> bytes:
+    """One shields.io endpoint badge (https://shields.io/badges/endpoint-badge)."""
+    badge = {"schemaVersion": 1, "label": label, "message": message, "color": BADGE_COLOR}
+    return json.dumps(badge, sort_keys=True, ensure_ascii=True).encode() + b"\n"
+
+
+def badge_files(note: bytes, allowed_signers: str) -> dict[str, bytes]:
+    """Map relative path -> content for the ci-results branch. Pure: no I/O.
+
+    ``note`` must already have passed ``verify`` for an owner-signed commit.
+    Every value comes from that evidence: summaries the verifier accepted
+    (safe charset, length-capped), the Home Assistant version only when it
+    looks like one, the commit SHA and the timestamp, all JSON-encoded here.
+    """
+    raw, signature, evidence = parse_note(note)
+    if evidence.get("commit_signature") != "owner" or evidence.get("result") != "passed":
+        raise Rejected("badges are written only for passed evidence of an owner-signed commit")
+    sha, created = evidence["commit"], evidence["created_at"]
+    if not SHA_RE.fullmatch(sha) or not TIMESTAMP_RE.fullmatch(created):
+        raise Rejected("evidence commit or created_at is malformed")
+    steps = {step["id"]: step for step in evidence["steps"]}
+    files: dict[str, bytes] = {}
+    for name, label, step_id, ha_tool in BADGES:
+        step = steps.get(step_id)
+        if step is None or step["status"] != "passed":
+            continue
+        summary = step["summary"]
+        parts = summary.split(", ") if valid_summary(summary) else ["passed"]
+        if ha_tool:
+            match = HA_VERSION_RE.fullmatch(str(evidence["tools"].get(ha_tool, "")))
+            if match:
+                parts.insert(0, f"HA {match.group(1)}.{int(match.group(2))}")
+        files[f"badges/{name}.json"] = _endpoint(label, " \u00b7 ".join(parts))
+    files["badges/signed.json"] = _endpoint("local CI", f"signed \u00b7 {sha[:7]} \u00b7 {created[:10]}")
+    for stem in ("latest", sha):
+        files[f"evidence/{stem}.json"] = raw  # the exact signed bytes (no trailing newline)
+        files[f"evidence/{stem}.json.sig"] = signature
+    files["allowed_signers"] = normalize_allowed_signers(allowed_signers).encode()
+    files["README.md"] = CI_RESULTS_README.encode()
+    return files
+
+
+def write_files(directory: str | os.PathLike, files: dict[str, bytes]) -> None:
+    root = Path(directory).resolve()
+    for relative, content in sorted(files.items()):
+        target = (root / relative).resolve()
+        if root not in target.parents:
+            raise Rejected(f"refusing to write outside {root}: {relative}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -437,6 +584,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allowed-signers-file", help="default: the LOCAL_CI_ALLOWED_SIGNERS environment variable")
     parser.add_argument("--fetch", metavar="REMOTE", help="fetch the commit and refs/notes/local-ci from REMOTE")
     parser.add_argument("--wait", type=int, default=0, help="seconds to keep re-fetching a missing note")
+    parser.add_argument(
+        "--write-badges", metavar="DIR", help="after verification, write badges + evidence for the ci-results branch"
+    )
     args = parser.parse_args(argv)
 
     in_actions = os.environ.get("GITHUB_ACTIONS") == "true"
@@ -447,9 +597,14 @@ def main(argv: list[str] | None = None) -> int:
             allowed = os.environ.get("LOCAL_CI_ALLOWED_SIGNERS", "")
         if not SHA_RE.fullmatch(args.sha):
             raise Rejected(f"expected a full 40-character commit SHA, got {args.sha!r}")
+        if args.write_badges and args.allow_external:
+            raise Rejected("--write-badges needs strictly verified (owner-signed) evidence, not --allow-external")
         if args.fetch:
             fetch(args.repo, args.fetch, args.sha, args.wait)
-        evidence = verify(args.repo, args.sha, allowed, allow_external=args.allow_external, tag=args.tag)
+        note = read_note(args.repo, args.sha)
+        evidence = verify(args.repo, args.sha, allowed, allow_external=args.allow_external, note=note, tag=args.tag)
+        if args.write_badges:
+            write_files(args.write_badges, badge_files(note, allowed))
     except (Rejected, OSError) as error:
         print(f"::error::{error}" if in_actions else f"local CI verification FAILED: {error}", file=sys.stderr)
         return 1

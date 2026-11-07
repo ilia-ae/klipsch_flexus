@@ -169,6 +169,21 @@ Both scripts use only the Python standard library and run with `python3 -I`.
    after a Dependabot bump they fail with `stale .venv-test: run make venv-test`
    instead of testing, and signing, the previous Home Assistant.
 
+   A step may declare a `summary` in the policy: `pattern`, a regular
+   expression that the runner applies to the step's log (multiline), and an
+   optional `format` with `$name` groups of that pattern (default: the whole
+   match). Each match gives one part; the parts are joined with `, `. The result
+   must be at most 120 plain characters (letters, digits, space and
+   `.,:;/()+%=_-`), otherwise the step has no summary. The runner prints it next
+   to the step's status. Declared today:
+
+   | Step | Summary, for example |
+   | --- | --- |
+   | `local-ci-selftest` | `72 tests` |
+   | `pytest-latest`, `pytest-min` | `183 passed` (also skipped and warning counts, when there are any) |
+   | `hassfest` | `ok` (only when hassfest reports `Invalid integrations: 0`) |
+   | `molecule` | `fresh, upgrade, minimum` (a failed scenario shows as `FAIL <name>`) |
+
    | Step | Command | What it checks |
    | --- | --- | --- |
    | `ruff` | `make ruff` | lint and formatting |
@@ -184,10 +199,10 @@ Both scripts use only the Python standard library and run with `python3 -I`.
    working tree, the run writes no evidence.
 4. **Write the evidence** to `.local-ci/<sha>/evidence.json` as canonical JSON:
    sorted keys, no whitespace, ASCII only, no floats. It records:
-   - schema `klipsch-flexus-local-ci/1` and repository `ilia-ae/klipsch_flexus`
+   - schema `klipsch-flexus-local-ci/2` and repository `ilia-ae/klipsch_flexus`
    - the commit SHA, its tree SHA, and the SHA-256 of the policy blob
-   - for each step: its id, command, status, exit code, duration, and the
-     SHA-256 and size of its log
+   - for each step: its id, command, status, exit code, duration, the
+     SHA-256 and size of its log, and its summary (`null` when there is none)
    - tool versions: ruff, Python and Home Assistant in both venvs, the hassfest
      image digest and local image ID, Docker, ansible-core and Molecule
    - the host OS, release, architecture and Python version
@@ -240,14 +255,68 @@ on pushes to `main` and `v*` tags, on pull requests, and on `workflow_dispatch`
    - The policy digest matches the policy blob at that commit.
    - Every step that policy requires is present, in order, with the same
      command, `passed` and exit code 0. The overall result is `passed`.
+   - A step's summary is `null`, or a plain string of at most 120 characters
+     from the charset above, and only for a step whose policy declares a
+     `summary`.
    - The evidence has no unknown fields, duplicate keys or floats.
 
 A missing note fails with:
 `no signed local CI evidence for <sha>: run make ci && make ci-publish`.
 
 A dispatch on `main` also sets the commit status **`local-ci/verified`** on the
-target commit, in a separate job with `statuses: write`. Every other job has
-`contents: read` only.
+target commit, in a separate job with `statuses: write`. A push to `main` also
+updates the [test-result badges](#test-result-badges), in a separate job with
+`contents: write`. Every other job has `contents: read` only.
+
+### Test-result badges
+
+The section **Test results** of the [README](../README.md#test-results) shows
+shields.io badges for pytest (both Home Assistant versions), hassfest, Molecule
+and the signature. They come from the signed evidence of the latest commit on
+`main`, never from a person typing them.
+
+After a push to `main`, and only when the job **Verify signed local CI**
+succeeded, the job **Publish test-result badges (ci-results)** runs. It is the
+only job with `contents: write`. It works like this:
+
+1. It runs `scripts/verify_local_ci.py --write-badges <dir>` from the pushed
+   commit. The verifier checks the note again. Then `badge_files` builds every
+   file from that verified note with `json.dumps`. No evidence text passes
+   through the shell.
+2. It skips the update when `main` has moved on to a newer commit. The run for
+   that commit updates the branch instead.
+3. It stores the files as one new commit without a parent on the orphan
+   branch **`ci-results`**, and force-pushes it with a lease on the commit it
+   read. So the branch always has exactly one commit, written by
+   `github-actions[bot]` (not signed).
+
+| File on `ci-results` | Content |
+| --- | --- |
+| `badges/pytest-latest.json`, `badges/pytest-min.json` | `HA 2026.10 · 183 passed`: the Home Assistant version from the evidence tools, and the step summary |
+| `badges/hassfest.json` | `ok` |
+| `badges/molecule.json` | `fresh · upgrade · minimum` |
+| `badges/signed.json` | `signed · <short sha> · <date of the run>` |
+| `evidence/latest.json`, `evidence/latest.json.sig` | the evidence of the newest commit (the exact signed bytes) and its SSH signature |
+| `evidence/<sha>.json`, `evidence/<sha>.json.sig` | the same for each commit; kept from update to update |
+| `allowed_signers` | the trust root the workflow verified with (`LOCAL_CI_ALLOWED_SIGNERS`) |
+
+A badge without a summary in the evidence shows `passed`. A step that is not in
+the evidence gets no badge file.
+
+To check the evidence yourself, see the README. To check only a signature:
+
+```bash
+ssh-keygen -Y verify -f allowed_signers -I code@ilia.ae -n klipsch-flexus-local-ci@ilia.ae \
+  -s evidence/latest.json.sig < evidence/latest.json
+```
+
+That proves who signed the evidence. `scripts/verify_local_ci.py` also proves
+that it belongs to the commit, its tree and its policy. Compare
+`allowed_signers` with the owner's SSH signing keys on GitHub
+(`https://api.github.com/users/ilia-ae/ssh_signing_keys`).
+
+If a ruleset or branch protection covers every branch, allow the workflow to
+force-push `ci-results`, or the job fails.
 
 ### Trust model
 
@@ -267,7 +336,8 @@ target commit, in a separate job with `statuses: write`. Every other job has
   and sets the commit status `local-ci/verified` on the PR head. A dispatch from
   any other ref is skipped. Fork PR tokens cannot write commit statuses.
 - **Releases** ([release.yaml](../.github/workflows/release.yaml)): the workflow
-  checks that the tag equals the `manifest.json` version. It runs the same
+  accepts only tags `vX.Y.Z` and `vX.Y.Z-beta.N`, and checks that the tag equals
+  `v` plus the `manifest.json` version. It runs the same
   verifier for the tag's commit, and also requires the tag to be an annotated
   tag signed by an allowed signer (`git verify-tag`). Only then does
   `softprops/action-gh-release` publish the release that HACS installs.
@@ -283,13 +353,32 @@ signed pushes to `main` are verified by the push run of the same workflow.
 
 ### Releases
 
+User-facing changes ship first as a beta. A stable release follows only on the
+owner's word.
+
+| Tag | `manifest.json` version | GitHub release | Who gets it in HACS |
+| --- | --- | --- | --- |
+| `vX.Y.Z-beta.N` | `X.Y.Z-beta.N` | pre-release, never marked Latest | only users who enable **Show beta versions** for this repository |
+| `vX.Y.Z` | `X.Y.Z` | normal release, marked Latest | everyone |
+
+Any other tag (`v1.2`, `v1.2.3-rc1`, `v1.2.3b1`) is refused by the release
+workflow. Both forms are valid versions for Home Assistant and hassfest:
+AwesomeVersion reads `X.Y.Z-beta.N` as SemVer, and it sorts before `X.Y.Z`.
+Release notes are generated by GitHub, as before.
+
 ```bash
-# bump custom_components/klipsch_flexus/manifest.json "version", commit -S
+git fetch --tags origin
+make release-beta-next BASE=x.y.z  # prints the next free beta, e.g. x.y.z-beta.1 (local tags only)
+# set custom_components/klipsch_flexus/manifest.json "version" to it, commit -S
 make ci
-make release-tag VERSION=x.y.z    # checks manifest version + local evidence, then git tag -s vx.y.z
+make release-tag VERSION=x.y.z-beta.n   # checks the format, the manifest version and the local evidence, then git tag -s
 make ci-publish
-git push origin main vx.y.z
+git push origin main vx.y.z-beta.n
 ```
+
+For the stable release, set the version to `x.y.z`, commit, and run the same
+steps with `VERSION=x.y.z`. Without `BASE`, `release-beta-next` uses the
+`x.y.z` part of the manifest version.
 
 ### Pull requests and Dependabot
 

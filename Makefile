@@ -38,7 +38,7 @@ LOCAL_CI := $(PYTHON) -I scripts/local_ci.py
 include $(wildcard mk/*.mk)
 
 .PHONY: help venv-test venv-testmin test test-latest test-min ruff format ruff-version \
-	lint-workflows hassfest hassfest-image hacs ci ci-run ci-sign ci-verify ci-publish ci-pr ci-selftest release-tag
+	lint-workflows hassfest hassfest-image hacs ci ci-run ci-sign ci-verify ci-publish ci-pr ci-selftest release-tag release-beta-next
 
 help: ## List the targets
 	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | sort | \
@@ -147,11 +147,23 @@ ci-pr: ## Test PR=<n> in a temp worktree, sign, publish, dispatch verification (
 ci-selftest: ## Unit tests of the runner and the verifier (throwaway keys)
 	$(PYTHON) -I scripts/test_local_ci.py
 
-release-tag: ## Create the signed annotated release tag vVERSION for HEAD (VERSION=x.y.z)
-	@test -n "$(VERSION)" || { echo "usage: make release-tag VERSION=x.y.z" >&2; exit 2; }
-	@manifest="$$($(PYTHON) -I -c 'import json; print(json.load(open("custom_components/klipsch_flexus/manifest.json"))["version"])')"; \
+MANIFEST_VERSION = $(PYTHON) -I -c 'import json; print(json.load(open("custom_components/klipsch_flexus/manifest.json"))["version"])'
+
+# Stable x.y.z (a normal GitHub release, marked Latest) only on the owner's word;
+# x.y.z-beta.n becomes a GitHub pre-release (.github/workflows/release.yaml).
+release-tag: ## Create the signed annotated tag vVERSION for HEAD (VERSION=x.y.z or x.y.z-beta.n)
+	@[[ "$(VERSION)" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$$ ]] || { echo "usage: make release-tag VERSION=x.y.z (stable) or VERSION=x.y.z-beta.n (beta)" >&2; exit 2; }
+	@manifest="$$($(MANIFEST_VERSION))"; \
 	test "$$manifest" = "$(VERSION)" || { echo "manifest.json version is $$manifest, not $(VERSION)" >&2; exit 1; }
 	$(LOCAL_CI) verify
 	git tag -s "v$(VERSION)" -m "v$(VERSION)"
 	git verify-tag "v$(VERSION)"
 	@echo "next: make ci-publish && git push origin main v$(VERSION)"
+
+# Reads local tags only: run `git fetch --tags origin` first.
+release-beta-next: ## Print the next free beta version x.y.z-beta.n (BASE=x.y.z, default: the manifest's x.y.z)
+	@base="$(BASE)"; test -n "$$base" || base="$$($(MANIFEST_VERSION))"; base="$${base%%-*}"; \
+	[[ "$$base" =~ ^[0-9]+\.[0-9]+\.[0-9]+$$ ]] || { echo "BASE must be x.y.z, got $$base" >&2; exit 2; }; \
+	if git rev-parse --verify --quiet "refs/tags/v$$base" > /dev/null; then echo "v$$base is already released; pick a higher BASE" >&2; exit 1; fi; \
+	last="$$(git tag -l "v$$base-beta.*" | sed 's/.*-beta\.//' | grep -E '^[0-9]+$$' | sort -n | tail -n 1)"; \
+	echo "$$base-beta.$$(( $${last:-0} + 1 ))"
