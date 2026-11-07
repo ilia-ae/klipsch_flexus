@@ -1,0 +1,12 @@
+# ansible-lint configuration (make lint-ansible, run from the repository root).
+profile: production
+# Collections come from ansible/requirements.yml via `make collections`; never download.
+offline: true
+exclude_paths:
+  - .git/
+  - .venv/
+  - .venv-test/
+  - .venv-testmin/
+  - .molecule/
+  - .github/
+  - ansible/collections/

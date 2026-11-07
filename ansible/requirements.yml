@@ -1,0 +1,9 @@
+# Pinned collections for the Molecule harness. Installed by `make collections` into
+# ansible/collections (gitignored); nothing is downloaded during a Molecule run.
+collections:
+  # docker_api connection, and the docker driver's create/destroy playbooks
+  - name: community.docker
+    version: "5.4.0"
+  # referenced by the docker driver's create playbook
+  - name: ansible.posix
+    version: "2.2.2"

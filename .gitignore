@@ -3,3 +3,8 @@ __pycache__/
 # Reverse-engineering artifacts (APK, extracted libs) — never commit
 .reverse/
 .coverage
+
+# Molecule harness (make venv / collections / molecule-*)
+.venv/
+.molecule/
+ansible/collections/

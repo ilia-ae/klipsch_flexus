@@ -1,0 +1,30 @@
+# yamllint configuration (make lint-ansible). ansible-lint reads this file too and extends its own
+# yamllint settings with it, so the values below are the ones ansible-lint requires.
+extends: default
+
+ignore: |
+  .git/
+  .venv/
+  .venv-test/
+  .venv-testmin/
+  .molecule/
+  ansible/collections/
+
+rules:
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  document-start: disable
+  line-length:
+    max: 160
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  truthy:
+    allowed-values: ["true", "false"]
+    # GitHub Actions uses the bare key "on:".
+    ignore: |
+      .github/workflows/
