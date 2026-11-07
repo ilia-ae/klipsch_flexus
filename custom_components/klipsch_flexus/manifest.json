@@ -13,7 +13,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/ilia-ae/klipsch_flexus/issues",
   "requirements": [],
-  "version": "2.5.20-beta.1",
+  "version": "2.5.20",
   "zeroconf": [
     {
       "type": "_googlecast._tcp.local.",

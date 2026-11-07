@@ -178,5 +178,5 @@ We appreciate the security research community and will credit researchers who re
 ---
 
 **Last Updated**: 2026-11-07  
-**Integration Version**: 2.5.19  
+**Integration Version**: 2.5.20  
 **Security Assessment**: [Klipsch Flexus CORE 300 Report](docs/SECURITY_ASSESSMENT_CORE_300.md)

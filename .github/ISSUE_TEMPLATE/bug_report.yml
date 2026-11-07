@@ -14,7 +14,7 @@ body:
     attributes:
       label: Integration version
       description: Shown in HACS, or under Settings > Devices & Services > Klipsch Flexus.
-      placeholder: "2.5.19"
+      placeholder: "2.5.20"
     validations:
       required: true
 

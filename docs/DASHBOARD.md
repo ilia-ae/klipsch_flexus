@@ -56,7 +56,7 @@ Sub:       #FF5722
 
 The entity ids below use the default `klipsch_flexus_core_300` prefix; replace it with your own device's entity-id prefix (see Settings > Devices > Klipsch Flexus).
 
-The Subwoofer cards use the entity ids existing installs have: `number.<device>_channel_subwoofer_wireless_1` (the wired sub output) and `number.<device>_channel_subwoofer_wireless_2` (the wireless subs). Renaming the entities kept those ids, but a soundbar added on v2.5.20-beta.1 or later gets `number.<device>_channel_wired_subwoofer` and `number.<device>_channel_wireless_subwoofers` instead, so pick your actual ids from Settings > Devices > the soundbar.
+The Subwoofer cards use the entity ids existing installs have: `number.<device>_channel_subwoofer_wireless_1` (the wired sub output) and `number.<device>_channel_subwoofer_wireless_2` (the wireless subs). Renaming the entities kept those ids, but a soundbar added on v2.5.20 or later (including v2.5.20-beta.1) gets `number.<device>_channel_wired_subwoofer` and `number.<device>_channel_wireless_subwoofers` instead, so pick your actual ids from Settings > Devices > the soundbar.
 
 ```yaml
 title: Soundbar
