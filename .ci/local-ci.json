@@ -11,7 +11,7 @@
     },
     {
       "id": "lint-workflows",
-      "description": "actionlint (with shellcheck) and yamllint on .github",
+      "description": "actionlint and shellcheck on the workflows and scripts/*.sh, yamllint on .github",
       "command": ["make", "lint-workflows"],
       "timeout": 300
     },
@@ -35,7 +35,7 @@
     },
     {
       "id": "hassfest",
-      "description": "official hassfest container, pinned by digest, on the committed integration files",
+      "description": "official hassfest image pinned by digest (or, where Docker cannot run amd64, the same Dockerfile built at the pinned image's source commit) on the committed integration files",
       "command": ["make", "hassfest"],
       "timeout": 1200
     },

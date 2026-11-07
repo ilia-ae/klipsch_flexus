@@ -72,7 +72,7 @@ jobs:
           case "$EVENT" in
             workflow_dispatch) sha="$INPUT_SHA" ;;
             pull_request) sha="$PR_HEAD_SHA" ;;
-            *) sha="$PUSH_SHA" ;;
+            *) sha="$(git rev-parse --verify "$PUSH_SHA^{commit}")" ;;
           esac
           if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::expected a full 40-character commit SHA, got '$sha'"

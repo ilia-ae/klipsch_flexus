@@ -18,11 +18,17 @@ SHELLCHECK_FROM := shellcheck-py==0.10.0.1
 YAMLLINT := $(UVX) yamllint==1.38.0
 YAMLLINT_GITHUB := {extends: default, rules: {line-length: {max: 200}, document-start: disable, truthy: {check-keys: false}}}
 
-# Official images, pinned by multi-arch index digest. Both publish linux/amd64
-# only; Docker Desktop on Apple Silicon runs them under emulation.
-DOCKER_PLATFORM := linux/amd64
+# Official images, pinned by multi-arch index digest, with the upstream commit
+# and Dockerfile each was built from (its build provenance). Both images are
+# linux/amd64 only; scripts/pinned_image.sh uses the official image where Docker
+# runs amd64 natively and otherwise builds that Dockerfile at that commit, once,
+# for the native architecture (IMAGES=official|local overrides).
 HASSFEST_IMAGE := ghcr.io/home-assistant/hassfest@sha256:f9ac52cfe0f7b8770334f191e6713aa9f10f0906a989bd38d75a4933534144c7
+HASSFEST_SOURCE := https://github.com/home-assistant/core.git\#74cf5a49c63ed8d4d87717844bf14f79c28c9cea
+HASSFEST := scripts/pinned_image.sh $(HASSFEST_IMAGE) $(HASSFEST_SOURCE) script/hassfest/docker/Dockerfile klipsch-flexus-hassfest
 HACS_IMAGE := ghcr.io/hacs/action@sha256:187499a09c5d41f9f0d42ff80d203ed87b974c028290140913b61e005fb0aab2
+HACS_SOURCE := https://github.com/hacs/integration.git\#0704ffc6e790b9714c82384d8c564266434ff6f9
+HACS := scripts/pinned_image.sh $(HACS_IMAGE) $(HACS_SOURCE) action/Dockerfile klipsch-flexus-hacs
 REPOSITORY := ilia-ae/klipsch_flexus
 REF ?= main
 
@@ -73,34 +79,40 @@ format: ## Apply ruff fixes and formatting
 ruff-version:
 	@$(RUFF) --version
 
-lint-workflows: ## actionlint (with shellcheck) + yamllint on .github (pinned, via uvx)
+lint-workflows: ## actionlint + shellcheck on workflows and scripts/*.sh, yamllint on .github (pinned, via uvx)
 	@sc="$$($(UVX) --from $(SHELLCHECK_FROM) python -c 'import os, sys; print(os.path.join(os.path.dirname(sys.executable), "shellcheck"))')"; \
 	echo "$(ACTIONLINT) -shellcheck $$sc .github/workflows/*.yaml"; \
-	$(ACTIONLINT) -shellcheck "$$sc" .github/workflows/*.yaml
+	$(ACTIONLINT) -shellcheck "$$sc" .github/workflows/*.yaml; \
+	echo "shellcheck scripts/*.sh"; \
+	"$$sc" scripts/*.sh
 	$(YAMLLINT) -d '$(YAMLLINT_GITHUB)' .github
 
 # hassfest sees only the tracked integration files (a clean export, no caches),
 # mounted read-only into a throwaway klipsch-flexus-* container.
-hassfest: ## Validate the integration with the pinned official hassfest container
+hassfest: ## Validate the integration with the pinned official hassfest image (or its native rebuild)
 	@set -euo pipefail; \
+	image="$$($(HASSFEST))"; \
 	tmp="$$(mktemp -d "$${TMPDIR:-/tmp}/klipsch-flexus-hassfest.XXXXXX")"; \
 	trap 'rm -rf "$$tmp"' EXIT; \
 	git ls-files -z -- custom_components | tar --null -T - -cf - | tar -xf - -C "$$tmp"; \
-	echo "hassfest $(HASSFEST_IMAGE) on $$(git ls-files -- custom_components | wc -l | tr -d ' ') files"; \
-	docker run --rm --platform $(DOCKER_PLATFORM) --name "klipsch-flexus-hassfest-$$$$" \
-		-v "$$tmp:/github/workspace:ro" $(HASSFEST_IMAGE)
+	echo "hassfest $$image on $$(git ls-files -- custom_components | wc -l | tr -d ' ') files"; \
+	docker run --rm --name "klipsch-flexus-hassfest-$$$$" -v "$$tmp:/github/workspace:ro" "$$image"
 
 hassfest-image:
-	@id="$$(docker image inspect --format '{{.Id}}' $(HASSFEST_IMAGE) 2>/dev/null | head -n 1)"; \
-	echo "$(HASSFEST_IMAGE) id=$${id:-not-pulled}"
+	@image="$$(IMAGES=$${IMAGES:-auto} $(HASSFEST) 2>/dev/null)"; \
+	echo "$$image id=$$(docker image inspect --format '{{.Id}}' "$$image" 2>/dev/null | head -n 1)"
 
 # Not part of the signed policy: the HACS action validates the repository as
 # GitHub serves it (API), never the local tree, so it cannot attest a commit.
-# Anonymous by default; HACS_TOKEN=$$(gh auth token) only if rate-limited.
+# The action refuses to run without a token (an empty one gets HTTP 401). It
+# takes HACS_TOKEN (best: a fine-grained token with read-only public access),
+# else `gh auth token`, read at run time and passed by environment, never argv.
 hacs: ## HACS validation of the PUSHED repository state (REF=main|vX.Y.Z|<sha>)
-	INPUT_GITHUB_TOKEN="$${HACS_TOKEN:-}" docker run --rm --platform $(DOCKER_PLATFORM) \
-		--name "klipsch-flexus-hacs-$$$$" -e INPUT_GITHUB_TOKEN \
-		-e REPOSITORY=$(REPOSITORY) -e CATEGORY=integration -e REPOSITORY_REF=$(REF) $(HACS_IMAGE)
+	@set -euo pipefail; \
+	image="$$($(HACS))"; \
+	echo "HACS validation of $(REPOSITORY)@$(REF) with $$image"; \
+	INPUT_GITHUB_TOKEN="$${HACS_TOKEN:-$$(gh auth token)}" docker run --rm --name "klipsch-flexus-hacs-$$$$" -e INPUT_GITHUB_TOKEN \
+		-e REPOSITORY=$(REPOSITORY) -e CATEGORY=integration -e REPOSITORY_REF=$(REF) "$$image"
 
 # --- Local CI and signed evidence ------------------------------------------
 

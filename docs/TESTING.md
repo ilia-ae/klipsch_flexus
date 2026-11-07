@@ -40,11 +40,11 @@ Both scripts use only the Python standard library and run with `python3 -I`.
    | Step | Command | What it checks |
    | --- | --- | --- |
    | `ruff` | `make ruff` | lint and formatting |
-   | `lint-workflows` | `make lint-workflows` | actionlint (with shellcheck) and yamllint on `.github/` |
+   | `lint-workflows` | `make lint-workflows` | actionlint and shellcheck on the workflows and `scripts/*.sh`, yamllint on `.github/` |
    | `local-ci-selftest` | `make ci-selftest` | the runner and the verifier, using throwaway keys |
    | `pytest-latest` | `make test-latest` | the test suite on the current Home Assistant |
    | `pytest-min` | `make test-min` | the test suite on the oldest supported Home Assistant |
-   | `hassfest` | `make hassfest` | the official hassfest container (pinned by digest) on the tracked integration files |
+   | `hassfest` | `make hassfest` | the official hassfest image (pinned by digest, or its native rebuild, see below) on the tracked integration files |
    | `lint-ansible` | `make lint-ansible` | yamllint and ansible-lint on `ansible/` |
    | `molecule` | `make molecule-scenarios SCENARIOS=...` | the install role on throwaway `klipsch-flexus-*` containers, one scenario at a time |
 
@@ -193,20 +193,48 @@ settings rather than on the commit. So it is listed under `not_required` in the
 policy. Run it after pushing and before a release:
 
 ```bash
-make hacs REF=main                          # or REF=vX.Y.Z / a pushed SHA; anonymous GitHub API
-HACS_TOKEN="$(gh auth token)" make hacs     # only if anonymous requests are rate-limited
+make hacs REF=main          # or REF=vX.Y.Z / a pushed SHA
 ```
+
+The action needs a GitHub token: with an empty token, the API answers HTTP 401.
+`make hacs` uses `HACS_TOKEN` when it is set, and otherwise reads
+`gh auth token` at run time. It passes the token to the container through the
+environment, never on the command line, and never writes it to a file. The
+`gh` token usually carries broad scopes, so a fine-grained token with read-only
+access to public repositories is the better `HACS_TOKEN`.
 
 ### Pinned images
 
-Both `hassfest` and `hacs` run official images pinned by multi-arch index digest
-in the `Makefile`. They publish `linux/amd64` only, so Docker Desktop on Apple
-Silicon runs them under emulation. The containers are named
-`klipsch-flexus-hassfest-*` and `klipsch-flexus-hacs-*` and removed on exit. To
-move a pin, use this command, then update the `Makefile` and commit:
+The `Makefile` pins each official image by its multi-arch index digest. It also
+records the upstream commit and Dockerfile the image was built from, taken from
+the image's build provenance:
+
+| Target | Official image | Built from |
+| --- | --- | --- |
+| `hassfest` | `ghcr.io/home-assistant/hassfest@sha256:f9ac52cf…` | `home-assistant/core` `74cf5a49…`, `script/hassfest/docker/Dockerfile` |
+| `hacs` | `ghcr.io/hacs/action@sha256:187499a0…` | `hacs/integration` `0704ffc6…`, `action/Dockerfile` |
+
+Both images publish `linux/amd64` only. The script `scripts/pinned_image.sh`
+picks which image to run:
+
+- On a Docker engine that runs amd64 natively, it uses the official image.
+- Anywhere else, it builds that Dockerfile once at that commit for the native
+  architecture, as `klipsch-flexus-hassfest:<commit>` or
+  `klipsch-flexus-hacs:<commit>`. This covers Docker Desktop on Apple Silicon
+  without Rosetta emulation, where the official image fails with
+  `exec format error`.
+
+Set `IMAGES=official` or `IMAGES=local` to override the choice. The evidence
+records the image reference and its local image ID (`make -s hassfest-image`).
+Containers are named `klipsch-flexus-hassfest-*` and `klipsch-flexus-hacs-*` and
+are removed on exit.
+
+To move a pin, update the digest and the provenance commit in the `Makefile`
+together:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/home-assistant/hassfest:latest   # take the index Digest
+docker buildx imagetools inspect ghcr.io/home-assistant/hassfest:latest            # index Digest
+docker buildx imagetools inspect --format '{{json .Provenance}}' ghcr.io/home-assistant/hassfest@sha256:<digest> | grep -o '"revision": *"[0-9a-f]*"'
 ```
 
 ### Troubleshooting

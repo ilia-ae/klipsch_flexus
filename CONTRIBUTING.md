@@ -10,8 +10,9 @@ make test                     # pytest on the current and the oldest supported H
 make ruff                     # lint + format check; `make format` fixes what it can
 ```
 
-Docker is optional for contributors. `make hassfest` runs the official
-hassfest container on the integration, if you have Docker.
+Docker is optional for contributors. `make hassfest` runs hassfest on the
+integration, if you have Docker. It uses the official image pinned by digest,
+or rebuilds it from the same source on an arm64 machine.
 
 You do not need a signing key, and you do not need to run `make ci`.
 
