@@ -1,6 +1,6 @@
 # Molecule / Ansible tooling for the HACS-like integration harness (test-only; pinned).
 # Python 3.13. Install with `make venv` (creates .venv; nothing is installed globally).
-ansible-core==2.20.10
+ansible-core==2.22.0
 ansible-lint==26.10.1
 molecule==26.10.0
 molecule-plugins[docker]==26.10.12
