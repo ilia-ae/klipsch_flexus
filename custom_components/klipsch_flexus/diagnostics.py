@@ -24,7 +24,6 @@ TO_REDACT = {
     # write_auth (api.signing_info)
     "signing_mac",
     "candidate_seeds",
-    "sample_authorization",
     # network
     "eureka_mac",
     "mac_address",
@@ -94,7 +93,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
     except Exception as err:  # noqa: BLE001
         network = {"error": type(err).__name__}
 
-    write_auth = api.signing_info()  # no sample Authorization header (replayable)
+    write_auth = api.signing_info()
     # MACs are redacted below; keep the one fact write-auth debugging needs.
     signing_mac = write_auth.get("signing_mac")
     primary_mac = coordinator._seed_sources.get("device_primary_mac")

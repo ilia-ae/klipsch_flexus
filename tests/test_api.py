@@ -1054,3 +1054,21 @@ async def test_volume_max_carried_through_standby(api: KlipschAPI) -> None:
     api.volume_max = 60
     api.get_data = AsyncMock(return_value=[{"powerTarget": {"target": "networkStandby"}}])
     assert (await api.get_status())["volume_max"] == 60
+
+
+def test_signing_info_never_exposes_a_credential(api: KlipschAPI) -> None:
+    from custom_components.klipsch_flexus.auth import KlipschAuth
+
+    assert api.signing_info()["resolved"] is False
+    assert "signing_mac" not in api.signing_info()
+
+    api._auth = KlipschAuth("AA:BB:CC:DD:EE:FF", "192.168.1.100")
+    info = api.signing_info()
+    assert info["resolved"] is True
+    assert info["signing_mac"] == "AA:BB:CC:DD:EE:FF"
+    # A signed Authorization header is replayable: it must never be in the snapshot.
+    _, headers = api._auth.build_set_data("cinema:cinemaBass", {"type": "i32_", "i32_": 0})
+    dumped = json.dumps(info)
+    assert headers["Authorization"] not in dumped
+    assert "HMAC_SHA256_AES256 " not in dumped  # header prefix, not the bare scheme name
+    assert not any("authorization" in key.lower() for key in info)

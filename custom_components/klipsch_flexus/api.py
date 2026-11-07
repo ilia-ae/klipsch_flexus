@@ -437,15 +437,11 @@ class KlipschAPI:
         """The resolved write-auth MAC (``AA:BB:CC:DD:EE:FF``), or ``None``."""
         return self._auth.mac if self._auth is not None else None
 
-    def signing_info(self, include_sample: bool = False) -> dict:
+    def signing_info(self) -> dict:
         """Snapshot of the 2026 write-auth state for diagnostics.
 
-        Exposes the resolved signing MAC, the candidate seeds tried, and —
-        when ``include_sample`` — a fresh *sample* ``Authorization`` header
-        (computed, not sent) so a user can see the credential the integration
-        derived. The header is not a secret: it is derived from the public MAC +
-        a constant hardcoded in the official app. The sample is off by default so
-        frequent callers (e.g. a diagnostic sensor) don't recompute crypto.
+        Exposes the resolved signing MAC and the candidate seeds tried. It never
+        includes an ``Authorization`` header: a signed header is replayable.
         """
         info: dict = {
             "scheme": AUTH_SCHEME,
@@ -457,12 +453,6 @@ class KlipschAPI:
         if self._auth is not None:
             info["username"] = self._auth.username
             info["signing_mac"] = self._auth.mac
-            if include_sample:
-                try:
-                    _, headers = self._auth.build_set_data("cinema:cinemaBass", {"type": "i32_", "i32_": 0})
-                    info["sample_authorization"] = headers.get("Authorization")
-                except Exception:  # noqa: BLE001
-                    pass
         return info
 
     async def get_auth_mode(self) -> str:
