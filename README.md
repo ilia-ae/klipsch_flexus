@@ -229,6 +229,7 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Slow updates | Increase poll interval in Options (Settings > Devices > Klipsch Flexus > Configure) |
 | Commands other than volume/mute fail | Check the **Signing MAC** diagnostic sensor. If it shows no resolved MAC (or the wrong one), enter the soundbar's MAC as **Device MAC** in Options |
 | Integration not loading | Check Home Assistant logs for import errors. Ensure you're on HA 2024.11+ |
+| Logo invisible in the dark theme | Update to v2.5.19+ and restart. The dark-theme icon ships with the integration and needs HA 2026.3+; older HA versions show the black icon from the HA brands site |
 
 ## Known Limitations
 
