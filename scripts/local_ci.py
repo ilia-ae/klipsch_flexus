@@ -100,7 +100,7 @@ STEP_ENV = (
 # lint configuration, a new top-level file) can change what the policy's steps
 # do, so the owner must review it and pass CONFIRM=1.
 PR_ROUTINE = (
-    r"custom_components/klipsch_flexus/(?:[a-z0-9_]+\.py|[a-z0-9_]+\.json|translations/[a-z_-]+\.json|brand/[a-z0-9_@]+\.png)",
+    r"custom_components/klipsch_flexus/(?:[a-z0-9_]+\.py|[a-z0-9_]+\.json|translations/[A-Za-z_-]+\.json|brand/[a-z0-9_@]+\.png)",
     r"tests/test_[a-z0-9_]+\.py",
     r"(?:README|CHANGELOG)\.md|docs/[A-Za-z0-9_./-]+\.(?:md|png|svg)",
 )

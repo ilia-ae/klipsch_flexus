@@ -10,7 +10,7 @@
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-🌐 [English](../README.md) | **Русский** | [Deutsch](README_de.md) | [Español](README_es.md) | [Português](README_pt.md)  
+🌐 [English](../README.md) | **Русский** | [Deutsch](README_de.md) | [Español](README_es.md) | [Português](README_pt.md) | [中文](README_zh.md)  
 🔒 **Безопасность**: [Политика](../SECURITY.md) | [Отчёт об оценке](SECURITY_ASSESSMENT_CORE_300.md)
 
 ---
@@ -130,7 +130,7 @@
 - **Скачать диагностику** — полный дамп состояния (Настройки > Устройства > Klipsch Flexus > Скачать диагностику). IP-адрес, все MAC-адреса, BSSID Wi-Fi, ID устройства и URL потоков в нём скрыты
 
 ### Переводы
-Полный перевод интерфейса на **7 языков**: английский, русский, немецкий, испанский, французский, итальянский, португальский. Все имена сущностей, состояния и экраны настройки переведены.
+Полный перевод интерфейса на **8 языков**: английский, русский, немецкий, испанский, французский, итальянский, португальский, упрощённый китайский (`zh-Hans`). Все имена сущностей, состояния и экраны настройки переведены.
 
 ## Установка
 

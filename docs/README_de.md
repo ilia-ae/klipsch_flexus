@@ -10,7 +10,7 @@
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-🌐 [English](../README.md) | [Русский](README_ru.md) | **Deutsch** | [Español](README_es.md) | [Português](README_pt.md)  
+🌐 [English](../README.md) | [Русский](README_ru.md) | **Deutsch** | [Español](README_es.md) | [Português](README_pt.md) | [中文](README_zh.md)  
 🔒 **Sicherheit**: [Richtlinie](../SECURITY.md) | [Bewertungsbericht](SECURITY_ASSESSMENT_CORE_300.md)
 
 ---
@@ -130,7 +130,7 @@ Den Live-Status pro Befehl zeigt **Download diagnostics** (Abschnitt `command_he
 - **Diagnose herunterladen** — vollständiger Gerätestatusdump (Einstellungen > Geräte > Klipsch Flexus > Diagnose herunterladen). IP-Adresse, alle MAC-Adressen, die WLAN-BSSID, die Geräte-ID und Stream-URLs werden unkenntlich gemacht
 
 ### Übersetzungen
-Vollständige UI-Übersetzung in **7 Sprachen**: Englisch, Russisch, Deutsch, Spanisch, Französisch, Italienisch, Portugiesisch. Alle Entitätsnamen, Zustände und Konfigurationsbildschirme sind übersetzt.
+Vollständige UI-Übersetzung in **8 Sprachen**: Englisch, Russisch, Deutsch, Spanisch, Französisch, Italienisch, Portugiesisch, vereinfachtes Chinesisch (`zh-Hans`). Alle Entitätsnamen, Zustände und Konfigurationsbildschirme sind übersetzt.
 
 ## Installation
 

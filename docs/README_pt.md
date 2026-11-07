@@ -10,7 +10,7 @@
 [![Copilot](https://img.shields.io/badge/Copilot-Code_Review-8957e5.svg)](https://github.com/ilia-ae/klipsch_flexus/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-🌐 [English](../README.md) | [Русский](README_ru.md) | [Deutsch](README_de.md) | [Español](README_es.md) | **Português**  
+🌐 [English](../README.md) | [Русский](README_ru.md) | [Deutsch](README_de.md) | [Español](README_es.md) | **Português** | [中文](README_zh.md)  
 🔒 **Segurança**: [Política](../SECURITY.md) | [Relatório de avaliação](SECURITY_ASSESSMENT_CORE_300.md)
 
 ---
@@ -130,7 +130,7 @@ Firmware mais antigo (anterior à `1.1.3`) não é afetado e mantém o controle 
 - **Baixar diagnósticos** — exportação completa do estado (Configurações > Dispositivos > Klipsch Flexus > Baixar diagnósticos). O endereço IP, todos os endereços MAC, o BSSID do Wi-Fi, o ID do dispositivo e as URLs de streaming são ocultados
 
 ### Traduções
-Tradução completa da interface em **7 idiomas**: inglês, russo, alemão, espanhol, francês, italiano, português. Todos os nomes de entidades, estados e telas de configuração estão traduzidos.
+Tradução completa da interface em **8 idiomas**: inglês, russo, alemão, espanhol, francês, italiano, português, chinês simplificado (`zh-Hans`). Todos os nomes de entidades, estados e telas de configuração estão traduzidos.
 
 ## Instalação
 

@@ -25,7 +25,7 @@ Some rules for the content of a change:
   `custom_components/klipsch_flexus/translations/` must have the same keys
   (`tests/test_translations.py` checks this).
 - **README**: `README.md` (English) is the source. The translations in
-  `docs/README_{de,es,pt,ru}.md` must match it section by section. Update them
+  `docs/README_{de,es,pt,ru,zh}.md` must match it section by section. Update them
   if you can; otherwise say so in the pull request and the maintainer will.
 - **Tests**: keep them self-contained (no network, no writes outside temporary
   directories). They run on the maintainer's machine.

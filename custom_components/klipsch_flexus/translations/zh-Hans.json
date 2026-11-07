@@ -1,0 +1,237 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Klipsch Flexus",
+        "description": "请输入 Klipsch Flexus 回音壁的 IP 地址。\n\n回音壁必须先在 Klipsch Connect Plus 应用中完成全部设置：至少完整走完一次初始设置流程。在 2026 固件上，这一步会生成集成发送命令所需的凭据。",
+        "data": {
+          "host": "IP 地址"
+        }
+      },
+      "reconfigure": {
+        "title": "重新配置 Klipsch Flexus",
+        "description": "更新回音壁的 IP 地址。",
+        "data": {
+          "host": "IP 地址"
+        }
+      },
+      "zeroconf_confirm": {
+        "title": "已发现 Klipsch Flexus",
+        "description": "在 `{host}` 发现了 **{name}**。\n\n要添加这台回音壁吗？"
+      }
+    },
+    "error": {
+      "cannot_connect": "无法连接到设备。请检查 IP 地址。"
+    },
+    "abort": {
+      "already_configured": "此设备已配置。",
+      "not_klipsch_device": "不是 Klipsch Flexus 设备。",
+      "wrong_device": "该 IP 属于另一台回音壁，而不是您正在重新配置的这一台。",
+      "reconfigure_successful": "重新配置成功。",
+      "already_in_progress": "配置已在进行中。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Klipsch Flexus 设置",
+        "data": {
+          "scan_interval": "轮询间隔（秒）",
+          "device_mac": "设备 MAC（可选）"
+        },
+        "data_description": {
+          "device_mac": "仅当 2026 固件上的写入命令（输入源、声音模式、EQ……）身份验证失败时才需要。留空则自动检测；否则请输入回音壁的 MAC 地址。"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "不是有效的 MAC 地址（应为 12 位十六进制数字，例如 AA:BB:CC:DD:EE:FF）。"
+    }
+  },
+  "entity": {
+    "select": {
+      "night_mode": {
+        "name": "1. 夜间模式",
+        "state": {
+          "off": "关闭",
+          "night_mode_1": "开启"
+        }
+      },
+      "dialog_mode": {
+        "name": "2. 对白模式",
+        "state": {
+          "off": "关闭",
+          "dialog_1": "1 级",
+          "dialog_2": "2 级",
+          "dialog_3": "3 级"
+        }
+      },
+      "eq_preset": {
+        "name": "3. EQ 预设",
+        "state": {
+          "flat": "平直",
+          "bass": "低音",
+          "rock": "摇滚",
+          "vocal": "人声",
+          "custom": "自定义"
+        }
+      },
+      "dirac": {
+        "name": "4. Dirac 滤波器"
+      },
+      "led_mode": {
+        "name": "5. LED 亮度",
+        "state": {
+          "off": "关闭",
+          "dim": "暗",
+          "bright": "亮"
+        }
+      },
+      "idle_timeout": {
+        "name": "6. 空闲超时",
+        "state": {
+          "off": "关闭",
+          "5_min": "5 分钟",
+          "10_min": "10 分钟",
+          "15_min": "15 分钟",
+          "30_min": "30 分钟"
+        }
+      }
+    },
+    "number": {
+      "back_height": {
+        "name": "声道：后置高度"
+      },
+      "back_left": {
+        "name": "声道：左后"
+      },
+      "back_right": {
+        "name": "声道：右后"
+      },
+      "front_height": {
+        "name": "声道：前置高度"
+      },
+      "side_left": {
+        "name": "声道：左侧"
+      },
+      "side_right": {
+        "name": "声道：右侧"
+      },
+      "sub_wired": {
+        "name": "声道：无线低音炮 1"
+      },
+      "sub_wireless": {
+        "name": "声道：无线低音炮 2"
+      },
+      "bass": {
+        "name": "音调：低音"
+      },
+      "mid": {
+        "name": "音调：中音"
+      },
+      "treble": {
+        "name": "音调：高音"
+      },
+      "lipsync_delay": {
+        "name": "唇形同步延迟"
+      },
+      "balance": {
+        "name": "平衡"
+      }
+    },
+    "sensor": {
+      "response_time": {
+        "name": "状态：响应时间"
+      },
+      "device_status": {
+        "name": "状态：设备",
+        "state": {
+          "offline": "离线",
+          "on": "开启",
+          "standby": "待机"
+        }
+      },
+      "active_input": {
+        "name": "状态：当前输入源",
+        "state": {
+          "hdmiarc": "电视 ARC",
+          "hdmi1": "HDMI",
+          "spdif": "SPDIF",
+          "bluetooth": "蓝牙",
+          "usbdevice": "USB",
+          "googlecast": "Google Cast",
+          "spotify": "Spotify Connect",
+          "tidal": "TIDAL Connect",
+          "qplay": "QPlay",
+          "dirac": "Dirac"
+        }
+      },
+      "active_sound_mode": {
+        "name": "状态：声音模式",
+        "state": {
+          "movie": "电影",
+          "music": "音乐",
+          "game": "游戏",
+          "sport": "体育",
+          "night": "夜间",
+          "direct": "直通",
+          "surround": "环绕声",
+          "stereo": "立体声"
+        }
+      },
+      "signing_mac": {
+        "name": "签名 MAC"
+      },
+      "network_link": {
+        "name": "网络连接"
+      },
+      "operating_mode": {
+        "name": "状态：操作模式"
+      },
+      "speaker_test": {
+        "name": "状态：扬声器测试"
+      },
+      "sub_wired_delay": {
+        "name": "延迟：有线低音炮"
+      },
+      "sub_wireless_delay": {
+        "name": "延迟：无线低音炮"
+      },
+      "surround_delay": {
+        "name": "延迟：无线环绕"
+      }
+    },
+    "switch": {
+      "auto_lipsync": {
+        "name": "自动唇形同步"
+      },
+      "eq_bypass": {
+        "name": "EQ 旁路"
+      },
+      "auto_power": {
+        "name": "自动开关机"
+      },
+      "ui_sounds": {
+        "name": "界面提示音"
+      },
+      "extra_modes": {
+        "name": "更多声音模式"
+      },
+      "ble_pair": {
+        "name": "BLE 遥控器自动配对"
+      },
+      "ota_updates": {
+        "name": "固件自动更新"
+      },
+      "loudness": {
+        "name": "响度"
+      },
+      "do_not_disturb": {
+        "name": "请勿打扰"
+      },
+      "auto_standby": {
+        "name": "自动待机"
+      }
+    }
+  }
+}

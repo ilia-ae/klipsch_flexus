@@ -513,6 +513,7 @@ class RunnerTests(Fixture):
         routine = [
             "custom_components/klipsch_flexus/api.py",
             "custom_components/klipsch_flexus/translations/de.json",
+            "custom_components/klipsch_flexus/translations/zh-Hans.json",
             "custom_components/klipsch_flexus/brand/dark_icon@2x.png",
             "tests/test_api.py",
             "docs/TESTING.md",
