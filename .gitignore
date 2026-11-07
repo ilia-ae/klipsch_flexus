@@ -3,3 +3,7 @@ __pycache__/
 # Reverse-engineering artifacts (APK, extracted libs) — never commit
 .reverse/
 .coverage
+
+# Local CI state (logs, evidence, signatures) and local tooling
+.local-ci/
+.venv*
