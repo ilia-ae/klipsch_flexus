@@ -5,12 +5,21 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 
 from .api import KlipschAPI
-from .const import CONF_SCAN_INTERVAL, DOMAIN, SCAN_INTERVAL_SECONDS
+from .const import CONF_SCAN_INTERVAL, DOMAIN, SCAN_INTERVAL_SECONDS, SPEAKER_SLOTS
 from .coordinator import KlipschCoordinator
 
-PLATFORMS = [Platform.MEDIA_PLAYER, Platform.SELECT, Platform.NUMBER, Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.MEDIA_PLAYER,
+    Platform.SELECT,
+    Platform.NUMBER,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -25,6 +34,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator.async_migrate_unique_id()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+
+    # Register the soundbar before the platforms, so the wireless speakers'
+    # devices (binary_sensor) can link to it whichever platform runs first. The
+    # media player fills in its name, model and firmware.
+    dr.async_get(hass).async_get_or_create(config_entry_id=entry.entry_id, identifiers={(DOMAIN, entry.entry_id)})
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -50,3 +64,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await shutdown()
         await coordinator.api.close()
     return unload_ok
+
+
+async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device: dr.DeviceEntry) -> bool:
+    """Allow deleting a wireless speaker's device (unpaired / sold / moved slot).
+
+    Never the soundbar, and not a speaker that is linked right now (it would be
+    re-created on the next poll anyway).
+    """
+    coordinator: KlipschCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    speakers = ((coordinator.data or {}).get("speakers") or {}) if coordinator else {}
+    for slot in SPEAKER_SLOTS:
+        if (DOMAIN, f"{entry.entry_id}_{slot}") in device.identifiers:
+            return not (speakers.get(slot) or {}).get("connected")
+    return False

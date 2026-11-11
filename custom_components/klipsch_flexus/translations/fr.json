@@ -37,10 +37,12 @@
         "title": "Paramètres Klipsch Flexus",
         "data": {
           "scan_interval": "Intervalle d'interrogation (secondes)",
-          "device_mac": "MAC de l'appareil (optionnel)"
+          "device_mac": "MAC de l'appareil (optionnel)",
+          "monitor_speakers": "Surveiller les enceintes sans fil"
         },
         "data_description": {
-          "device_mac": "Nécessaire uniquement si les commandes d'écriture (entrée, mode son, EQ…) échouent à l'authentification sur le firmware 2026. Laissez vide pour la détection automatique ; sinon, saisissez l'adresse MAC de la barre de son."
+          "device_mac": "Nécessaire uniquement si les commandes d'écriture (entrée, mode son, EQ…) échouent à l'authentification sur le firmware 2026. Laissez vide pour la détection automatique ; sinon, saisissez l'adresse MAC de la barre de son.",
+          "monitor_speakers": "Vérifie à chaque interrogation (une requête de plus) si chaque caisson / surround sans fil est relié, pour qu'une coupure apparaisse sur son capteur Connecté. Désactivé : lecture une fois après la configuration et quand vous appuyez sur Lire les enceintes sans fil."
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "Connecté"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "Lire les enceintes sans fil"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. Mode nuit",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "Veille auto"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "Surround gauche"
+    },
+    "surround_right": {
+      "name": "Surround droit"
+    },
+    "sub_1": {
+      "name": "Caisson sans fil 1"
+    },
+    "sub_2": {
+      "name": "Caisson sans fil 2"
     }
   }
 }

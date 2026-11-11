@@ -17,7 +17,7 @@
 
 Integração personalizada do Home Assistant para soundbars **Klipsch Flexus** — controle via **API HTTP local nativa**, sem nuvem, sem atrasos.
 
-> ✅ **41 entidades**. Todos os comandos de escrita foram verificados ao vivo no firmware de 2026 (assinados com HMAC) e funcionam em standby. Cada commit em `main` é testado primeiro localmente: veja [Resultados dos testes](#resultados-dos-testes).
+> ✅ **42 entidades**. Todos os comandos de escrita foram verificados ao vivo no firmware de 2026 (assinados com HMAC) e funcionam em standby. Cada commit em `main` é testado primeiro localmente: veja [Resultados dos testes](#resultados-dos-testes).
 
 ## 📸 Painel (Dashboard)
 
@@ -44,7 +44,7 @@ Um painel Lovelace personalizado inteiramente baseado nas entidades da integraç
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-A integração não verifica o modelo. Ela adiciona qualquer soundbar Flexus que se anuncie via Google Cast e usa a mesma API local e as mesmas 41 entidades para todos os modelos. O mantenedor testa numa CORE 300. Um controle para hardware que o seu modelo não tem (por exemplo, os canais de altura numa CORE 100) pode falhar com um erro.
+A integração não verifica o modelo. Ela adiciona qualquer soundbar Flexus que se anuncie via Google Cast e usa a mesma API local e as mesmas 42 entidades para todos os modelos. O mantenedor testa numa CORE 300. Um controle para hardware que o seu modelo não tem (por exemplo, os canais de altura numa CORE 100) pode falhar com um erro.
 
 > A soundbar deve ser **totalmente configurada primeiro no aplicativo oficial Klipsch Connect Plus** — conclua todo o processo de configuração pelo menos uma vez (Wi-Fi, atualização de firmware, pareamento de caixas, calibração Dirac). No firmware de 2026 isso também provisiona a credencial de assinatura dos comandos, então uma configuração incompleta deixa a maioria dos comandos sem autorização. Esta integração cuida apenas do controle diário.
 
@@ -129,6 +129,12 @@ Firmware mais antigo (anterior à `1.1.3`) não é afetado e mantém o controle 
 - **Atrasos das caixas** (sub com fio/sem fio, surround sem fio) — somente leitura, autocalibrados pelo dispositivo
 - **Baixar diagnósticos** — exportação completa do estado (Configurações > Dispositivos > Klipsch Flexus > Baixar diagnósticos). O endereço IP, todos os endereços MAC, o BSSID do Wi-Fi, o ID do dispositivo e as URLs de streaming são ocultados
 
+### Caixas sem fio
+- **Um dispositivo por caixa pareada** — as caixas Flexus SUB / SURR (Subwoofer sem fios 1 / 2, Surround esquerdo / direito) aparecem como dispositivos próprios sob a soundbar, com as versões que o app Klipsch Connect Plus mostra (Product Information): firmware MCU, RX e EQ como *Firmware*, a versão de hardware e o número do modelo
+- **Conectado** — um sensor por caixa: ligado se o link sem fio da caixa estava ativo na última leitura, desligado se estava caído
+- **Quando são lidas** — uma vez após a configuração e quando você pressiona **Ler caixas sem fios** (um botão da soundbar), para que a consulta regular continue tão leve quanto antes. Para acompanhar as quedas ao vivo, ative **Monitorizar caixas sem fios** em Opções: o link passa a ser lido a cada consulta (uma requisição a mais), e um subwoofer que perde a conexão aparece no histórico do sensor Conectado. Os sensores monitorados ficam indisponíveis em standby
+- Uma caixa ganha seu dispositivo assim que é vista conectada, e o mantém enquanto estiver despareada ou offline. O dispositivo de uma caixa despareada pode ser excluído na página do dispositivo
+
 ### Traduções
 Tradução completa da interface em **9 idiomas**: inglês, russo, alemão, espanhol, francês, italiano, português, neerlandês, chinês simplificado (`zh-Hans`). Todos os nomes de entidades, estados e telas de configuração estão traduzidos.
 
@@ -188,6 +194,7 @@ Se a descoberta automática não funcionar (ex.: isolamento de rede), você semp
 |-----------|--------|-----------|
 | Host | — | Endereço IP da soundbar (obrigatório) |
 | Intervalo de consulta | 15 s | Configurável em Opções (5–120 s). Em standby a integração consulta sempre a cada 60 s |
+| Monitorizar caixas sem fios | desligado | Só em Opções. Verifica a cada consulta se cada subwoofer / surround sem fio está conectado (uma requisição a mais), para que as quedas apareçam no seu sensor **Conectado**. Desligado: lido após a configuração e com o botão **Ler caixas sem fios** |
 | MAC do dispositivo | detectado automaticamente | Só em Opções (opcional). Substitui o MAC usado para assinar as escritas do firmware de 2026; só é necessário se comandos além de volume/mudo falharem (veja o sensor de diagnóstico **MAC de assinatura**) |
 
 **Dica:** Atribua um IP estático / reserva DHCP à soundbar.
@@ -235,8 +242,10 @@ O Klipsch Flexus tem um **servidor HTTP single-thread** que processa uma requisi
 | Tempo de resposta, Status do dispositivo, Entrada ativa, Modo de som ativo | Sensor (x4) | Diagnóstico |
 | MAC de assinatura, Link de rede | Sensor (x2) | Diagnóstico |
 | Modo de operação, Teste de caixas, Atraso do sub com fio/sem fio, Atraso surround | Sensor (x5, somente leitura) | Diagnóstico |
+| Ler caixas sem fios | Button | Diagnóstico |
+| Conectado (no dispositivo de cada caixa sem fio) | Binary Sensor (um por caixa pareada, até 4) | Diagnóstico |
 
-**Total: 41 entidades** (1 media player + 6 selects + 13 numbers + 10 switches + 11 sensors)
+**Total: 42 entidades** (1 media player + 6 selects + 13 numbers + 10 switches + 11 sensors + 1 button), mais um sensor Conectado por caixa sem fio pareada
 
 ## Solução de problemas
 
@@ -247,6 +256,7 @@ O Klipsch Flexus tem um **servidor HTTP single-thread** que processa uma requisi
 | Atualizações lentas | Aumente o intervalo de consulta em Opções |
 | Comandos além de volume/mudo falham | Verifique o sensor de diagnóstico **MAC de assinatura**. Se ele não mostrar um MAC resolvido (ou mostrar um errado), informe o MAC da soundbar como **MAC do dispositivo** em Opções |
 | Integração não carrega | Verifique os logs do HA por erros de importação. Requer HA 2024.11+ |
+| Subwoofer ou surround sem fio perde a conexão | Ative **Monitorizar caixas sem fios** em Opções e depois abra o dispositivo da caixa sob a soundbar: o sensor **Conectado** fica desligado enquanto o link está caído, e o histórico mostra quando ele caiu. A soundbar então informa o slot como vazio, ou seja, esta é a visão que a soundbar tem do link sem fio |
 | Logo invisível no tema escuro | Atualize para v2.5.19+ e reinicie o HA. O ícone para o tema escuro vem com a integração e requer HA 2026.3+; versões anteriores mostram o ícone preto do site de marcas do HA |
 
 ## Limitações conhecidas

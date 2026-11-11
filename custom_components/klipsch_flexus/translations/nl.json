@@ -37,10 +37,12 @@
         "title": "Klipsch Flexus-instellingen",
         "data": {
           "scan_interval": "Pollinginterval (seconden)",
-          "device_mac": "MAC-adres van het apparaat (optioneel)"
+          "device_mac": "MAC-adres van het apparaat (optioneel)",
+          "monitor_speakers": "Draadloze luidsprekers bewaken"
         },
         "data_description": {
-          "device_mac": "Alleen nodig als schrijfopdrachten (ingang, geluidsmodus, EQ…) op de firmware van 2026 niet worden geauthenticeerd. Laat leeg voor automatische detectie; voer anders het MAC-adres van de soundbar in."
+          "device_mac": "Alleen nodig als schrijfopdrachten (ingang, geluidsmodus, EQ…) op de firmware van 2026 niet worden geauthenticeerd. Laat leeg voor automatische detectie; voer anders het MAC-adres van de soundbar in.",
+          "monitor_speakers": "Controleert bij elke poll (één extra verzoek) of elke draadloze subwoofer / surround verbonden is, zodat een luidspreker die wegvalt zichtbaar wordt op de sensor Verbonden. Uit: één keer na de installatie en wanneer je op Draadloze luidsprekers uitlezen drukt."
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "Verbonden"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "Draadloze luidsprekers uitlezen"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. Nachtmodus",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "Automatische stand-by"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "Surround links"
+    },
+    "surround_right": {
+      "name": "Surround rechts"
+    },
+    "sub_1": {
+      "name": "Draadloze subwoofer 1"
+    },
+    "sub_2": {
+      "name": "Draadloze subwoofer 2"
     }
   }
 }

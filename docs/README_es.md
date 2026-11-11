@@ -17,7 +17,7 @@
 
 Integración personalizada de Home Assistant para barras de sonido **Klipsch Flexus** — control mediante **API HTTP local nativa**, sin nube, sin retrasos.
 
-> ✅ **41 entidades**. Todos los comandos de escritura están verificados en vivo con el firmware de 2026 (firmados con HMAC) y funcionan en standby. Cada commit en `main` se prueba primero en local: consulte [Resultados de las pruebas](#resultados-de-las-pruebas).
+> ✅ **42 entidades**. Todos los comandos de escritura están verificados en vivo con el firmware de 2026 (firmados con HMAC) y funcionan en standby. Cada commit en `main` se prueba primero en local: consulte [Resultados de las pruebas](#resultados-de-las-pruebas).
 
 ## 📸 Panel (Dashboard)
 
@@ -44,7 +44,7 @@ Un panel Lovelace personalizado basado íntegramente en las entidades de la inte
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-La integración no comprueba el modelo. Añade cualquier barra de sonido Flexus que se anuncie por Google Cast y usa la misma API local y las mismas 41 entidades para todos los modelos. El mantenedor prueba con una CORE 300. Un control para hardware que su modelo no tiene (por ejemplo, los canales de altura de una CORE 100) puede fallar con un error.
+La integración no comprueba el modelo. Añade cualquier barra de sonido Flexus que se anuncie por Google Cast y usa la misma API local y las mismas 42 entidades para todos los modelos. El mantenedor prueba con una CORE 300. Un control para hardware que su modelo no tiene (por ejemplo, los canales de altura de una CORE 100) puede fallar con un error.
 
 > La barra de sonido debe **configurarse primero por completo en la aplicación oficial Klipsch Connect Plus** — complete todo el proceso de configuración al menos una vez (Wi-Fi, actualización de firmware, emparejamiento de altavoces, calibración Dirac). En el firmware de 2026 esto también genera la credencial de firma de comandos, por lo que una configuración a medias deja la mayoría de los comandos sin autorización. Esta integración solo se encarga del control diario.
 
@@ -129,6 +129,12 @@ El firmware anterior (anterior a `1.1.3`) no se ve afectado y conserva el contro
 - **Retardos de altavoces** (sub cableado/inalámbrico, surround inalámbrico) — solo lectura, calibrados automáticamente por el dispositivo
 - **Descargar diagnósticos** — exportación completa del estado (Ajustes > Dispositivos > Klipsch Flexus > Descargar diagnósticos). Se ocultan la dirección IP, todas las direcciones MAC, el BSSID de la Wi-Fi, el ID del dispositivo y las URL de streaming
 
+### Altavoces inalámbricos
+- **Un dispositivo por altavoz emparejado** — los altavoces Flexus SUB / SURR (Subwoofer inalámbrico 1 / 2, Surround izquierdo / derecho) aparecen como dispositivos propios bajo la barra de sonido, con las versiones que muestra la app Klipsch Connect Plus (Product Information): el firmware de MCU, RX y EQ como *Firmware*, la versión de hardware y el número de modelo
+- **Conectado** — un sensor por altavoz: activado si el enlace inalámbrico del altavoz funcionaba en la última lectura, desactivado si estaba caído
+- **Cuándo se leen** — una vez tras la configuración y cuando pulse **Leer altavoces inalámbricos** (un botón de la barra de sonido), de modo que la consulta habitual sigue siendo tan ligera como antes. Para seguir las desconexiones en vivo, active **Supervisar altavoces inalámbricos** en Opciones: el enlace se lee entonces en cada consulta (una petición más), y un subwoofer que se desconecta queda reflejado en el historial del sensor Conectado. Los sensores supervisados no están disponibles en standby
+- Un altavoz obtiene su dispositivo en cuanto se ha visto enlazado, y lo conserva mientras esté desemparejado o sin conexión. El dispositivo de un altavoz desemparejado se puede eliminar desde su página de dispositivo
+
 ### Traducciones
 Traducción completa de la interfaz en **9 idiomas**: inglés, ruso, alemán, español, francés, italiano, portugués, neerlandés, chino simplificado (`zh-Hans`). Todos los nombres de entidades, estados y pantallas de configuración están traducidos.
 
@@ -188,6 +194,7 @@ Si el descubrimiento automático no funciona (p.ej. aislamiento de red), siempre
 |-----------|---------------|-------------|
 | Host | — | Dirección IP de la barra de sonido (obligatorio) |
 | Intervalo de consulta | 15 s | Configurable en Opciones (5–120 s). En standby la integración consulta siempre cada 60 s |
+| Supervisar altavoces inalámbricos | desactivado | Solo en Opciones. Comprueba en cada consulta si cada subwoofer / surround inalámbrico está enlazado (una petición más), para que las desconexiones se vean en su sensor **Conectado**. Desactivado: se lee tras la configuración y con el botón **Leer altavoces inalámbricos** |
 | MAC del dispositivo | detectada automáticamente | Solo en Opciones (opcional). Sustituye la MAC usada para firmar las escrituras del firmware de 2026; solo hace falta si fallan los comandos distintos de volumen/silencio (vea el sensor de diagnóstico **MAC de firma**) |
 
 **Consejo:** Asigne una IP estática / reserva DHCP a la barra de sonido.
@@ -235,8 +242,10 @@ El Klipsch Flexus tiene un **servidor HTTP de un solo hilo** que procesa una pet
 | Tiempo de respuesta, Estado del dispositivo, Entrada activa, Modo de sonido activo | Sensor (x4) | Diagnóstico |
 | MAC de firma, Enlace de red | Sensor (x2) | Diagnóstico |
 | Modo de operación, Prueba de altavoces, Retardo de sub cableado/inalámbrico, Retardo de surround | Sensor (x5, solo lectura) | Diagnóstico |
+| Leer altavoces inalámbricos | Button | Diagnóstico |
+| Conectado (en el dispositivo de cada altavoz inalámbrico) | Binary Sensor (uno por altavoz emparejado, hasta 4) | Diagnóstico |
 
-**Total: 41 entidades** (1 reproductor + 6 selects + 13 numbers + 10 switches + 11 sensors)
+**Total: 42 entidades** (1 reproductor + 6 selects + 13 numbers + 10 switches + 11 sensors + 1 button), más un sensor Conectado por cada altavoz inalámbrico emparejado
 
 ## Solución de problemas
 
@@ -247,6 +256,7 @@ El Klipsch Flexus tiene un **servidor HTTP de un solo hilo** que procesa una pet
 | Actualizaciones lentas | Aumente el intervalo de consulta en Opciones |
 | Fallan los comandos distintos de volumen/silencio | Revise el sensor de diagnóstico **MAC de firma**. Si no muestra una MAC resuelta (o muestra una incorrecta), introduzca la MAC de la barra de sonido como **MAC del dispositivo** en Opciones |
 | La integración no carga | Revise los logs de HA por errores de importación. Se requiere HA 2024.11+ |
+| El subwoofer o el surround inalámbrico se desconecta | Active **Supervisar altavoces inalámbricos** en Opciones y luego abra el dispositivo del altavoz bajo la barra de sonido: su sensor **Conectado** está desactivado mientras el enlace está caído, y su historial muestra cuándo se cayó. La barra de sonido indica entonces la ranura como vacía, así que esto es lo que la barra de sonido ve del enlace inalámbrico |
 | Logo invisible en el tema oscuro | Actualice a v2.5.19+ y reinicie HA. El icono para el tema oscuro viene con la integración y requiere HA 2026.3+; las versiones anteriores muestran el icono negro del sitio de marcas de HA |
 
 ## Limitaciones conocidas

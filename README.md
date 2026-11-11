@@ -17,7 +17,7 @@
 
 Home Assistant custom integration for **Klipsch Flexus** soundbars — control via **native local HTTP API**, no cloud, no delays.
 
-> ✅ **41 entities**. All write commands are verified live on 2026 firmware (HMAC-signed) and work in standby. Every commit on `main` is tested locally first: see [Test results](#test-results).
+> ✅ **42 entities**. All write commands are verified live on 2026 firmware (HMAC-signed) and work in standby. Every commit on `main` is tested locally first: see [Test results](#test-results).
 
 ## 📸 Dashboard
 
@@ -44,7 +44,7 @@ A custom Lovelace dashboard driven entirely by the integration's entities — in
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-The integration does not check the model. It adds any Flexus soundbar that announces itself over Google Cast, and it uses the same local API and the same 41 entities for every model. The maintainer tests on a CORE 300. A control for hardware your model does not have (for example the height channels on a CORE 100) can fail with an error.
+The integration does not check the model. It adds any Flexus soundbar that announces itself over Google Cast, and it uses the same local API and the same 42 entities for every model. The maintainer tests on a CORE 300. A control for hardware your model does not have (for example the height channels on a CORE 100) can fail with an error.
 
 > The soundbar must be **fully set up first in the official Klipsch Connect Plus app** — go through the entire onboarding at least once (Wi-Fi, firmware update, speaker pairing, Dirac calibration). On 2026 firmware this is also what provisions the write-auth credential the integration relies on, so a half-finished app setup leaves most commands unauthorized. This integration handles ongoing control only.
 
@@ -129,6 +129,12 @@ Older firmware (pre-`1.1.3`) is unaffected and keeps full control via the legacy
 - **Speaker Delays** (wired/wireless sub, wireless surround) — read-only, auto-calibrated by the device
 - **Download diagnostics** — full device state export (Settings > Devices > Klipsch Flexus > Download diagnostics). The IP address, every MAC address, the Wi-Fi BSSID, the device ID and stream URLs are redacted
 
+### Wireless Speakers
+- **A device per paired speaker** — Flexus SUB / SURR speakers (Wireless Subwoofer 1 / 2, Surround Left / Right) appear as their own devices under the soundbar, with the versions the Klipsch Connect Plus app shows (Product Information): MCU, RX and EQ firmware as *Firmware*, the hardware version and the model number
+- **Connected** — a sensor per speaker: on when the speaker's wireless link was up at the last read, off when it was down
+- **When they are read** — once after setup and when you press **Read wireless speakers** (a button on the soundbar), so the regular poll stays as light as before. To follow drop-outs live, turn on **Monitor wireless speakers** in Options: the link is then read on every poll (one extra request), and a subwoofer that drops out shows up in the Connected sensor's history. Monitored sensors are unavailable in standby
+- A speaker gets its device once it has been seen linked, and keeps it while unpaired or offline. An unpaired speaker's device can be deleted from its device page
+
 ### Translations
 Full UI translation in **9 languages**: English, Russian, German, Spanish, French, Italian, Portuguese, Dutch, Simplified Chinese (`zh-Hans`). All entity names, states, and configuration screens are translated.
 
@@ -188,6 +194,7 @@ If auto-discovery doesn't work (e.g. network isolation), you can always add the 
 |-----------|---------|-------------|
 | Host | — | IP address of the soundbar (required) |
 | Poll interval | 15 s | Configurable via Options (5–120 s). In standby the integration always polls every 60 s |
+| Monitor wireless speakers | off | Options only. Reads on every poll whether each wireless subwoofer / surround is linked (one extra request), so drop-outs show on its **Connected** sensor. Off: read after setup and with the **Read wireless speakers** button |
 | Device MAC | auto-detected | Options only (optional). Overrides the MAC used to sign 2026-firmware writes; only needed if commands other than volume/mute fail (see the **Signing MAC** diagnostic sensor) |
 
 **Tip:** Assign a static IP / DHCP reservation to the soundbar for reliable operation.
@@ -235,8 +242,10 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Response Time, Device Status, Active Input, Active Sound Mode | Sensor (x4) | Diagnostic |
 | Signing MAC, Network Link | Sensor (x2) | Diagnostic |
 | Operating Mode, Speaker Test, Sub Wired/Wireless Delay, Surround Delay | Sensor (x5, read-only) | Diagnostic |
+| Read wireless speakers | Button | Diagnostic |
+| Connected (on each wireless speaker's device) | Binary Sensor (one per paired speaker, up to 4) | Diagnostic |
 
-**Total: 41 entities** (1 media player + 6 selects + 13 numbers + 10 switches + 11 sensors)
+**Total: 42 entities** (1 media player + 6 selects + 13 numbers + 10 switches + 11 sensors + 1 button), plus one Connected sensor per paired wireless speaker
 
 ## Troubleshooting
 
@@ -247,6 +256,7 @@ The Klipsch Flexus has a **single-threaded HTTP server** that processes one requ
 | Slow updates | Increase poll interval in Options (Settings > Devices > Klipsch Flexus > Configure) |
 | Commands other than volume/mute fail | Check the **Signing MAC** diagnostic sensor. If it shows no resolved MAC (or the wrong one), enter the soundbar's MAC as **Device MAC** in Options |
 | Integration not loading | Check Home Assistant logs for import errors. Ensure you're on HA 2024.11+ |
+| Wireless subwoofer or surround drops out | Turn on **Monitor wireless speakers** in Options, then open the speaker's device under the soundbar: its **Connected** sensor is off while the link is down, and its history shows when it dropped. The soundbar then reports the slot as empty, so this is the soundbar's view of the wireless link |
 | Logo invisible in the dark theme | Update to v2.5.19+ and restart. The dark-theme icon ships with the integration and needs HA 2026.3+; older HA versions show the black icon from the HA brands site |
 
 ## Known Limitations

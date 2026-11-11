@@ -11,6 +11,9 @@ CONF_SCAN_INTERVAL = "scan_interval"
 # fails (e.g. eureka_info reports 00:00:00:00:00:00 and the MAC isn't otherwise
 # discoverable on the network).
 CONF_DEVICE_MAC = "device_mac"
+# Read the wireless speakers' link state on every poll (one request) instead of
+# only after setup and on the "Read wireless speakers" button. Off by default.
+CONF_MONITOR_SPEAKERS = "monitor_speakers"
 
 # API timeouts (seconds) — soundbar is single-threaded and slow
 API_TIMEOUT_READ = 8
@@ -200,3 +203,39 @@ EQ_PRESET_CUSTOM = "custom"
 
 # Dirac filters (discovered dynamically, but defaults)
 DIRAC_OFF = -1
+
+# Wireless speakers (Flexus SUB / SURR), as the Klipsch Connect app reads them.
+# cinema:peripherals lists speaker groups: {"id": n, "con": "1,0", "ver": "4.6,0.0",
+# "m": "1072557,0"}, one comma-separated value per slot of the group: connected
+# (1/0), wireless receiver (RX) version and model number. Group 1 = surrounds
+# (left, right), group 2 = wireless subwoofers (1, 2). A speaker that loses its
+# link reads like an empty slot (con 0, ver 0.0, m 0), so a slot gets a device
+# once it is seen linked and keeps it. Group 3 (one slot) is not identified yet
+# (maybe the wired sub output) and only goes to diagnostics.
+PERIPHERALS_PATH = "cinema:peripherals"
+# slot → (group id, index in the group, hostlink node prefix, model name)
+SPEAKER_SLOTS = {
+    "surround_left": (1, 0, "surLeft", "Flexus Surround"),
+    "surround_right": (1, 1, "surRight", "Flexus Surround"),
+    "sub_1": (2, 0, "sub1", "Flexus Subwoofer"),
+    "sub_2": (2, 1, "sub2", "Flexus Subwoofer"),
+}
+# Per-speaker versions: hostlink:<prefix><suffix> (string_; "" for an empty slot)
+SPEAKER_VERSION_NODES = {
+    "rx": "RxFirmwareVersion",
+    "eq": "EqFirmwareVersion",
+    "mcu": "McuFirmwareVersion",
+    "hw": "HwVersion",
+}
+# Reads of a speaker's versions while its MCU / EQ still report nothing ("0.0.0"
+# right after it links), one per poll, before waiting for the next change
+SPEAKER_VERSION_READS = 3
+# The soundbar's own component versions (read once per power-on, for diagnostics;
+# hardware_revision also becomes the device's hw_version)
+BAR_VERSION_PATHS = {
+    "hardware_revision": "hostlink:hardwareRevision",
+    "host_mcu": "hostlink:hostFirmwareVersion",
+    "wireless_tx": "hostlink:txFirmwareVersion",
+    "hdmi": "settings:/cinema/status/hdmiFwVersion",
+    "release": "settings:/releasetext",
+}

@@ -19,6 +19,12 @@ WIFI_MAC = "AA:BB:CC:DD:EE:FE"
 BSSID = "11:22:33:44:55:66"
 MEMBER_ID = "ksb5000-00000000-0000-0000-0000-000000000000"
 STREAM_URI = "https://stream.example.invalid/radio.mp3?token=secret"
+# cinema:peripherals as a CORE 300 with one wireless sub and two surrounds reports it
+PERIPHERALS = [
+    {"con": "0", "ver": "", "m": "", "id": 3},
+    {"con": "1,0", "ver": "4.6,0.0", "m": "1072557,0", "id": 2},
+    {"con": "1,1", "ver": "4.6,4.6", "m": "1072559,1072559", "id": 1},
+]
 # Shape of a live player:player/data reply (placeholder values)
 PLAYER = {
     "playId": {"timestamp": 1, "systemMemberId": MEMBER_ID},
@@ -49,6 +55,9 @@ async def test_diagnostics(hass) -> None:
     mock_coordinator.api = mock_api
     mock_coordinator.device_info = None
     mock_coordinator._seed_sources = {}
+    mock_coordinator.peripherals_raw = PERIPHERALS
+    mock_coordinator.speaker_versions = {"sub_1": {"rx": "4.6", "eq": "0.3.0", "mcu": "1.0.4", "hw": "3.0.0"}}
+    mock_coordinator.bar_versions = {"host_mcu": "1.0.25", "wireless_tx": "4.6"}
 
     mock_entry = MagicMock()
     mock_entry.data = {"host": MOCK_HOST}
@@ -65,6 +74,10 @@ async def test_diagnostics(hass) -> None:
     # Host should be redacted
     assert result["entry"]["data"]["host"] == "**REDACTED**"
     assert result["api_stats"]["total_requests"] == 100
+    # Wireless speakers: raw peripherals (incl. group 3) + versions, nothing redacted
+    assert result["speakers"]["peripherals"] == PERIPHERALS
+    assert result["speakers"]["versions"]["sub_1"]["mcu"] == "1.0.4"
+    assert result["speakers"]["soundbar_versions"]["host_mcu"] == "1.0.25"
 
 
 async def test_diagnostics_redacts_macs_and_credentials(hass) -> None:
@@ -96,6 +109,9 @@ async def test_diagnostics_redacts_macs_and_credentials(hass) -> None:
     coordinator.dirac_filters = []
     coordinator.device_info = {"mac_address": WIFI_MAC, "hotspot_bssid": BSSID, "ethernet_connected": False}
     coordinator._seed_sources = {"device_primary_mac": PRIMARY_MAC, "arp_table": WIFI_MAC}
+    coordinator.peripherals_raw = PERIPHERALS
+    coordinator.speaker_versions = {}
+    coordinator.bar_versions = {}
 
     entry = MagicMock()
     entry.data = {"host": MOCK_HOST}

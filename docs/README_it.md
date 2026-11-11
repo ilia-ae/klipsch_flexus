@@ -17,7 +17,7 @@
 
 Integrazione personalizzata per Home Assistant dedicata alle soundbar **Klipsch Flexus** — controllo tramite **API HTTP locale nativa**, senza cloud e senza ritardi.
 
-> ✅ **41 entità**. Tutti i comandi di scrittura sono verificati dal vivo sul firmware 2026 (firmati con HMAC) e funzionano anche in standby. Ogni commit su `main` viene prima testato in locale: vedi [Risultati dei test](#risultati-dei-test).
+> ✅ **42 entità**. Tutti i comandi di scrittura sono verificati dal vivo sul firmware 2026 (firmati con HMAC) e funzionano anche in standby. Ogni commit su `main` viene prima testato in locale: vedi [Risultati dei test](#risultati-dei-test).
 
 ## 📸 Dashboard
 
@@ -44,7 +44,7 @@ Una dashboard Lovelace personalizzata basata interamente sulle entità dell'inte
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-L'integrazione non controlla il modello. Aggiunge qualsiasi soundbar Flexus che si annuncia tramite Google Cast e usa la stessa API locale e le stesse 41 entità per ogni modello. Il maintainer esegue i test su una CORE 300. Un controllo per hardware che il tuo modello non ha (per esempio i canali di altezza su una CORE 100) può fallire con un errore.
+L'integrazione non controlla il modello. Aggiunge qualsiasi soundbar Flexus che si annuncia tramite Google Cast e usa la stessa API locale e le stesse 42 entità per ogni modello. Il maintainer esegue i test su una CORE 300. Un controllo per hardware che il tuo modello non ha (per esempio i canali di altezza su una CORE 100) può fallire con un errore.
 
 > La soundbar deve essere prima **configurata completamente nell'app ufficiale Klipsch Connect Plus** — completa l'intera procedura di configurazione iniziale almeno una volta (Wi-Fi, aggiornamento del firmware, abbinamento degli altoparlanti, calibrazione Dirac). Sul firmware 2026 è questa procedura a fornire anche la credenziale di autenticazione per la scrittura su cui si basa l'integrazione, quindi una configurazione lasciata a metà nell'app lascia la maggior parte dei comandi non autorizzata. Questa integrazione si occupa solo del controllo quotidiano.
 
@@ -129,6 +129,12 @@ Il firmware più vecchio (precedente alla `1.1.3`) non è interessato e mantiene
 - **Ritardi degli altoparlanti** (subwoofer cablato/wireless, surround wireless) — in sola lettura, calibrati automaticamente dal dispositivo
 - **Scarica la diagnostica** — esportazione completa dello stato del dispositivo (Impostazioni > Dispositivi > Klipsch Flexus > Scarica la diagnostica). L'indirizzo IP, tutti gli indirizzi MAC, il BSSID Wi-Fi, l'ID del dispositivo e gli URL degli stream vengono oscurati
 
+### Altoparlanti wireless
+- **Un dispositivo per ogni altoparlante abbinato** — gli altoparlanti Flexus SUB / SURR (Subwoofer wireless 1 / 2, Surround sinistro / destro) compaiono come dispositivi a sé sotto la soundbar, con le versioni mostrate dall'app Klipsch Connect Plus (Product Information): firmware MCU, RX ed EQ come *Firmware*, la versione hardware e il numero di modello
+- **Connesso** — un sensore per altoparlante: acceso se il collegamento wireless dell'altoparlante era attivo all'ultima lettura, spento se era interrotto
+- **Quando vengono letti** — una volta dopo la configurazione e quando premi **Leggi altoparlanti wireless** (un pulsante della soundbar), così il polling regolare resta leggero come prima. Per seguire le disconnessioni dal vivo, attiva **Monitora altoparlanti wireless** nelle Opzioni: il collegamento viene allora letto a ogni polling (una richiesta in più), e un subwoofer che si disconnette risulta nella cronologia del sensore Connesso. I sensori monitorati non sono disponibili in standby
+- Un altoparlante ottiene il suo dispositivo non appena è stato visto collegato, e lo mantiene anche quando non è più abbinato o è offline. Il dispositivo di un altoparlante non più abbinato può essere eliminato dalla sua pagina del dispositivo
+
 ### Traduzioni
 Interfaccia completamente tradotta in **9 lingue**: inglese, russo, tedesco, spagnolo, francese, italiano, portoghese, olandese, cinese semplificato (`zh-Hans`). Tutti i nomi delle entità, gli stati e le schermate di configurazione sono tradotti.
 
@@ -188,6 +194,7 @@ Se il rilevamento automatico non funziona (es. per isolamento della rete), puoi 
 |-----------|-------------|-------------|
 | Indirizzo IP | — | Indirizzo IP della soundbar (obbligatorio) |
 | Intervallo di polling | 15 s | Configurabile nelle Opzioni (5–120 s). In standby l'integrazione esegue sempre il polling ogni 60 s |
+| Monitora altoparlanti wireless | disattivato | Solo nelle Opzioni. Controlla a ogni polling se ogni subwoofer / surround wireless è collegato (una richiesta in più), così le disconnessioni si vedono sul suo sensore **Connesso**. Disattivato: lettura dopo la configurazione e con il pulsante **Leggi altoparlanti wireless** |
 | MAC del dispositivo | rilevato automaticamente | Solo nelle Opzioni (facoltativo). Sostituisce il MAC usato per firmare le scritture del firmware 2026; serve solo se falliscono comandi diversi da volume/muto (vedi il sensore diagnostico **MAC di firma**) |
 
 **Suggerimento:** assegna alla soundbar un IP statico / una prenotazione DHCP per un funzionamento affidabile.
@@ -235,8 +242,10 @@ La Klipsch Flexus ha un **server HTTP single-thread** che elabora una richiesta 
 | Stato: Tempo di risposta, Stato: Dispositivo, Stato: Ingresso attivo, Stato: Modalità audio | Sensor (x4) | Diagnostica |
 | MAC di firma, Collegamento di rete | Sensor (x2) | Diagnostica |
 | Stato: modalità operativa, Stato: test altoparlanti, Ritardo: subwoofer cablato/wireless, Ritardo: surround wireless | Sensor (x5, sola lettura) | Diagnostica |
+| Leggi altoparlanti wireless | Button | Diagnostica |
+| Connesso (sul dispositivo di ogni altoparlante wireless) | Binary Sensor (uno per altoparlante abbinato, fino a 4) | Diagnostica |
 
-**Totale: 41 entità** (1 media player + 6 select + 13 number + 10 switch + 11 sensor)
+**Totale: 42 entità** (1 media player + 6 select + 13 number + 10 switch + 11 sensor + 1 button), più un sensore Connesso per ogni altoparlante wireless abbinato
 
 ## Risoluzione dei problemi
 
@@ -247,6 +256,7 @@ La Klipsch Flexus ha un **server HTTP single-thread** che elabora una richiesta 
 | Aggiornamenti lenti | Aumenta l'intervallo di polling nelle Opzioni (Impostazioni > Dispositivi > Klipsch Flexus > Configura) |
 | Falliscono i comandi diversi da volume/muto | Controlla il sensore diagnostico **MAC di firma**. Se non mostra un MAC risolto (o ne mostra uno sbagliato), inserisci il MAC della soundbar come **MAC del dispositivo** nelle Opzioni |
 | L'integrazione non si carica | Controlla nei log di Home Assistant se ci sono errori di importazione. Assicurati di usare HA 2024.11+ |
+| Il subwoofer o il surround wireless si disconnette | Attiva **Monitora altoparlanti wireless** nelle Opzioni, poi apri il dispositivo dell'altoparlante sotto la soundbar: il suo sensore **Connesso** è spento finché il collegamento è interrotto, e la sua cronologia mostra quando è caduto. A quel punto la soundbar segnala lo slot come vuoto, quindi questa è la visione che la soundbar ha del collegamento wireless |
 | Logo invisibile con il tema scuro | Aggiorna alla v2.5.19+ e riavvia. L'icona per il tema scuro è inclusa nell'integrazione e richiede HA 2026.3+; le versioni di HA più vecchie mostrano l'icona nera dal sito dei brand di HA |
 
 ## Limitazioni note

@@ -37,10 +37,12 @@
         "title": "Configurações Klipsch Flexus",
         "data": {
           "scan_interval": "Intervalo de consulta (segundos)",
-          "device_mac": "MAC do dispositivo (opcional)"
+          "device_mac": "MAC do dispositivo (opcional)",
+          "monitor_speakers": "Monitorizar caixas sem fios"
         },
         "data_description": {
-          "device_mac": "Necessário apenas se os comandos de escrita (entrada, modo de som, EQ…) falharem na autenticação no firmware 2026. Deixe vazio para deteção automática; caso contrário, introduza o endereço MAC da soundbar."
+          "device_mac": "Necessário apenas se os comandos de escrita (entrada, modo de som, EQ…) falharem na autenticação no firmware 2026. Deixe vazio para deteção automática; caso contrário, introduza o endereço MAC da soundbar.",
+          "monitor_speakers": "Verifica a cada consulta (um pedido a mais) se cada subwoofer / surround sem fios está ligado, para que uma queda apareça no seu sensor Conectado. Desligado: lê uma vez após a configuração e quando premir Ler caixas sem fios."
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "Conectado"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "Ler caixas sem fios"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. Modo noturno",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "Standby automático"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "Surround esquerdo"
+    },
+    "surround_right": {
+      "name": "Surround direito"
+    },
+    "sub_1": {
+      "name": "Subwoofer sem fios 1"
+    },
+    "sub_2": {
+      "name": "Subwoofer sem fios 2"
     }
   }
 }

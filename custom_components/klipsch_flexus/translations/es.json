@@ -37,10 +37,12 @@
         "title": "Ajustes de Klipsch Flexus",
         "data": {
           "scan_interval": "Intervalo de consulta (segundos)",
-          "device_mac": "MAC del dispositivo (opcional)"
+          "device_mac": "MAC del dispositivo (opcional)",
+          "monitor_speakers": "Supervisar altavoces inalámbricos"
         },
         "data_description": {
-          "device_mac": "Solo necesario si los comandos de escritura (entrada, modo de sonido, EQ…) fallan la autenticación en el firmware 2026. Déjalo vacío para autodetección; de lo contrario, introduce la dirección MAC de la barra de sonido."
+          "device_mac": "Solo necesario si los comandos de escritura (entrada, modo de sonido, EQ…) fallan la autenticación en el firmware 2026. Déjalo vacío para autodetección; de lo contrario, introduce la dirección MAC de la barra de sonido.",
+          "monitor_speakers": "Comprueba en cada sondeo (una petición más) si cada subwoofer / surround inalámbrico está enlazado, para que una desconexión se vea en su sensor Conectado. Desactivado: se lee una vez tras la configuración y al pulsar Leer altavoces inalámbricos."
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "Conectado"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "Leer altavoces inalámbricos"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. Modo nocturno",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "Auto-standby"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "Surround izquierdo"
+    },
+    "surround_right": {
+      "name": "Surround derecho"
+    },
+    "sub_1": {
+      "name": "Subwoofer inalámbrico 1"
+    },
+    "sub_2": {
+      "name": "Subwoofer inalámbrico 2"
     }
   }
 }

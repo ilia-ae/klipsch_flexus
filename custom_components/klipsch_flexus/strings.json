@@ -37,10 +37,12 @@
         "title": "Klipsch Flexus Settings",
         "data": {
           "scan_interval": "Poll interval (seconds)",
-          "device_mac": "Device MAC (optional)"
+          "device_mac": "Device MAC (optional)",
+          "monitor_speakers": "Monitor wireless speakers"
         },
         "data_description": {
-          "device_mac": "Only needed if write commands (input, sound mode, EQ…) fail to authenticate on 2026 firmware. Leave empty to auto-detect; otherwise enter the soundbar's MAC address."
+          "device_mac": "Only needed if write commands (input, sound mode, EQ…) fail to authenticate on 2026 firmware. Leave empty to auto-detect; otherwise enter the soundbar's MAC address.",
+          "monitor_speakers": "Reads every poll (one extra request) whether each wireless subwoofer / surround is linked, so a speaker that drops out shows on its Connected sensor. Off: read once after setup and when you press Read wireless speakers."
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "Connected"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "Read wireless speakers"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. Night Mode",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "Auto Standby"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "Surround Left"
+    },
+    "surround_right": {
+      "name": "Surround Right"
+    },
+    "sub_1": {
+      "name": "Wireless Subwoofer 1"
+    },
+    "sub_2": {
+      "name": "Wireless Subwoofer 2"
     }
   }
 }

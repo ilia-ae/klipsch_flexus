@@ -37,10 +37,12 @@
         "title": "Klipsch Flexus Einstellungen",
         "data": {
           "scan_interval": "Abfrageintervall (Sekunden)",
-          "device_mac": "Geräte-MAC (optional)"
+          "device_mac": "Geräte-MAC (optional)",
+          "monitor_speakers": "Drahtlose Lautsprecher überwachen"
         },
         "data_description": {
-          "device_mac": "Nur nötig, wenn Schreibbefehle (Eingang, Sound-Modus, EQ…) auf der 2026-Firmware nicht authentifiziert werden. Leer lassen für automatische Erkennung; andernfalls die MAC-Adresse der Soundbar eingeben."
+          "device_mac": "Nur nötig, wenn Schreibbefehle (Eingang, Sound-Modus, EQ…) auf der 2026-Firmware nicht authentifiziert werden. Leer lassen für automatische Erkennung; andernfalls die MAC-Adresse der Soundbar eingeben.",
+          "monitor_speakers": "Liest bei jeder Abfrage (eine zusätzliche Anfrage), ob jeder drahtlose Subwoofer / Surround verbunden ist, damit ein Aussetzer am Sensor Verbunden sichtbar wird. Aus: einmal nach der Einrichtung und beim Drücken von Drahtlose Lautsprecher lesen."
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "Verbunden"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "Drahtlose Lautsprecher lesen"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. Nachtmodus",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "Auto-Standby"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "Surround links"
+    },
+    "surround_right": {
+      "name": "Surround rechts"
+    },
+    "sub_1": {
+      "name": "Funk-Subwoofer 1"
+    },
+    "sub_2": {
+      "name": "Funk-Subwoofer 2"
     }
   }
 }

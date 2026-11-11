@@ -17,7 +17,7 @@
 
 Benutzerdefinierte Home Assistant Integration für **Klipsch Flexus** Soundbars — Steuerung über **native lokale HTTP-API**, ohne Cloud, ohne Verzögerungen.
 
-> ✅ **41 Entitäten**. Alle Schreibbefehle sind live auf der Firmware von 2026 verifiziert (HMAC-signiert) und funktionieren auch im Standby. Jeder Commit auf `main` wird zuerst lokal getestet: siehe [Testergebnisse](#testergebnisse).
+> ✅ **42 Entitäten**. Alle Schreibbefehle sind live auf der Firmware von 2026 verifiziert (HMAC-signiert) und funktionieren auch im Standby. Jeder Commit auf `main` wird zuerst lokal getestet: siehe [Testergebnisse](#testergebnisse).
 
 ## 📸 Dashboard
 
@@ -44,7 +44,7 @@ Ein eigenes Lovelace-Dashboard, komplett auf den Entitäten der Integration — 
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-Die Integration prüft das Modell nicht. Sie fügt jede Flexus-Soundbar hinzu, die sich über Google Cast meldet, und nutzt für jedes Modell dieselbe lokale API und dieselben 41 Entitäten. Der Maintainer testet auf einer CORE 300. Ein Regler für Hardware, die Ihr Modell nicht hat (zum Beispiel die Höhenkanäle einer CORE 100), kann mit einer Fehlermeldung fehlschlagen.
+Die Integration prüft das Modell nicht. Sie fügt jede Flexus-Soundbar hinzu, die sich über Google Cast meldet, und nutzt für jedes Modell dieselbe lokale API und dieselben 42 Entitäten. Der Maintainer testet auf einer CORE 300. Ein Regler für Hardware, die Ihr Modell nicht hat (zum Beispiel die Höhenkanäle einer CORE 100), kann mit einer Fehlermeldung fehlschlagen.
 
 > Die Soundbar muss zuerst **vollständig in der offiziellen Klipsch Connect Plus App eingerichtet werden** — durchlaufen Sie die gesamte Ersteinrichtung mindestens einmal (WLAN, Firmware-Update, Lautsprecher-Kopplung, Dirac-Kalibrierung). Auf der 2026er-Firmware werden dabei auch die Zugangsdaten zum Signieren der Befehle bereitgestellt, sodass eine unvollständige Einrichtung die meisten Befehle ohne Autorisierung lässt. Diese Integration übernimmt nur die laufende Steuerung.
 
@@ -129,6 +129,12 @@ Den Live-Status pro Befehl zeigt **Download diagnostics** (Abschnitt `command_he
 - **Lautsprecher-Verzögerungen** (kabelgebundener/drahtloser Subwoofer, drahtloser Surround) — schreibgeschützt, vom Gerät automatisch kalibriert
 - **Diagnose herunterladen** — vollständiger Gerätestatusdump (Einstellungen > Geräte > Klipsch Flexus > Diagnose herunterladen). IP-Adresse, alle MAC-Adressen, die WLAN-BSSID, die Geräte-ID und Stream-URLs werden unkenntlich gemacht
 
+### Drahtlose Lautsprecher
+- **Ein Gerät pro gekoppeltem Lautsprecher** — die Lautsprecher Flexus SUB / SURR (Funk-Subwoofer 1 / 2, Surround links / rechts) erscheinen als eigene Geräte unter der Soundbar, mit den Versionen, die die Klipsch Connect Plus App anzeigt (Product Information): MCU-, RX- und EQ-Firmware als *Firmware*, die Hardwareversion und die Modellnummer
+- **Verbunden** — ein Sensor pro Lautsprecher: an, wenn die Funkverbindung des Lautsprechers beim letzten Lesen bestand, aus, wenn sie unterbrochen war
+- **Wann sie gelesen werden** — einmal nach der Einrichtung und wenn Sie **Drahtlose Lautsprecher lesen** drücken (ein Button an der Soundbar), sodass die reguläre Abfrage so schlank bleibt wie bisher. Um Aussetzer live zu verfolgen, schalten Sie in den Optionen **Drahtlose Lautsprecher überwachen** ein: Die Verbindung wird dann bei jeder Abfrage gelesen (eine zusätzliche Anfrage), und ein Subwoofer, der aussetzt, ist im Verlauf des Verbunden-Sensors zu sehen. Überwachte Sensoren sind im Standby nicht verfügbar
+- Ein Lautsprecher erhält sein Gerät, sobald er einmal verbunden gesehen wurde, und behält es, solange er entkoppelt oder offline ist. Das Gerät eines entkoppelten Lautsprechers kann auf seiner Geräteseite gelöscht werden
+
 ### Übersetzungen
 Vollständige UI-Übersetzung in **9 Sprachen**: Englisch, Russisch, Deutsch, Spanisch, Französisch, Italienisch, Portugiesisch, Niederländisch, vereinfachtes Chinesisch (`zh-Hans`). Alle Entitätsnamen, Zustände und Konfigurationsbildschirme sind übersetzt.
 
@@ -188,6 +194,7 @@ Falls die automatische Erkennung nicht funktioniert (z.B. Netzwerkisolation), k�
 |-----------|----------|-------------|
 | Host | — | IP-Adresse der Soundbar (erforderlich) |
 | Abfrageintervall | 15 s | Konfigurierbar über Optionen (5–120 s). Im Standby fragt die Integration immer alle 60 s ab |
+| Drahtlose Lautsprecher überwachen | aus | Nur in den Optionen. Liest bei jeder Abfrage, ob jeder drahtlose Subwoofer / Surround verbunden ist (eine zusätzliche Anfrage), damit Aussetzer an seinem Sensor **Verbunden** sichtbar werden. Aus: gelesen nach der Einrichtung und mit dem Button **Drahtlose Lautsprecher lesen** |
 | Geräte-MAC | automatisch erkannt | Nur in den Optionen (optional). Überschreibt die MAC zum Signieren der Schreibbefehle der 2026-Firmware; nur nötig, wenn Befehle außer Lautstärke/Stummschaltung fehlschlagen (siehe Diagnosesensor **Signing MAC**) |
 
 **Tipp:** Weisen Sie der Soundbar eine statische IP / DHCP-Reservierung zu.
@@ -235,8 +242,10 @@ Die Klipsch Flexus hat einen **Single-Thread HTTP-Server**, der jeweils eine Anf
 | Antwortzeit, Gerätestatus, Aktiver Eingang, Aktiver Klangmodus | Sensor (x4) | Diagnose |
 | Signing MAC, Netzwerkverbindung | Sensor (x2) | Diagnose |
 | Betriebsmodus, Lautsprechertest, Sub Wired/Wireless Delay, Surround Delay | Sensor (x5, schreibgeschützt) | Diagnose |
+| Drahtlose Lautsprecher lesen | Button | Diagnose |
+| Verbunden (auf dem Gerät jedes drahtlosen Lautsprechers) | Binary Sensor (einer pro gekoppeltem Lautsprecher, bis zu 4) | Diagnose |
 
-**Gesamt: 41 Entitäten** (1 Media Player + 6 Selects + 13 Numbers + 10 Switches + 11 Sensors)
+**Gesamt: 42 Entitäten** (1 Media Player + 6 Selects + 13 Numbers + 10 Switches + 11 Sensors + 1 Button), plus ein Verbunden-Sensor pro gekoppeltem drahtlosem Lautsprecher
 
 ## Fehlerbehebung
 
@@ -247,6 +256,7 @@ Die Klipsch Flexus hat einen **Single-Thread HTTP-Server**, der jeweils eine Anf
 | Langsame Updates | Erhöhen Sie das Abfrageintervall in den Optionen |
 | Befehle außer Lautstärke/Stummschaltung schlagen fehl | Prüfen Sie den Diagnosesensor **Signing MAC**. Zeigt er keine (oder eine falsche) aufgelöste MAC, tragen Sie die MAC der Soundbar als **Geräte-MAC** in den Optionen ein |
 | Integration lädt nicht | Prüfen Sie die HA-Logs auf Importfehler. HA 2024.11+ erforderlich |
+| Drahtloser Subwoofer oder Surround setzt aus | Schalten Sie in den Optionen **Drahtlose Lautsprecher überwachen** ein und öffnen Sie dann das Gerät des Lautsprechers unter der Soundbar: Sein Sensor **Verbunden** ist aus, solange die Verbindung unterbrochen ist, und sein Verlauf zeigt, wann sie abgerissen ist. Die Soundbar meldet den Platz dann als leer; das ist also die Sicht der Soundbar auf die Funkverbindung |
 | Logo im dunklen Design unsichtbar | Auf v2.5.19+ aktualisieren und HA neu starten. Das Symbol für das dunkle Design ist in der Integration enthalten und braucht HA 2026.3+; ältere HA-Versionen zeigen das schwarze Symbol der HA-Brands-Seite |
 
 ## Bekannte Einschränkungen

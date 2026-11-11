@@ -17,7 +17,7 @@
 
 Intégration personnalisée Home Assistant pour les barres de son **Klipsch Flexus** — pilotage via l'**API HTTP locale native**, sans cloud, sans délai.
 
-> ✅ **41 entités**. Toutes les commandes d'écriture sont vérifiées en conditions réelles sur le firmware 2026 (signées HMAC) et fonctionnent en veille. Chaque commit sur `main` est d'abord testé en local : voir [Résultats des tests](#résultats-des-tests).
+> ✅ **42 entités**. Toutes les commandes d'écriture sont vérifiées en conditions réelles sur le firmware 2026 (signées HMAC) et fonctionnent en veille. Chaque commit sur `main` est d'abord testé en local : voir [Résultats des tests](#résultats-des-tests).
 
 ## 📸 Tableau de bord (Dashboard)
 
@@ -44,7 +44,7 @@ Un tableau de bord Lovelace personnalisé, entièrement construit sur les entit�
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-L'intégration ne vérifie pas le modèle. Elle ajoute toute barre de son Flexus qui s'annonce via Google Cast et utilise la même API locale et les mêmes 41 entités pour tous les modèles. Le mainteneur teste sur une CORE 300. Une commande pour un matériel absent de votre modèle (par exemple les canaux de hauteur d'une CORE 100) peut échouer avec une erreur.
+L'intégration ne vérifie pas le modèle. Elle ajoute toute barre de son Flexus qui s'annonce via Google Cast et utilise la même API locale et les mêmes 42 entités pour tous les modèles. Le mainteneur teste sur une CORE 300. Une commande pour un matériel absent de votre modèle (par exemple les canaux de hauteur d'une CORE 100) peut échouer avec une erreur.
 
 > La barre de son doit d'abord être **entièrement configurée dans l'application officielle Klipsch Connect Plus** — effectuez toute la configuration initiale au moins une fois (Wi-Fi, mise à jour du firmware, appairage des enceintes, calibrage Dirac). Sur le firmware 2026, c'est aussi cette étape qui provisionne l'identifiant d'authentification des écritures dont l'intégration a besoin : une configuration inachevée dans l'application laisse la plupart des commandes non autorisées. Cette intégration ne gère que le pilotage au quotidien.
 
@@ -129,6 +129,12 @@ Les firmwares plus anciens (avant `1.1.3`) ne sont pas concernés et gardent le 
 - **Délais des enceintes** (caisson filaire / sans fil, surround sans fil) — en lecture seule, calibrés automatiquement par l'appareil
 - **Télécharger les diagnostics** — export complet de l'état de l'appareil (Paramètres > Appareils > Klipsch Flexus > Télécharger les diagnostics). L'adresse IP, toutes les adresses MAC, le BSSID Wi-Fi, l'identifiant de l'appareil et les URL de flux sont masqués
 
+### Enceintes sans fil
+- **Un appareil par enceinte appairée** — les enceintes Flexus SUB / SURR (Caisson sans fil 1 / 2, Surround gauche / droit) apparaissent comme des appareils distincts sous la barre de son, avec les versions affichées par l'application Klipsch Connect Plus (Product Information) : firmware MCU, RX et EQ comme *Firmware*, la version matérielle et le numéro de modèle
+- **Connecté** — un capteur par enceinte : activé si la liaison sans fil de l'enceinte était établie lors de la dernière lecture, désactivé si elle était coupée
+- **Quand elles sont lues** — une fois après la configuration et quand vous appuyez sur **Lire les enceintes sans fil** (un bouton de la barre de son), si bien que l'interrogation régulière reste aussi légère qu'avant. Pour suivre les décrochages en direct, activez **Surveiller les enceintes sans fil** dans les Options : la liaison est alors lue à chaque interrogation (une requête de plus), et un caisson qui décroche apparaît dans l'historique du capteur Connecté. Les capteurs surveillés sont indisponibles en veille
+- Une enceinte obtient son appareil dès qu'elle a été vue connectée, et le conserve tant qu'elle est désappairée ou hors ligne. L'appareil d'une enceinte désappairée peut être supprimé depuis sa page d'appareil
+
 ### Traductions
 Interface entièrement traduite en **9 langues** : anglais, russe, allemand, espagnol, français, italien, portugais, néerlandais, chinois simplifié (`zh-Hans`). Tous les noms d'entités, les états et les écrans de configuration sont traduits.
 
@@ -188,6 +194,7 @@ Si la découverte automatique ne fonctionne pas (p. ex. isolation réseau), vous
 |-----------|------------|-------------|
 | Adresse IP | — | Adresse IP de la barre de son (obligatoire) |
 | Intervalle d'interrogation | 15 s | Réglable dans les Options (5–120 s). En veille, l'intégration interroge toujours toutes les 60 s |
+| Surveiller les enceintes sans fil | désactivé | Uniquement dans les Options. Vérifie à chaque interrogation si chaque caisson / surround sans fil est relié (une requête de plus), pour que les décrochages apparaissent sur son capteur **Connecté**. Désactivé : lecture après la configuration et avec le bouton **Lire les enceintes sans fil** |
 | MAC de l'appareil | détectée automatiquement | Uniquement dans les Options (facultatif). Remplace la MAC utilisée pour signer les écritures du firmware 2026 ; nécessaire seulement si des commandes autres que volume / sourdine échouent (voir le capteur de diagnostic **MAC de signature**) |
 
 **Conseil :** attribuez une IP statique / une réservation DHCP à la barre de son pour un fonctionnement fiable.
@@ -235,8 +242,10 @@ La Klipsch Flexus dispose d'un **serveur HTTP mono-thread** qui traite une seule
 | Temps de réponse, Statut : Appareil, Entrée active, Mode son | Sensor (x4) | Diagnostic |
 | MAC de signature, Liaison réseau | Sensor (x2) | Diagnostic |
 | Mode de fonctionnement, Test des haut-parleurs, Délai : caisson filaire / sans fil, Délai : surround sans fil | Sensor (x5, lecture seule) | Diagnostic |
+| Lire les enceintes sans fil | Button | Diagnostic |
+| Connecté (sur l'appareil de chaque enceinte sans fil) | Binary Sensor (un par enceinte appairée, jusqu'à 4) | Diagnostic |
 
-**Total : 41 entités** (1 media player + 6 selects + 13 numbers + 10 switches + 11 sensors)
+**Total : 42 entités** (1 media player + 6 selects + 13 numbers + 10 switches + 11 sensors + 1 button), plus un capteur Connecté par enceinte sans fil appairée
 
 ## Dépannage
 
@@ -247,6 +256,7 @@ La Klipsch Flexus dispose d'un **serveur HTTP mono-thread** qui traite une seule
 | Mises à jour lentes | Augmentez l'intervalle d'interrogation dans les Options (Paramètres > Appareils > Klipsch Flexus > Configurer) |
 | Les commandes autres que volume / sourdine échouent | Consultez le capteur de diagnostic **MAC de signature**. S'il n'affiche aucune MAC résolue (ou une mauvaise), saisissez la MAC de la barre de son dans **MAC de l'appareil** dans les Options |
 | L'intégration ne se charge pas | Cherchez des erreurs d'import dans les journaux de Home Assistant. Vérifiez que vous utilisez HA 2024.11+ |
+| Le caisson ou le surround sans fil décroche | Activez **Surveiller les enceintes sans fil** dans les Options, puis ouvrez l'appareil de l'enceinte sous la barre de son : son capteur **Connecté** est désactivé tant que la liaison est coupée, et son historique montre quand elle est tombée. La barre de son signale alors l'emplacement comme vide : c'est donc la vue qu'a la barre de son de la liaison sans fil |
 | Logo invisible avec le thème sombre | Passez à la v2.5.19+ et redémarrez. L'icône pour le thème sombre est fournie avec l'intégration et nécessite HA 2026.3+ ; les versions plus anciennes de HA affichent l'icône noire du site HA brands |
 
 ## Limitations connues

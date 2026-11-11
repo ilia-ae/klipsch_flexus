@@ -111,6 +111,13 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
             "write_auth": write_auth,
             "network": network,
             "mac_sources": coordinator._seed_sources,
+            # Wireless speakers: cinema:peripherals as reported (incl. the
+            # unidentified group 3) and the versions read per speaker
+            "speakers": {
+                "peripherals": coordinator.peripherals_raw,
+                "versions": coordinator.speaker_versions,
+                "soundbar_versions": coordinator.bar_versions,
+            },
             "command_health": command_health,
             "api_stats": {
                 "last_response_time_ms": api.last_response_time,

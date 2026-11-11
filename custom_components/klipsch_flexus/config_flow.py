@@ -17,7 +17,7 @@ except ImportError:  # HA < 2026.2
 
 from .api import KlipschAPI
 from .auth import ZERO_MAC, mac_to_colon
-from .const import API_PATHS, CONF_DEVICE_MAC, CONF_SCAN_INTERVAL, DOMAIN, SCAN_INTERVAL_SECONDS
+from .const import API_PATHS, CONF_DEVICE_MAC, CONF_MONITOR_SPEAKERS, CONF_SCAN_INTERVAL, DOMAIN, SCAN_INTERVAL_SECONDS
 
 
 def _is_mac_unique_id(unique_id: str | None) -> bool:
@@ -247,7 +247,10 @@ class KlipschOptionsFlow(config_entries.OptionsFlow):
             if mac and mac_to_colon(mac) is None:
                 errors[CONF_DEVICE_MAC] = "invalid_mac"
             else:
-                data = {CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL]}
+                data = {
+                    CONF_SCAN_INTERVAL: user_input[CONF_SCAN_INTERVAL],
+                    CONF_MONITOR_SPEAKERS: user_input.get(CONF_MONITOR_SPEAKERS, False),
+                }
                 if mac:
                     data[CONF_DEVICE_MAC] = mac_to_colon(mac)
                 return self.async_create_entry(data=data)
@@ -261,6 +264,10 @@ class KlipschOptionsFlow(config_entries.OptionsFlow):
                 # Pre-filled as a suggestion, not a default: voluptuous would put a
                 # default back when the field is cleared, so the MAC could never go.
                 vol.Optional(CONF_DEVICE_MAC): str,
+                vol.Optional(
+                    CONF_MONITOR_SPEAKERS,
+                    default=self._entry.options.get(CONF_MONITOR_SPEAKERS, False),
+                ): bool,
             }
         )
         return self.async_show_form(

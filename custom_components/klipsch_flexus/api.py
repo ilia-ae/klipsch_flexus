@@ -21,12 +21,16 @@ from .const import (
     API_TIMEOUT_POWER,
     API_TIMEOUT_READ,
     API_TIMEOUT_WRITE,
+    BAR_VERSION_PATHS,
     DIRAC_OFF,
     NIGHT_MODE_FROM_API,
     NIGHT_MODE_TO_API,
     OPTIMISTIC_SETTLE,
     OPTIMISTIC_TTL,
+    PERIPHERALS_PATH,
     POLL_MAX_TRANSPORT_ERRORS,
+    SPEAKER_SLOTS,
+    SPEAKER_VERSION_NODES,
     VOLUME_MAX_DEFAULT,
     VOLUME_MAX_PROBE_TRIES,
 )
@@ -836,6 +840,62 @@ class KlipschAPI:
     async def get_dirac_filters(self) -> list[dict]:
         data = await self.get_rows("dirac:filters")
         return [{"id": r["value"]["i32_"], "name": r["title"]} for r in data.get("rows", [])]
+
+    async def get_peripherals(self) -> dict[str, Any]:
+        """Read ``cinema:peripherals``: which wireless speakers are linked.
+
+        Returns ``{"speakers": {slot: {"connected", "rx", "model"}}, "raw": [...]}``
+        for the slots of :data:`SPEAKER_SLOTS` the device lists (an empty slot is
+        ``connected=False`` with no model). ``raw`` keeps every group as reported,
+        including the unidentified group 3, for diagnostics.
+        """
+        data = await self.get_data(PERIPHERALS_PATH, retries=0)
+        groups = data[0].get("cinemaPeripherals") or []
+        by_id = {g.get("id"): g for g in groups if isinstance(g, dict)}
+        speakers: dict[str, dict[str, Any]] = {}
+        for slot, (group_id, index, _prefix, _model) in SPEAKER_SLOTS.items():
+            group = by_id.get(group_id)
+            if group is None:
+                continue
+
+            def field(name: str, group: dict = group, index: int = index) -> str:
+                values = str(group.get(name, "")).split(",")
+                return values[index].strip() if index < len(values) else ""
+
+            model = field("m")
+            rx = field("ver")
+            speakers[slot] = {
+                "connected": field("con") == "1",
+                "rx": rx if rx not in ("", "0.0") else None,
+                "model": model if model not in ("", "0") else None,
+            }
+        return {"speakers": speakers, "raw": groups}
+
+    async def get_speaker_versions(self, slot: str) -> dict[str, str | None]:
+        """Read one speaker's RX / EQ / MCU / HW versions (``hostlink:*``, read-only).
+
+        Unknown or not-yet-reported parts are None.
+        """
+        prefix = SPEAKER_SLOTS[slot][2]
+        versions: dict[str, str | None] = {}
+        for key, suffix in SPEAKER_VERSION_NODES.items():
+            value = (await self.get_data(f"hostlink:{prefix}{suffix}", retries=0))[0].get("string_")
+            # "0.0.0": the radio link is up but the speaker's MCU has not answered
+            # yet (seen right after a sub reconnects) — not a real version
+            versions[key] = value if value and value != "0.0.0" else None
+        return versions
+
+    async def get_bar_versions(self) -> dict[str, str | None]:
+        """Read the soundbar's own component versions; unreadable ones are skipped."""
+        versions: dict[str, str | None] = {}
+        for key, path in BAR_VERSION_PATHS.items():
+            try:
+                versions[key] = (await self.get_data(path, retries=0))[0].get("string_") or None
+            except _TRANSPORT_ERRORS:
+                raise  # the device stopped answering: don't wait out every node
+            except Exception:  # noqa: BLE001 — best-effort, firmware-dependent nodes
+                _LOGGER.debug("Klipsch: %s not readable", path)
+        return versions
 
     async def get_player_data(self) -> dict | None:
         """Fetch current player/media data."""

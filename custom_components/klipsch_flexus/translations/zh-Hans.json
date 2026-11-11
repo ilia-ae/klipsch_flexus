@@ -37,10 +37,12 @@
         "title": "Klipsch Flexus 设置",
         "data": {
           "scan_interval": "轮询间隔（秒）",
-          "device_mac": "设备 MAC（可选）"
+          "device_mac": "设备 MAC（可选）",
+          "monitor_speakers": "监控无线扬声器"
         },
         "data_description": {
-          "device_mac": "仅当 2026 年版固件上的写入命令（输入源、声音模式、EQ……）身份验证失败时才需要。留空则自动检测；否则请输入回音壁的 MAC 地址。"
+          "device_mac": "仅当 2026 年版固件上的写入命令（输入源、声音模式、EQ……）身份验证失败时才需要。留空则自动检测；否则请输入回音壁的 MAC 地址。",
+          "monitor_speakers": "每次轮询（多一个请求）检查每个无线低音炮 / 环绕扬声器是否已连接，掉线会显示在其“已连接”传感器上。关闭时：仅在设置后读取一次，以及按下“读取无线扬声器”时读取。"
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "已连接"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "读取无线扬声器"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. 夜间模式",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "自动待机"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "左环绕"
+    },
+    "surround_right": {
+      "name": "右环绕"
+    },
+    "sub_1": {
+      "name": "无线低音炮 1"
+    },
+    "sub_2": {
+      "name": "无线低音炮 2"
     }
   }
 }

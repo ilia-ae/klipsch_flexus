@@ -32,7 +32,24 @@ def _mock_api(power: str = "on") -> KlipschAPI:
     api.resolve_write_auth = AsyncMock(return_value=True)
     api.get_dirac_filters = AsyncMock(return_value=[{"id": 1, "name": "Filter 1"}])
     api.get_player_data = AsyncMock(return_value=None)
+    api.get_peripherals = AsyncMock(return_value=_peripherals(sub_1=True))
+    api.get_speaker_versions = AsyncMock(return_value=dict(SUB_VERSIONS))
+    api.get_bar_versions = AsyncMock(return_value={"hardware_revision": "3.0.1", "host_mcu": "1.0.25"})
     return api
+
+
+SUB_VERSIONS = {"rx": "4.6", "eq": "0.3.0", "mcu": "1.0.4", "hw": "3.0.0"}
+
+
+def _peripherals(sub_1: bool = False, sub_2: bool = False) -> dict:
+    """get_peripherals() result: sub slots as given, no surrounds paired."""
+    empty = {"connected": False, "rx": None, "model": None}
+    speakers = {"surround_left": dict(empty), "surround_right": dict(empty), "sub_1": dict(empty), "sub_2": dict(empty)}
+    if sub_1:
+        speakers["sub_1"] = {"connected": True, "rx": "4.6", "model": "1072557"}
+    if sub_2:
+        speakers["sub_2"] = {"connected": True, "rx": "4.6", "model": "1072557"}
+    return {"speakers": speakers, "raw": []}
 
 
 @pytest.fixture(autouse=True)

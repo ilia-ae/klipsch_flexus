@@ -17,7 +17,7 @@
 
 Aangepaste Home Assistant-integratie voor **Klipsch Flexus**-soundbars — bediening via de **eigen lokale HTTP-API**, zonder cloud, zonder vertraging.
 
-> ✅ **41 entiteiten**. Alle schrijfopdrachten zijn live geverifieerd op de firmware van 2026 (HMAC-ondertekend) en werken ook in stand-by. Elke commit op `main` wordt eerst lokaal getest: zie [Testresultaten](#testresultaten).
+> ✅ **42 entiteiten**. Alle schrijfopdrachten zijn live geverifieerd op de firmware van 2026 (HMAC-ondertekend) en werken ook in stand-by. Elke commit op `main` wordt eerst lokaal getest: zie [Testresultaten](#testresultaten).
 
 ## 📸 Dashboard
 
@@ -44,7 +44,7 @@ Een eigen Lovelace-dashboard dat volledig draait op de entiteiten van de integra
 | **Flexus CORE 200** | 3.1.2 | Dolby Atmos up-firing |
 | **Flexus CORE 100** | 2.1 | Virtual Dolby Atmos |
 
-De integratie controleert het model niet. Ze voegt elke Flexus-soundbar toe die zich via Google Cast aanmeldt, en gebruikt voor elk model dezelfde lokale API en dezelfde 41 entiteiten. De maintainer test op een CORE 300. Een bedieningselement voor hardware die jouw model niet heeft (bijvoorbeeld de hoogtekanalen op een CORE 100) kan met een foutmelding mislukken.
+De integratie controleert het model niet. Ze voegt elke Flexus-soundbar toe die zich via Google Cast aanmeldt, en gebruikt voor elk model dezelfde lokale API en dezelfde 42 entiteiten. De maintainer test op een CORE 300. Een bedieningselement voor hardware die jouw model niet heeft (bijvoorbeeld de hoogtekanalen op een CORE 100) kan met een foutmelding mislukken.
 
 > De soundbar moet **eerst volledig zijn ingesteld in de officiële Klipsch Connect Plus-app** — doorloop de volledige onboarding minstens één keer (wifi, firmware-update, luidsprekers koppelen, Dirac-kalibratie). Op de firmware van 2026 worden daarbij ook de toegangsgegevens voor het ondertekenen van schrijfopdrachten ingericht waar de integratie op vertrouwt; een half afgeronde installatie in de app laat de meeste opdrachten dus zonder autorisatie. Deze integratie verzorgt alleen de doorlopende bediening.
 
@@ -129,6 +129,12 @@ Oudere firmware (vóór `1.1.3`) is niet getroffen en houdt volledige bediening 
 - **Luidsprekervertragingen** (bekabelde/draadloze sub, draadloze surround) — alleen-lezen, automatisch gekalibreerd door het apparaat
 - **Diagnostiek downloaden** — volledige export van de apparaatstatus (Instellingen > Apparaten > Klipsch Flexus > Diagnostiek downloaden). Het IP-adres, elk MAC-adres, de wifi-BSSID, de apparaat-ID en stream-URL's worden onleesbaar gemaakt
 
+### Draadloze luidsprekers
+- **Een apparaat per gekoppelde luidspreker** — Flexus SUB / SURR-luidsprekers (Draadloze subwoofer 1 / 2, Surround links / rechts) verschijnen als eigen apparaten onder de soundbar, met de versies die de Klipsch Connect Plus-app toont (Product Information): MCU-, RX- en EQ-firmware als *Firmware*, de hardwareversie en het modelnummer
+- **Verbonden** — een sensor per luidspreker: aan als de draadloze verbinding van de luidspreker bij de laatste uitlezing actief was, uit als die weg was
+- **Wanneer ze worden uitgelezen** — één keer na de installatie en wanneer je op **Draadloze luidsprekers uitlezen** drukt (een knop op de soundbar), zodat de gewone poll even licht blijft als voorheen. Om uitval live te volgen, zet je **Draadloze luidsprekers bewaken** aan in Opties: de verbinding wordt dan bij elke poll uitgelezen (één extra verzoek), en een subwoofer die wegvalt, is terug te zien in de geschiedenis van de Verbonden-sensor. Bewaakte sensoren zijn niet beschikbaar in stand-by
+- Een luidspreker krijgt zijn apparaat zodra hij eenmaal verbonden is gezien, en houdt het zolang hij ontkoppeld of offline is. Het apparaat van een ontkoppelde luidspreker kan op de apparaatpagina worden verwijderd
+
 ### Vertalingen
 Volledige vertaling van de interface in **9 talen**: Engels, Russisch, Duits, Spaans, Frans, Italiaans, Portugees, Nederlands, vereenvoudigd Chinees (`zh-Hans`). Alle entiteitsnamen, statussen en configuratieschermen zijn vertaald.
 
@@ -188,6 +194,7 @@ Werkt automatische detectie niet (bijv. door netwerkisolatie), dan kun je de int
 |-----------|-----------|--------------|
 | Host | — | IP-adres van de soundbar (verplicht) |
 | Pollinginterval | 15 s | In te stellen via Opties (5–120 s). In stand-by pollt de integratie altijd elke 60 s |
+| Draadloze luidsprekers bewaken | uit | Alleen in Opties. Controleert bij elke poll of elke draadloze subwoofer / surround verbonden is (één extra verzoek), zodat uitval zichtbaar wordt op de sensor **Verbonden**. Uit: uitgelezen na de installatie en met de knop **Draadloze luidsprekers uitlezen** |
 | MAC-adres van het apparaat | automatisch gedetecteerd | Alleen in Opties (optioneel). Overschrijft het MAC-adres waarmee schrijfacties op de firmware van 2026 worden ondertekend; alleen nodig als andere opdrachten dan volume/dempen mislukken (zie de diagnostische sensor **Ondertekenings-MAC**) |
 
 **Tip:** Geef de soundbar een vast IP-adres / DHCP-reservering voor een betrouwbare werking.
@@ -235,8 +242,10 @@ De Klipsch Flexus heeft een **single-threaded HTTP-server** die één verzoek te
 | Reactietijd, Apparaatstatus, Actieve ingang, Actieve geluidsmodus | Sensor (x4) | Diagnose |
 | Ondertekenings-MAC, Netwerkverbinding | Sensor (x2) | Diagnose |
 | Bedrijfsmodus, Luidsprekertest, Vertraging bekabelde/draadloze subwoofer, Vertraging draadloze surround | Sensor (x5, alleen-lezen) | Diagnose |
+| Draadloze luidsprekers uitlezen | Button | Diagnose |
+| Verbonden (op het apparaat van elke draadloze luidspreker) | Binary Sensor (één per gekoppelde luidspreker, maximaal 4) | Diagnose |
 
-**Totaal: 41 entiteiten** (1 mediaspeler + 6 selects + 13 numbers + 10 switches + 11 sensoren)
+**Totaal: 42 entiteiten** (1 mediaspeler + 6 selects + 13 numbers + 10 switches + 11 sensoren + 1 button), plus één Verbonden-sensor per gekoppelde draadloze luidspreker
 
 ## Probleemoplossing
 
@@ -247,6 +256,7 @@ De Klipsch Flexus heeft een **single-threaded HTTP-server** die één verzoek te
 | Trage updates | Verhoog het pollinginterval in Opties (Instellingen > Apparaten > Klipsch Flexus > Configureer) |
 | Andere opdrachten dan volume/dempen mislukken | Controleer de diagnostische sensor **Ondertekenings-MAC**. Toont die geen gevonden MAC-adres (of het verkeerde), voer dan het MAC-adres van de soundbar in als **MAC-adres van het apparaat** in Opties |
 | Integratie laadt niet | Zoek in de logboeken van Home Assistant naar importfouten. Zorg dat je HA 2024.11+ gebruikt |
+| Draadloze subwoofer of surround valt weg | Zet **Draadloze luidsprekers bewaken** aan in Opties en open daarna het apparaat van de luidspreker onder de soundbar: de sensor **Verbonden** staat uit zolang de verbinding weg is, en de geschiedenis toont wanneer die wegviel. De soundbar meldt de plek dan als leeg; dit is dus hoe de soundbar de draadloze verbinding ziet |
 | Logo onzichtbaar in het donkere thema | Werk bij naar v2.5.19+ en herstart. Het pictogram voor het donkere thema wordt met de integratie meegeleverd en vereist HA 2026.3+; oudere HA-versies tonen het zwarte pictogram van de HA-brands-site |
 
 ## Bekende beperkingen

@@ -4,27 +4,45 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
-from .api import KlipschAPI
+from .api import _TRANSPORT_ERRORS, KlipschAPI
 from .config_flow import _mac_id
 from .const import (
     API_PATHS,
     COMMAND_REFRESH_DELAY,
     CONF_DEVICE_MAC,
+    CONF_MONITOR_SPEAKERS,
     DOMAIN,
     EAGER_AUTH_MAX_ATTEMPTS,
     SCAN_INTERVAL_SECONDS,
     SCAN_INTERVAL_STANDBY,
+    SPEAKER_SLOTS,
+    SPEAKER_VERSION_READS,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Newer HA links a child device by the parent's registry id (``via_device`` is
+# deprecated there, removal planned for 2027.8); older releases only know the
+# ``via_device`` identifier.
+_HAS_VIA_DEVICE_ID = "via_device_id" in dr.DeviceInfo.__annotations__
+
+
+def speaker_sw_version(versions: dict[str, str | None]) -> str | None:
+    """``MCU 1.0.4 · RX 4.6 · EQ 0.3.0`` from a speaker's versions (None if none)."""
+    parts = [
+        f"{label} {versions[key]}" for key, label in (("mcu", "MCU"), ("rx", "RX"), ("eq", "EQ")) if versions.get(key)
+    ]
+    return " · ".join(parts) or None
 
 
 def _arp_lookup(ip: str) -> str | None:
@@ -73,6 +91,18 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._device_info_stale = False  # re-read eureka_info after standby → on
         self._poll_task: asyncio.Future[dict[str, Any]] | None = None  # running poll
         self._poll_again = False  # a refresh was requested while polling
+        # Wireless speakers. Read once after setup (first poll with the bar on)
+        # and on the "Read wireless speakers" button; every poll only with the
+        # "Monitor wireless speakers" option. Versions per slot (hostlink:*).
+        self.monitor_speakers = bool(entry.options.get(CONF_MONITOR_SPEAKERS, False)) if entry else False
+        self.speakers: dict[str, dict[str, Any]] | None = None  # last cinema:peripherals read
+        self.speakers_checked_at: datetime | None = None
+        self._speaker_read_pending = True  # the one read after setup
+        self.speaker_versions: dict[str, dict[str, str | None]] = {}
+        self._speaker_versions_key: dict[str, tuple] = {}
+        self._speaker_version_attempts: dict[str, int] = {}  # incomplete reads so far
+        self.peripherals_raw: list = []  # cinema:peripherals as reported (diagnostics)
+        self.bar_versions: dict[str, str | None] = {}  # soundbar MCU / TX / HDMI / HW
         # Device name from before this setup (the platforms register concurrently,
         # so the media player can't tell a new device from an existing one later).
         self.registered_name: str | None = getattr(self.registered_device(), "name", None)
@@ -206,18 +236,143 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Klipsch: eager write-auth resolution stopped; the first gated command resolves it")
 
     @callback
-    def registered_device(self) -> dr.DeviceEntry | None:
-        """The soundbar's device-registry entry, or None if not registered yet."""
+    def registered_device(self, slot: str | None = None) -> dr.DeviceEntry | None:
+        """The soundbar's (or a speaker ``slot``'s) registry entry, or None."""
         if self.entry is None:
             return None
         reg = dr.async_get(self.hass)
         # Looked up via the entry (works on every supported HA; async_get_device
         # by identifiers is deprecated in newer releases).
-        identifier = (DOMAIN, self.entry.entry_id)
+        identifier = (DOMAIN, self.entry.entry_id if slot is None else f"{self.entry.entry_id}_{slot}")
         return next(
             (d for d in dr.async_entries_for_config_entry(reg, self.entry.entry_id) if identifier in d.identifiers),
             None,
         )
+
+    def speaker_device_info(self, slot: str) -> dict[str, Any]:
+        """Device info of a wireless speaker, linked to the soundbar.
+
+        ``sw_version`` lists the speaker's firmware parts (MCU / RX / EQ) and
+        ``model_id`` its model number, as the Klipsch Connect app shows them.
+        """
+        entry_id = self.entry.entry_id if self.entry else ""
+        versions = self.speaker_versions.get(slot, {})
+        info: dict[str, Any] = {
+            "identifiers": {(DOMAIN, f"{entry_id}_{slot}")},
+            "translation_key": slot,
+            "manufacturer": "Klipsch",
+            "model": SPEAKER_SLOTS[slot][3],
+        }
+        # Only known values: an explicit None would wipe what the registry holds
+        # (e.g. after a restart in standby, before the speaker is read again).
+        for key, value in (
+            ("sw_version", speaker_sw_version(versions)),
+            ("hw_version", versions.get("hw")),
+            ("model_id", versions.get("model")),
+        ):
+            if value:
+                info[key] = value
+        if _HAS_VIA_DEVICE_ID:
+            parent = self.registered_device()
+            if parent is not None:
+                info["via_device_id"] = parent.id
+        else:
+            info["via_device"] = (DOMAIN, entry_id)
+        return info
+
+    @callback
+    def _async_update_speaker_device(self, slot: str) -> None:
+        """Push a speaker's new versions to its (already registered) device."""
+        device = self.registered_device(slot)
+        if device is None:
+            return  # the entity registers it with speaker_device_info()
+        info = self.speaker_device_info(slot)
+        changes = {
+            key: info.get(key)
+            for key in ("sw_version", "hw_version", "model_id")
+            if info.get(key) is not None and info.get(key) != getattr(device, key, None)
+        }
+        if changes:
+            dr.async_get(self.hass).async_update_device(device.id, **changes)
+
+    async def async_read_speakers(self, full: bool = False) -> bool:
+        """Read which wireless speakers are linked, and their versions.
+
+        ``full`` (after setup, the button): re-read every linked speaker's
+        versions and the soundbar's. Otherwise (monitoring, every poll) one
+        request, plus a speaker's four version reads only when it links with
+        another RX version / model or still reported "0.0.0" (a few polls).
+        Returns False if the device stopped answering (nothing more is read).
+        """
+        try:
+            peripherals = await self.api.get_peripherals()
+        except _TRANSPORT_ERRORS:
+            _LOGGER.debug("Klipsch: device stopped answering (cinema:peripherals)")
+            return False
+        except Exception:  # noqa: BLE001 — optional; older firmware may lack the node
+            _LOGGER.debug("Klipsch: cinema:peripherals read failed", exc_info=True)
+            return True
+        self.speakers = peripherals["speakers"]
+        self.speakers_checked_at = dt_util.utcnow()
+        self.peripherals_raw = peripherals["raw"]
+        if full:
+            self._speaker_versions_key.clear()
+            self._speaker_version_attempts.clear()
+        for slot, speaker in peripherals["speakers"].items():
+            key = (speaker["rx"], speaker["model"])
+            if not speaker["connected"] or self._speaker_versions_key.get(slot) == key:
+                continue
+            try:
+                versions = await self.api.get_speaker_versions(slot)
+            except _TRANSPORT_ERRORS:
+                _LOGGER.debug("Klipsch: device stopped answering during %s versions", slot)
+                return False  # don't wait out the other speakers' timeouts
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Klipsch: %s versions read failed", slot, exc_info=True)
+                continue
+            versions["model"] = speaker["model"]
+            known = self.speaker_versions.get(slot, {})
+            # Keep parts read before when this read has none (e.g. "0.0.0")
+            self.speaker_versions[slot] = {k: v or known.get(k) for k, v in versions.items()}
+            attempts = self._speaker_version_attempts.get(slot, 0) + 1
+            self._speaker_version_attempts[slot] = attempts
+            # A speaker that just linked may not report its MCU / EQ yet: with
+            # monitoring, read again on the next polls (a few times).
+            complete = all(versions.get(k) for k in ("mcu", "eq", "hw"))
+            if complete or not self.monitor_speakers or attempts >= SPEAKER_VERSION_READS:
+                self._speaker_versions_key[slot] = key
+                self._speaker_version_attempts.pop(slot, None)
+            self._async_update_speaker_device(slot)
+        if full:
+            return await self._read_bar_versions()
+        return True
+
+    async def _read_bar_versions(self) -> bool:
+        """Soundbar component versions; HW revision → the device's hw_version."""
+        try:
+            versions = await self.api.get_bar_versions()
+        except _TRANSPORT_ERRORS:
+            _LOGGER.debug("Klipsch: device stopped answering (soundbar versions)")
+            return False
+        except Exception:  # noqa: BLE001 — informational; never fails a poll
+            _LOGGER.debug("Klipsch: soundbar versions read failed", exc_info=True)
+            return True
+        if versions:
+            self.bar_versions = versions
+        hw = self.bar_versions.get("hardware_revision")
+        device = self.registered_device()
+        if hw and device is not None and device.hw_version != hw:
+            dr.async_get(self.hass).async_update_device(device.id, hw_version=hw)
+        return True
+
+    async def async_read_speakers_now(self) -> None:
+        """The "Read wireless speakers" button: a full read, published at once."""
+        if not await self.async_read_speakers(full=True):
+            raise HomeAssistantError("The soundbar did not answer")
+        self._speaker_read_pending = False
+        if self.data is not None:
+            self.data["speakers"] = self.speakers
+        self.async_update_listeners()
 
     @callback
     def _async_update_device_registry(self) -> None:
@@ -305,6 +460,10 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Re-read eureka_info once the bar is back on, so sw_version follows
             # firmware updates (installed while in standby).
             self._device_info_stale = self.device_info is not None
+            self._speaker_versions_key.clear()  # speakers may update in standby
+            self._speaker_version_attempts.clear()
+            if not self.monitor_speakers and self.speakers is not None:
+                status["speakers"] = self.speakers  # last read (on demand)
             return status
 
         # Fetch device info (eureka_info from Google Cast API) once, and again
@@ -340,6 +499,17 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 status["player"] = player
         except Exception:
             _LOGGER.debug("Failed to fetch player data")
+
+        # Wireless speakers: once after setup, then every poll only if monitored
+        if self.monitor_speakers or self._speaker_read_pending:
+            full = self._speaker_read_pending
+            self._speaker_read_pending = False
+            if not await self.async_read_speakers(full=full):
+                self._speaker_read_pending = full  # retry the setup read next poll
+            elif self.monitor_speakers:
+                status["speakers"] = self.speakers
+        if not self.monitor_speakers and self.speakers is not None:
+            status["speakers"] = self.speakers  # last read (on demand)
 
         return status
 

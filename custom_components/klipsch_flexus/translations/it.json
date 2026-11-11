@@ -37,10 +37,12 @@
         "title": "Impostazioni Klipsch Flexus",
         "data": {
           "scan_interval": "Intervallo di polling (secondi)",
-          "device_mac": "MAC del dispositivo (opzionale)"
+          "device_mac": "MAC del dispositivo (opzionale)",
+          "monitor_speakers": "Monitora altoparlanti wireless"
         },
         "data_description": {
-          "device_mac": "Necessario solo se i comandi di scrittura (ingresso, modalità audio, EQ…) non si autenticano sul firmware 2026. Lascia vuoto per il rilevamento automatico; altrimenti inserisci l'indirizzo MAC della soundbar."
+          "device_mac": "Necessario solo se i comandi di scrittura (ingresso, modalità audio, EQ…) non si autenticano sul firmware 2026. Lascia vuoto per il rilevamento automatico; altrimenti inserisci l'indirizzo MAC della soundbar.",
+          "monitor_speakers": "Controlla a ogni interrogazione (una richiesta in più) se ogni subwoofer / surround wireless è collegato, così una disconnessione si vede sul suo sensore Connesso. Disattivato: lettura una volta dopo la configurazione e quando premi Leggi altoparlanti wireless."
         }
       }
     },
@@ -49,6 +51,16 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "speaker_connected": {
+        "name": "Connesso"
+      }
+    },
+    "button": {
+      "read_speakers": {
+        "name": "Leggi altoparlanti wireless"
+      }
+    },
     "select": {
       "night_mode": {
         "name": "1. Modalità notturna",
@@ -232,6 +244,20 @@
       "auto_standby": {
         "name": "Standby automatico"
       }
+    }
+  },
+  "device": {
+    "surround_left": {
+      "name": "Surround sinistro"
+    },
+    "surround_right": {
+      "name": "Surround destro"
+    },
+    "sub_1": {
+      "name": "Subwoofer wireless 1"
+    },
+    "sub_2": {
+      "name": "Subwoofer wireless 2"
     }
   }
 }

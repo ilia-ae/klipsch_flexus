@@ -92,6 +92,10 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
             colon = mac_to_colon(eureka.get("mac_address") or "")
             if colon and colon != ZERO_MAC:
                 device_info["connections"] = {("mac", colon.lower())}
+        # Soundbar hardware revision (hostlink:hardwareRevision), when read
+        hardware_revision = coordinator.bar_versions.get("hardware_revision")
+        if isinstance(hardware_revision, str):
+            device_info["hw_version"] = hardware_revision
         self._attr_device_info = device_info
         self._attr_source_list = [SOURCES[key] for key in SELECTABLE_SOURCES]
         self._attr_sound_mode_list = SOUND_MODES

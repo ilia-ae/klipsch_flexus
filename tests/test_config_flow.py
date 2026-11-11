@@ -18,7 +18,7 @@ try:
 except ImportError:  # HA < 2026.2
     from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
-from custom_components.klipsch_flexus.const import CONF_DEVICE_MAC, CONF_SCAN_INTERVAL, DOMAIN
+from custom_components.klipsch_flexus.const import CONF_DEVICE_MAC, CONF_MONITOR_SPEAKERS, CONF_SCAN_INTERVAL, DOMAIN
 
 from .conftest import MOCK_HOST, MOCK_STATUS
 
@@ -454,7 +454,7 @@ async def test_options_flow_mac_can_be_cleared(hass: HomeAssistant) -> None:
     # The frontend omits an emptied optional field → the MAC is cleared.
     result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_SCAN_INTERVAL: 20})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_SCAN_INTERVAL: 20}
+    assert result["data"] == {CONF_SCAN_INTERVAL: 20, CONF_MONITOR_SPEAKERS: False}
     assert CONF_DEVICE_MAC not in entry.options
 
 
@@ -477,4 +477,22 @@ async def test_options_flow_validates_mac(hass: HomeAssistant) -> None:
         result["flow_id"], {CONF_SCAN_INTERVAL: 20, CONF_DEVICE_MAC: "aa-bb-cc-dd-ee-ff"}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == {CONF_SCAN_INTERVAL: 20, CONF_DEVICE_MAC: "AA:BB:CC:DD:EE:FF"}
+    assert result["data"] == {
+        CONF_SCAN_INTERVAL: 20,
+        CONF_DEVICE_MAC: "AA:BB:CC:DD:EE:FF",
+        CONF_MONITOR_SPEAKERS: False,
+    }
+
+
+async def test_options_flow_monitor_speakers(hass: HomeAssistant) -> None:
+    """Speaker monitoring is off by default and can be turned on (and off again)."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="aabbccddeeff", data={CONF_HOST: MOCK_HOST})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    key = next(k for k in result["data_schema"].schema if k == CONF_MONITOR_SPEAKERS)
+    assert key.default() is False
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_SCAN_INTERVAL: 15, CONF_MONITOR_SPEAKERS: True}
+    )
+    assert result["data"] == {CONF_SCAN_INTERVAL: 15, CONF_MONITOR_SPEAKERS: True}
