@@ -34,6 +34,19 @@ readonly STATE_ROOT="$repo_root/.molecule"
 readonly PREFIX="klipsch-flexus-"
 docker_bin="${DOCKER:-docker}"
 
+# Molecule's Docker driver (the Python Docker SDK) only reads DOCKER_HOST or
+# /var/run/docker.sock, while the docker CLI follows the active context. Docker Desktop
+# does not always keep that /var/run symlink (and local CI scrubs DOCKER_HOST), so point
+# the SDK at the active context's socket.
+if [ -z "${DOCKER_HOST:-}" ] && [ ! -S /var/run/docker.sock ]; then
+    DOCKER_HOST="$("$docker_bin" context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || true)"
+    if [ -n "$DOCKER_HOST" ]; then
+        export DOCKER_HOST
+    else
+        unset DOCKER_HOST
+    fi
+fi
+
 usage() {
     awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
 }
