@@ -181,3 +181,22 @@ async def test_setup_keeps_unique_id_held_by_another_entry(hass) -> None:
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+async def test_device_has_no_visit_link_and_an_old_one_is_cleared(hass) -> None:
+    """The soundbar's web root is an empty /index.fcgi, so the device offers no
+    "Visit" link; the URL older versions stored is removed on setup."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id="aabbccddeeff", data={CONF_HOST: MOCK_HOST})
+    entry.add_to_hass(hass)
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, entry.entry_id)},
+        configuration_url=f"http://{MOCK_HOST}",
+    )
+    with patch("custom_components.klipsch_flexus.KlipschAPI", return_value=_mock_api()):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert _device(hass, entry).configuration_url is None
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()

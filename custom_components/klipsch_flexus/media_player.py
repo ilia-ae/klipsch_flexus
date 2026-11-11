@@ -67,13 +67,15 @@ class KlipschMediaPlayer(KlipschEntity, MediaPlayerEntity):
     def __init__(self, coordinator: KlipschCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "media_player")
         self._entry = entry
-        host = entry.data.get("host", "")
         device_info: dict = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "manufacturer": "Klipsch",
             # Model from discovery (Cast TXT 'md'), if the entry was discovered
             "model": entry.data.get(CONF_MODEL) or "Flexus CORE 300",
-            "configuration_url": f"http://{host}",
+            # No "Visit" link: the soundbar's web root only redirects to an empty
+            # /index.fcgi ("No such file"). None also clears the URL that older
+            # versions stored in the device registry.
+            "configuration_url": None,
         }
         # Enrich from eureka_info (Google Cast API, port 8008)
         eureka = coordinator.device_info
