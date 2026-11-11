@@ -154,7 +154,8 @@ Both scripts use only the Python standard library and run with `python3 -I`.
    untracked file exists anywhere, or if an ignored file exists other than local
    tooling and caches (`.venv*`, `ansible/collections`, `.local-ci/`,
    `.molecule/`, `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`, `.DS_Store`,
-   `.coverage`, `.claude/`, `.reverse/`; `IGNORED_OK` in `scripts/local_ci.py`).
+   `.coverage`, `.claude/`, `.reverse/`, and a root `AGENTS.md`; `IGNORED_OK`
+   and `IGNORED_OK_FILES` in `scripts/local_ci.py`).
    A stray `GNUmakefile`, `pytest.ini`, `conftest.py` or `ruff.toml` would change
    what the steps do without changing the commit. It also stops if `HEAD` is not
    signed by an allowed signer for `code@ilia.ae` (`git commit -S`).

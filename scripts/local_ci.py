@@ -66,6 +66,8 @@ IGNORED_OK = (
     "ansible/collections",
 )
 IGNORED_OK_NAMES = ("__pycache__", ".DS_Store")
+# Exact paths: the owner's local agent notes (git-ignored), which no step reads.
+IGNORED_OK_FILES = ("AGENTS.md",)
 # The only variables a step inherits. Everything else (MAKEFLAGS carrying
 # `make ci UVX=true`, MOLECULE, MOLECULE_ARGS, IMAGES, PYTHON, ANSIBLE_*,
 # tokens, SSH_AUTH_SOCK) could change what a step does, or hand it credentials,
@@ -136,6 +138,8 @@ def resolve(root: Path, rev: str) -> str:
 
 def _ignored_ok(path: str) -> bool:
     if any(part in IGNORED_OK_NAMES for part in path.rstrip("/").split("/")):
+        return True
+    if path in IGNORED_OK_FILES:
         return True
     return any(path == p or path.startswith(p) for p in IGNORED_OK)
 

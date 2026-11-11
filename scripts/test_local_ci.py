@@ -492,6 +492,19 @@ class RunnerTests(Fixture):
             target.write_text("x\n")
         self.assertEqual(self.run_ci(), 0)
 
+    def test_root_agent_notes_may_be_ignored_only_there(self) -> None:
+        exclude = self.repo / ".git" / "info" / "exclude"
+        exclude.write_text("AGENTS.md\nAGENTS.md.bak\n")
+        (self.repo / "AGENTS.md").write_text("local notes\n")
+        self.assertEqual(self.run_ci(), 0)
+        for path in ("AGENTS.md.bak", "tests/AGENTS.md"):
+            target = self.repo / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n")
+            with self.assertRaises(L.Failure, msg=path):
+                self.run_ci()
+            target.unlink()
+
     def test_steps_get_a_scrubbed_environment(self) -> None:
         policy = json.loads(json.dumps(POLICY))
         probe = "echo MOLECULE=${MOLECULE-unset} MAKEFLAGS=${MAKEFLAGS-unset} SSH=${SSH_AUTH_SOCK-unset} CI=$LOCAL_CI"
