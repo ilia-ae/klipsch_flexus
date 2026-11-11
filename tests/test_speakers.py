@@ -324,11 +324,14 @@ async def test_versions_reported_as_zero_are_read_again(hass) -> None:
     entry = await _setup_monitored(hass, api)
     coordinator = hass.data[DOMAIN][entry.entry_id]
     assert _speaker_device(hass, entry, "sub_1").sw_version == "RX 4.6"
+    sub_1 = _link_entity(hass, entry, "sub_1")
+    assert hass.states.get(sub_1).attributes["mcu_responding"] is False  # linked, board not up
 
     api.get_speaker_versions.return_value = dict(SUB_VERSIONS)
     await coordinator.async_refresh()
     await hass.async_block_till_done()
     assert _speaker_device(hass, entry, "sub_1").sw_version == "MCU 1.0.4 · RX 4.6 · EQ 0.3.0"
+    assert hass.states.get(sub_1).attributes["mcu_responding"] is True
     await coordinator.async_refresh()  # complete now: not read again
     await hass.async_block_till_done()
     assert api.get_speaker_versions.await_count == 2

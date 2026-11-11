@@ -97,6 +97,9 @@ class KlipschSpeakerConnectedSensor(KlipschEntity, BinarySensorEntity):
         checked = self.coordinator.speakers_checked_at
         return {
             "last_checked": checked.isoformat() if checked else None,
+            # The speaker's board answered (MCU / EQ versions, not 0.0.0) at the
+            # last read; None before the first read of this speaker
+            "mcu_responding": self.coordinator.speaker_responding.get(self._slot),
             "model_number": versions.get("model"),
             "rx_version": versions.get("rx"),
             "eq_firmware_version": versions.get("eq"),

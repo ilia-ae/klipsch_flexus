@@ -101,6 +101,9 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.speaker_versions: dict[str, dict[str, str | None]] = {}
         self._speaker_versions_key: dict[str, tuple] = {}
         self._speaker_version_attempts: dict[str, int] = {}  # incomplete reads so far
+        # Did the speaker's own board (MCU / EQ) answer at its last version read?
+        # "0.0.0" there while the radio is linked = the board is not up (yet).
+        self.speaker_responding: dict[str, bool] = {}
         self.peripherals_raw: list = []  # cinema:peripherals as reported (diagnostics)
         self.bar_versions: dict[str, str | None] = {}  # soundbar MCU / TX / HDMI / HW
         # Device name from before this setup (the platforms register concurrently,
@@ -320,7 +323,10 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._speaker_version_attempts.clear()
         for slot, speaker in peripherals["speakers"].items():
             key = (speaker["rx"], speaker["model"])
-            if not speaker["connected"] or self._speaker_versions_key.get(slot) == key:
+            if not speaker["connected"]:
+                self.speaker_responding[slot] = False
+                continue
+            if self._speaker_versions_key.get(slot) == key:
                 continue
             try:
                 versions = await self.api.get_speaker_versions(slot)
@@ -331,6 +337,7 @@ class KlipschCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("Klipsch: %s versions read failed", slot, exc_info=True)
                 continue
             versions["model"] = speaker["model"]
+            self.speaker_responding[slot] = bool(versions.get("mcu") and versions.get("eq"))
             known = self.speaker_versions.get(slot, {})
             # Keep parts read before when this read has none (e.g. "0.0.0")
             self.speaker_versions[slot] = {k: v or known.get(k) for k, v in versions.items()}

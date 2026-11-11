@@ -287,6 +287,133 @@
           }
         }
       }
+    ],
+    "cinema:peripherals": [
+      {
+        "type": "cinemaPeripherals",
+        "cinemaPeripherals": [
+          {
+            "con": "0",
+            "ver": "",
+            "m": "",
+            "id": 3
+          },
+          {
+            "con": "1,0",
+            "ver": "4.6,0.0",
+            "m": "1072557,0",
+            "id": 2
+          },
+          {
+            "con": "1,1",
+            "ver": "4.6,4.6",
+            "m": "1072559,1072559",
+            "id": 1
+          }
+        ]
+      }
+    ],
+    "hostlink:sub1RxFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "4.6"
+      }
+    ],
+    "hostlink:sub1EqFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "0.3.0"
+      }
+    ],
+    "hostlink:sub1McuFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "1.0.4"
+      }
+    ],
+    "hostlink:sub1HwVersion": [
+      {
+        "type": "string_",
+        "string_": "3.0.0"
+      }
+    ],
+    "hostlink:surLeftRxFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "4.6"
+      }
+    ],
+    "hostlink:surLeftEqFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "0.7.0"
+      }
+    ],
+    "hostlink:surLeftMcuFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "1.0.3"
+      }
+    ],
+    "hostlink:surLeftHwVersion": [
+      {
+        "type": "string_",
+        "string_": "3.0.0"
+      }
+    ],
+    "hostlink:surRightRxFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "4.6"
+      }
+    ],
+    "hostlink:surRightEqFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "0.7.0"
+      }
+    ],
+    "hostlink:surRightMcuFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "1.0.3"
+      }
+    ],
+    "hostlink:surRightHwVersion": [
+      {
+        "type": "string_",
+        "string_": "3.0.0"
+      }
+    ],
+    "hostlink:hardwareRevision": [
+      {
+        "type": "string_",
+        "string_": "3.0.1"
+      }
+    ],
+    "hostlink:hostFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "1.0.25"
+      }
+    ],
+    "hostlink:txFirmwareVersion": [
+      {
+        "type": "string_",
+        "string_": "4.6"
+      }
+    ],
+    "settings:/cinema/status/hdmiFwVersion": [
+      {
+        "type": "string_",
+        "string_": "1.41"
+      }
+    ],
+    "settings:/releasetext": [
+      {
+        "type": "string_",
+        "string_": "1.1.4"
+      }
     ]
   },
   "edit": {
